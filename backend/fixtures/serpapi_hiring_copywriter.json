@@ -1,0 +1,78 @@
+{
+  "search_metadata": {
+    "status": "Success",
+    "query": "\"hiring copywriter\""
+  },
+  "organic_results": [
+    {
+      "position": 1,
+      "title": "We're hiring a copywriter — DTC brand, $75/hr, 20hr/week, remote",
+      "link": "https://twitter.com/dtc_founder/status/1234567890",
+      "snippet": "Looking for a conversion-focused email copywriter for our Shopify store. Klaviyo required. $75/hr, 20 hours/week to start, remote US only. DM me a portfolio and 1 recent win.",
+      "source": "twitter.com"
+    },
+    {
+      "position": 2,
+      "title": "[Hiring] Email marketer for ecom brand - $3,000/mo retainer",
+      "link": "https://www.reddit.com/r/forhire/comments/abc123/hiring_email_marketer_for_ecom_brand_3000mo_retainer/",
+      "snippet": "We run a $2M/yr Shopify store in the beauty space. Need someone to own our email channel. ActiveCampaign stack. $3,000/mo retainer to start. Remote.",
+      "source": "reddit.com"
+    },
+    {
+      "position": 3,
+      "title": "Hiring a Landing Page Copywriter (Contract)",
+      "link": "https://problogger.com/jobs/hiring-landing-page-copywriter-contract-2026-10/",
+      "snippet": "SaaS company looking for a landing page specialist. Fixed-price per page, $800-1,500 per page depending on complexity. 2-3 pages per month ongoing.",
+      "source": "problogger.com"
+    },
+    {
+      "position": 4,
+      "title": "Looking for a funnel builder — ClickFunnels + Deadline Funnel",
+      "link": "https://twitter.com/coach_biz/status/9876543210",
+      "snippet": "Need a funnel builder for a 7-day cart launch. Must know ClickFunnels, Deadline Funnel, and have launched at least 3 funnels. $2k project.",
+      "source": "twitter.com"
+    },
+    {
+      "position": 5,
+      "title": "Email Marketing Manager (Remote, Full-Time)",
+      "link": "https://boards.greenhouse.io/examplecompany/jobs/4123456",
+      "snippet": "Lead our lifecycle marketing program. 5+ yrs email. Klaviyo and Braze a plus. $95,000-$130,000 + equity. Fully remote within US.",
+      "source": "greenhouse.io"
+    },
+    {
+      "position": 6,
+      "title": "Creative Strategist — Paid Ads (Freelance → FT)",
+      "link": "https://jobs.lever.co/examplebrand/strategist",
+      "snippet": "Direct-response creative for Meta + TikTok. Start as contractor, convert to FT after 90 days. $80/hr contract, ~30hr/week.",
+      "source": "lever.co"
+    },
+    {
+      "position": 7,
+      "title": "Hiring: email copywriter for info-product launch",
+      "link": "https://www.reddit.com/r/HireACopywriter/comments/xyz789/",
+      "snippet": "Launching a $497 course. Need 7-email welcome sequence + 10-email launch sequence. $1,200 fixed. Deadline 3 weeks.",
+      "source": "reddit.com"
+    },
+    {
+      "position": 8,
+      "title": "Senior Copywriter | $120k-$150k | Remote (US/CA)",
+      "link": "https://jobs.ashbyhq.com/examplesaas/senior-copywriter",
+      "snippet": "Own our brand voice. SaaS experience required. Portfolio with B2B emails and landing pages mandatory. $120-150k + stock.",
+      "source": "ashbyhq.com"
+    },
+    {
+      "position": 9,
+      "title": "DM me — hiring copywriter for Shopify + Klaviyo. $50-70/hr.",
+      "link": "https://x.com/ecom_operator/status/1122334455",
+      "snippet": "Fast-growing DTC brand. Need someone solid for Klaviyo flows, campaign emails, and occasional landing pages. $50-70/hr, 15-25 hr/week.",
+      "source": "x.com"
+    },
+    {
+      "position": 10,
+      "title": "Copywriter wanted — direct response, long-form sales letters",
+      "link": "https://www.mediabistro.com/jobs/view/copywriter-wanted-direct-response-2026/",
+      "snippet": "Established info-marketing company. Will train the right person on our frameworks. $70-90/hr. 25+ hr/week.",
+      "source": "mediabistro.com"
+    }
+  ]
+}

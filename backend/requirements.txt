@@ -1,0 +1,16 @@
+fastapi>=0.115
+uvicorn[standard]>=0.32
+sqlalchemy>=2.0
+psycopg[binary]>=3.2
+alembic>=1.13
+pydantic>=2.9
+pydantic-settings>=2.5
+httpx>=0.27
+beautifulsoup4>=4.12
+feedparser>=6.0
+python-dotenv>=1.0
+anthropic>=0.39
+# Playwright for page fetching — install browsers with: playwright install chromium
+playwright>=1.47
+# Dev / testing
+pytest>=8.0

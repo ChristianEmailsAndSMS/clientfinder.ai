@@ -1,0 +1,24 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: clientfinder_pg
+    environment:
+      POSTGRES_USER: clientfinder
+      POSTGRES_PASSWORD: dev_only_change_me
+      POSTGRES_DB: clientfinder
+    ports:
+      - "5433:5432"
+    volumes:
+      - clientfinder_pg_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: clientfinder_redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - clientfinder_redis_data:/data
+
+volumes:
+  clientfinder_pg_data:
+  clientfinder_redis_data:
