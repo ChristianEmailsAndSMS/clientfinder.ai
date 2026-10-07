@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clientfinder.ai — Hiring posts from the whole internet, in one place</title>
+<meta name="description" content="Find marketing, copywriting, email, and funnel-builder clients from Twitter, Reddit, Upwork, and more — one living list, sorted and filtered.">
+<style>
+:root {
+  --bg: #0b0d12;
+  --fg: #e9edf3;
+  --muted: #8891a0;
+  --accent: #4ea1ff;
+  --card: #141821;
+  --border: #1f2430;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 48px 24px; }
+header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 72px; }
+.brand { font-weight: 700; font-size: 20px; letter-spacing: -0.01em; }
+.brand .dot { color: var(--accent); }
+nav a { margin-left: 24px; color: var(--muted); font-size: 14px; }
+nav a:hover { color: var(--fg); }
+.hero { max-width: 760px; }
+h1 { font-size: clamp(36px, 6vw, 64px); line-height: 1.05; letter-spacing: -0.02em; margin-bottom: 24px; font-weight: 700; }
+h1 span { color: var(--accent); }
+.lede { color: var(--muted); font-size: clamp(16px, 2vw, 20px); line-height: 1.5; max-width: 620px; margin-bottom: 36px; }
+.cta { display: inline-flex; gap: 12px; flex-wrap: wrap; }
+.btn { display: inline-block; padding: 14px 22px; border-radius: 10px; font-weight: 600; font-size: 15px; transition: transform 0.1s ease; }
+.btn:hover { transform: translateY(-1px); text-decoration: none; }
+.btn-primary { background: var(--accent); color: #0b0d12; }
+.btn-ghost { background: transparent; color: var(--fg); border: 1px solid var(--border); }
+.features { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; margin-top: 96px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 24px; }
+.card h3 { font-size: 16px; margin-bottom: 10px; font-weight: 600; }
+.card p { color: var(--muted); font-size: 14px; line-height: 1.55; }
+.sources { margin-top: 96px; }
+.sources h2 { font-size: 24px; margin-bottom: 20px; font-weight: 600; letter-spacing: -0.01em; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { background: var(--card); border: 1px solid var(--border); color: var(--muted); font-size: 13px; padding: 6px 12px; border-radius: 999px; }
+.stats { display: flex; gap: 48px; margin-top: 48px; flex-wrap: wrap; }
+.stat .num { font-size: 32px; font-weight: 700; color: var(--accent); }
+.stat .lbl { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 4px; }
+footer { margin-top: 128px; padding-top: 32px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.status { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+.status .pulse { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 0 rgba(34,197,94,0.5); animation: pulse 2s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.5); } 70% { box-shadow: 0 0 0 10px rgba(34,197,94,0); } 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="brand">clientfinder<span class="dot">.ai</span></div>
+  <nav>
+    <a href="/jobs">jobs</a>
+    <a href="/docs">api</a>
+    <a href="/jobs/stats">stats</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <div class="status"><span class="pulse"></span> live and scraping</div>
+  <h1>Stop hunting for clients. <span>They're already posting.</span></h1>
+  <p class="lede">
+    Every day, people post "hiring copywriter," "need an email marketer," "looking for a funnel builder"
+    across Twitter, Reddit, Upwork, and job boards. Clientfinder watches all of it so you don't have to.
+    One living list. Filters by pay, type, platform. Click → pitch → win work.
+  </p>
+  <div class="cta">
+    <a class="btn btn-primary" href="/jobs">See today's jobs →</a>
+    <a class="btn btn-ghost" href="/docs">API docs</a>
+  </div>
+</section>
+
+<section class="features">
+  <div class="card">
+    <h3>🕸️ The whole internet, not just one board</h3>
+    <p>Twitter + Reddit + Upwork + Greenhouse + ProBlogger + Mediabistro + RemoteOK. All in one feed, deduped and sorted.</p>
+  </div>
+  <div class="card">
+    <h3>🧠 LLM-powered extraction</h3>
+    <p>Claude reads every hiring post and pulls out the pay, type, and apply URL — no messy snippets, just the facts.</p>
+  </div>
+  <div class="card">
+    <h3>💰 Filter by what you'll earn</h3>
+    <p>Sort by pay range, contract vs full-time, remote-only, posted-in-last-24-hours. Skip the noise, see the gigs.</p>
+  </div>
+  <div class="card">
+    <h3>⚡ Updated hourly</h3>
+    <p>Fresh pulls every hour from durable sources plus Google-indexed social posts, so you catch deals before everyone else.</p>
+  </div>
+</section>
+
+<section class="sources">
+  <h2>Sources we scrape</h2>
+  <div class="chips">
+    <span class="chip">Twitter / X</span>
+    <span class="chip">Reddit (r/forhire, r/HireACopywriter)</span>
+    <span class="chip">Upwork RSS</span>
+    <span class="chip">Greenhouse boards</span>
+    <span class="chip">Lever / Ashby boards</span>
+    <span class="chip">ProBlogger</span>
+    <span class="chip">Mediabistro</span>
+    <span class="chip">RemoteOK</span>
+    <span class="chip">Remotive</span>
+    <span class="chip">We Work Remotely</span>
+    <span class="chip">+ LinkedIn (best-effort)</span>
+  </div>
+</section>
+
+<section class="stats">
+  <div class="stat"><div class="num" id="s-total">—</div><div class="lbl">Jobs in database</div></div>
+  <div class="stat"><div class="num" id="s-platforms">—</div><div class="lbl">Platforms covered</div></div>
+  <div class="stat"><div class="num" id="s-types">—</div><div class="lbl">Job types</div></div>
+</section>
+
+<footer>
+  <div>Built by <a href="https://emailsandsms.com">Christian Davis</a> · Emails & SMS LLC</div>
+  <div>Phase 1 — early access. <a href="mailto:christian@emailsandsms.com">Get on the list</a>.</div>
+</footer>
+
+</div>
+
+<script>
+fetch('/jobs/stats').then(r => r.json()).then(d => {
+  document.getElementById('s-total').textContent = (d.total || 0).toLocaleString();
+  document.getElementById('s-platforms').textContent = Object.keys(d.by_platform || {}).length;
+  document.getElementById('s-types').textContent = Object.keys(d.by_type || {}).filter(k => k !== 'None').length;
+}).catch(() => {});
+</script>
+
+</body>
+</html>
