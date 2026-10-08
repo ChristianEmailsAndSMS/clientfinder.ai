@@ -6,8 +6,8 @@ Build phases. Each item is independently checkable; later phases depend on earli
 
 ## Phase 0 — Infrastructure prep & decisions
 
-- [ ] Document the existing VPS (OS, Docker vs bare metal, reverse proxy, ports in use, how CopyProfit.ai and EmailProfit.ai are deployed — so Clientfinder.ai lands as a sibling without stepping on them)
-- [ ] Confirm domain `clientfinder.ai` is on the VPS or where DNS points
+- [x] Document the existing VPS (see `docs/INFRA.md`) (OS, Docker vs bare metal, reverse proxy, ports in use, how CopyProfit.ai and EmailProfit.ai are deployed — so Clientfinder.ai lands as a sibling without stepping on them)
+- [x] Confirm domain `clientfinder.ai` is on the VPS or where DNS points (GoDaddy DNS -> this VPS)
 - [ ] Pick primary stack. Default proposal:
   - Backend: **Python + FastAPI** (great for scraping, Claude API, async)
   - Frontend: **Next.js (React) + Tailwind**, server-side auth
