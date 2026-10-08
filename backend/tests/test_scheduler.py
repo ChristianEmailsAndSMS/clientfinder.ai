@@ -10,7 +10,7 @@ def test_durable_jobs_always_scheduled_google_not_without_keys(monkeypatch):
     monkeypatch.setattr(settings, "dev_fixtures", False)
     monkeypatch.setattr(settings, "serpapi_api_key", "")
     monkeypatch.setattr(settings, "serper_api_key", "")
-    assert ids(scheduler.build_scheduler()) == {"durable:remoteok", "durable:problogger", "durable:greenhouse"}
+    assert ids(scheduler.build_scheduler()) == {f"durable:{n}" for n in ("remoteok", "problogger", "greenhouse", "remotive", "weworkremotely", "lever", "ashby")}
 
 
 def test_google_scheduled_with_both_keys(monkeypatch):

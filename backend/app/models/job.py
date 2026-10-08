@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, Integer, DateTime, Text, Boolean, ForeignKey, UniqueConstraint, Index, JSON, Float
+from sqlalchemy import String, Integer, DateTime, Text, Boolean, ForeignKey, UniqueConstraint, JSON, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from ..db import Base
 
@@ -43,9 +43,7 @@ class Job(Base):
     __tablename__ = "jobs"
     __table_args__ = (
         UniqueConstraint("dedupe_hash", name="uq_jobs_dedupe_hash"),
-        Index("ix_jobs_posted_at", "posted_at"),
-        Index("ix_jobs_type", "type"),
-        Index("ix_jobs_platform", "platform"),
+        # ix_jobs_posted_at / ix_jobs_type / ix_jobs_platform come from index=True on the columns (matches 0001)
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -62,7 +60,7 @@ class Job(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Classification
-    type: Mapped[str | None] = mapped_column(String(32), nullable=True)   # contract | full_time | hourly | fixed | social_post
+    type: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)   # contract | full_time | hourly | fixed | social_post
     pay_text: Mapped[str | None] = mapped_column(String(128), nullable=True)
     pay_min: Mapped[float | None] = mapped_column(Float, nullable=True)
     pay_max: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -73,7 +71,7 @@ class Job(Base):
     skills: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
 
     # Dates
-    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 

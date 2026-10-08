@@ -1,6 +1,6 @@
 """Long-running scheduler process: `python -m app.scheduler`.
 
-- Durable sources (RemoteOK, ProBlogger, Greenhouse): every DURABLE_SOURCES_INTERVAL_HOURS (default 6 = 4x/day),
+- Durable sources (RemoteOK, ProBlogger, Greenhouse, Remotive, WWR, Lever, Ashby): every DURABLE_SOURCES_INTERVAL_HOURS (default 6 = 4x/day),
   first run shortly after start.
 - Google-search layer: every GOOGLE_SEARCH_INTERVAL_MINUTES (default 60). Only scheduled when a search key AND an
   Anthropic key are configured and DEV_FIXTURES is off, so fake fixture data can never be scheduled.
@@ -14,12 +14,16 @@ from datetime import datetime, timedelta, timezone
 from apscheduler.schedulers.blocking import BlockingScheduler
 
 from .config import settings
-from .scrapers import greenhouse, problogger, remoteok
+from .scrapers import ashby, greenhouse, lever, problogger, remoteok, remotive, weworkremotely
 from .scrapers.pipeline import run_pipeline_for_queries
 
 log = logging.getLogger("scheduler")
 
-DURABLE = (("remoteok", remoteok), ("problogger", problogger), ("greenhouse", greenhouse))
+DURABLE = (
+    ("remoteok", remoteok), ("problogger", problogger), ("greenhouse", greenhouse),
+    ("remotive", remotive),  # keep <= 4 runs/day (Remotive's request): durable interval of 6h or more
+    ("weworkremotely", weworkremotely), ("lever", lever), ("ashby", ashby),
+)
 
 
 def run_durable_source(name: str, module) -> None:
@@ -56,7 +60,8 @@ def build_scheduler() -> BlockingScheduler:
     for i, (name, module) in enumerate(DURABLE):
         sched.add_job(
             run_durable_source, "interval", args=[name, module], id=f"durable:{name}",
-            hours=settings.durable_sources_interval_hours,
+            hours=max(settings.durable_sources_interval_hours, 6) if name == "remotive"
+            else settings.durable_sources_interval_hours,
             next_run_time=now + timedelta(seconds=15 + 30 * i),  # staggered first run
         )
     ok, why = google_layer_ready()

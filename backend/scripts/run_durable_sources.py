@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CLI: pull from the free durable job sources (RemoteOK, ProBlogger, Greenhouse).
+"""CLI: pull from the free durable job sources (RemoteOK, ProBlogger, Greenhouse, Remotive, WWR, Lever, Ashby).
 Each runs independently and reports its own stats."""
 from __future__ import annotations
 
@@ -10,14 +10,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.scrapers import remoteok, problogger, greenhouse  # noqa: E402
+from app.scrapers import ashby, greenhouse, lever, problogger, remoteok, remotive, weworkremotely  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 
 def main() -> int:
     all_stats = []
-    for mod in (remoteok, problogger, greenhouse):
+    for mod in (remoteok, problogger, greenhouse, remotive, weworkremotely, lever, ashby):
         try:
             all_stats.append(mod.run())
         except Exception as e:
