@@ -116,7 +116,7 @@ def login(body: LoginBody, request: Request, response: Response, db: Session = D
         db.commit()
         raise HTTPException(401, GENERIC_LOGIN_ERROR)
 
-    if user.totp_enabled:
+    if user.totp_enabled and (settings.admin_require_2fa or not user.is_admin):
         if not body.totp_code:
             raise HTTPException(401, "totp_required")
         if not check_totp(user, body.totp_code):
@@ -127,6 +127,7 @@ def login(body: LoginBody, request: Request, response: Response, db: Session = D
     elif user.is_admin:
         if user.email not in admin_emails():
             raise HTTPException(403, "Admin access required")
+    if user.is_admin and not user.totp_enabled and settings.admin_require_2fa:
         # Password is right but 2FA is not set up yet: hand back a short-lived enrolment token (NOT a session).
         log_event(db, "totp_setup_required", request, user=user)
         db.commit()

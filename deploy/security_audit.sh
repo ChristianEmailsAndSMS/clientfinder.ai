@@ -33,6 +33,7 @@ if [[ ! -r "$ENV_FILE" ]]; then F ".env not found/readable"; else
   [[ "$(envval COOKIE_SECURE)" =~ ^(0|false|False)$ ]] && F "COOKIE_SECURE is off: session cookie can travel over plain http" || P "session cookie is Secure"
   [[ "$(envval GOOGLE_SCHEDULE_ENABLED)" =~ ^(1|true|True)$ ]] && W "GOOGLE_SCHEDULE_ENABLED is on: the scheduled Google plan spends YOUR SerpApi/Claude money on a timer. Leave it off so only customer-paid searches use the keys."
   em=$(envval EXTRACTION_MODEL); [[ "$em" =~ ^claude-haiku-4 ]] && W "EXTRACTION_MODEL=$em is the old, pricier model. Use claude-haiku-5-5 (or delete the line)."
+  [[ "$(envval ADMIN_REQUIRE_2FA)" =~ ^(0|false|False)$ ]] && W "ADMIN_REQUIRE_2FA is off: the admin account is protected by its password alone. Use a long unique password."
   [[ -n "$(envval ADMIN_TOKEN)" ]] && W "ADMIN_TOKEN is still in .env: the old static token no longer does anything. Delete the line."
   [[ "$(envval PLAYWRIGHT_FALLBACK)" =~ ^(1|true|True)$ ]] && W "PLAYWRIGHT_FALLBACK on: Chromium opens untrusted pages. Only safe once the scraper runs as a non-root user."
   [[ "$(envval JOBS_REQUIRE_LOGIN)" =~ ^(0|false|False)$ ]] && F "JOBS_REQUIRE_LOGIN is off: the whole job database is public and scrapeable" || P "job feed requires an account"

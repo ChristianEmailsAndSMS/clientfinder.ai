@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     # Where customers pay for credits (your Whop checkout page). Shown as a "Buy credits" button. Until the Whop webhook exists,
     # YOU add the credits after you see the payment (dashboard > Customers > Manage, or `admin_cli.py grant`).
     whop_checkout_url: str = ""
+    # Admin 2FA is ON by default. Setting this to 0 lets the owner sign in with email + password only (weaker: one leaked
+    # password = full admin access). Customers never have 2FA either way.
+    admin_require_2fa: bool = True
     # Signing secret from Whop's webhook settings. Without it the webhook endpoint refuses everything.
     whop_webhook_secret: str = ""
     whop_amount_unit: str = "dollars"          # "dollars" or "cents": how Whop's payment amount field is expressed

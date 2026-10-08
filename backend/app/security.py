@@ -278,8 +278,8 @@ def current_user(user: User | None = Depends(session_user)) -> User:
 
 
 def current_admin(user: User = Depends(current_user)) -> User:
-    """An admin must be flagged, allow-listed by email, AND have 2FA on. Any one missing = no access."""
-    if not (user.is_admin and user.totp_enabled and user.email in admin_emails()):
+    """An admin must be flagged, allow-listed by email, AND have 2FA on (unless the owner turned ADMIN_REQUIRE_2FA off)."""
+    if not (user.is_admin and (user.totp_enabled or not settings.admin_require_2fa) and user.email in admin_emails()):
         raise HTTPException(403, "Admin access required")
     return user
 

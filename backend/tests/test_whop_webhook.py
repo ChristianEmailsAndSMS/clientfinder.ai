@@ -132,3 +132,26 @@ def test_webhook_needs_no_csrf_header_or_cookie_and_is_not_blocked_by_origin(env
     body = json.dumps(pay()).encode()
     r = TestClient(app).post("/webhooks/whop", content=body, headers=sign(body))
     assert r.status_code == 200
+
+
+# =============== owner can opt out of admin 2FA ===============
+def test_admin_signs_in_with_password_only_when_2fa_is_switched_off(env, monkeypatch):
+    monkeypatch.setattr(settings, "admin_require_2fa", False)
+    with env.scope() as db:
+        authkit.make_user(db, "christian@emailsandsms.com", admin=True, totp=False)       # never enrolled
+    a = TestClient(app)
+    r = a.post("/auth/login", json={"email": "christian@emailsandsms.com", "password": authkit.PW}, headers=authkit.CSRF)
+    assert r.status_code == 200 and r.json()["is_admin"]
+    assert a.get("/admin/overview").status_code == 200
+
+
+def test_2fa_stays_required_by_default_and_for_non_allowlisted_admins(env, monkeypatch):
+    with env.scope() as db:
+        authkit.make_user(db, "christian@emailsandsms.com", admin=True, totp=False)
+    r = TestClient(app).post("/auth/login", json={"email": "christian@emailsandsms.com", "password": authkit.PW}, headers=authkit.CSRF)
+    assert r.status_code == 401 and r.json()["detail"] == "totp_setup_required"
+    monkeypatch.setattr(settings, "admin_require_2fa", False)
+    with env.scope() as db:
+        authkit.make_user(db, "other-admin@example.com", admin=True, totp=False)
+    r = TestClient(app).post("/auth/login", json={"email": "other-admin@example.com", "password": authkit.PW}, headers=authkit.CSRF)
+    assert r.status_code == 403                                  # not in ADMIN_EMAILS: still no admin access
