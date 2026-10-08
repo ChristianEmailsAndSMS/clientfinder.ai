@@ -49,7 +49,7 @@ PAGE:
 ---"""
 
 
-def _html_to_text(html: str, max_chars: int = 12000) -> str:
+def _html_to_text(html: str, max_chars: int = 6000) -> str:   # ~1.5K tokens: the job is nearly always at the top
     soup = BeautifulSoup(html, "html.parser")
     for tag in soup(["script", "style", "noscript"]):
         tag.decompose()

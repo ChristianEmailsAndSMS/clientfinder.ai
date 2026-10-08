@@ -244,3 +244,72 @@ def test_search_error_is_reported_not_raised(db, monkeypatch):
 def test_long_query_source_key_fits_column():
     key = pipeline._source_key('"hiring email marketer" site:linkedin.com/posts ' + "x" * 80)
     assert len(key) <= 64 and key == pipeline._source_key('"hiring email marketer" site:linkedin.com/posts ' + "x" * 80)
+
+
+# ---------- cost control ----------
+def _runs(s, key, new_jobs_newest_first, start=NOW - timedelta(days=2), step=timedelta(hours=1)):
+    """Insert runs so that new_jobs_newest_first[0] is the most recent."""
+    n = len(new_jobs_newest_first)
+    for i, nj in enumerate(reversed(new_jobs_newest_first)):
+        s.add(SearchQuery(query_key=key, provider="serpapi", new_jobs=nj, ran_at=start + step * i))
+    s.flush()
+    return start + step * (n - 1)  # time of newest run
+
+
+def test_quiet_query_gets_grace_before_any_backoff(db):
+    with db() as s:
+        newest = _runs(s, "q", [0, 0])                    # 2 empty runs: still on the normal 12h cycle
+        got = due_queries(s, [QuerySpec("q", "d")], now=newest + timedelta(hours=12, minutes=1))
+        assert [g.freshness for g in got] == ["d"]
+
+
+def test_dead_query_backs_off_and_widens_window(db):
+    with db() as s:
+        newest = _runs(s, "dead", [0, 0, 0, 0, 0])       # 5 empty runs -> wait 12h x 2^3 = 4 days
+        spec = QuerySpec("dead", "d")
+        assert due_queries(s, [spec], now=newest + timedelta(days=3)) == []
+        got = due_queries(s, [spec], now=newest + timedelta(days=4, minutes=1))
+        assert [g.freshness for g in got] == ["w"]        # >24h gap needs a week window
+
+
+def test_backoff_is_capped_at_a_week(db):
+    with db() as s:
+        newest = _runs(s, "dead", [0] * 12)
+        spec = QuerySpec("dead", "d")
+        assert due_queries(s, [spec], now=newest + timedelta(days=6, hours=23)) == []
+        got = due_queries(s, [spec], now=newest + timedelta(days=7))
+        assert [g.freshness for g in got] == ["w"]        # a 7-day gap is covered by the week window
+
+
+def test_window_always_covers_the_gap():
+    from app.scrapers.query_plan import freshness_for
+    assert freshness_for(timedelta(hours=12)) == "d" and freshness_for(timedelta(hours=24)) == "d"
+    assert freshness_for(timedelta(hours=25)) == "w" and freshness_for(timedelta(days=7)) == "w"
+    assert freshness_for(timedelta(days=7, minutes=1)) == "m"
+
+
+def test_a_productive_run_resets_the_backoff(db):
+    with db() as s:
+        newest = _runs(s, "q", [3, 0, 0, 0])              # newest run found jobs -> streak 0
+        got = due_queries(s, [QuerySpec("q", "d")], now=newest + timedelta(hours=12, minutes=1))
+        assert [g.freshness for g in got] == ["d"]
+
+
+def test_failed_runs_do_not_count_toward_backoff(db):
+    with db() as s:
+        s.add_all([SearchQuery(query_key="q", provider="serpapi", new_jobs=0, error="429", ran_at=NOW - timedelta(hours=h)) for h in (5, 4, 3)])
+        s.add(SearchQuery(query_key="q", provider="serpapi", new_jobs=2, ran_at=NOW - timedelta(hours=20)))
+        s.flush()
+        assert [g.freshness for g in due_queries(s, [QuerySpec("q", "d")], now=NOW)] == ["d"]  # error retry after 1h
+
+
+def test_page_text_sent_to_claude_is_capped():
+    html = "<html><body>" + "word " * 5000 + "</body></html>"
+    assert len(llm_extractor._html_to_text(html)) <= 6000
+
+
+def test_pricing_known_and_unknown_models():
+    from app.pricing import cost_usd
+    assert cost_usd("claude-haiku-4-5-20251001", 1_000_000, 0) == 1.00
+    assert cost_usd("claude-haiku-4-5-20251001", 2000, 400) == pytest.approx(0.004)
+    assert cost_usd("some-new-model", 100, 100) is None

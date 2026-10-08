@@ -39,6 +39,8 @@ SITE_SCOPES: tuple[str, ...] = (
     "twitter.com", "x.com", "reddit.com", "linkedin.com/posts", "indeed.com", "upwork.com",
 )
 ERROR_RETRY_AFTER = timedelta(hours=1)
+MAX_BACKOFF = 14    # base cycle x 14 = 7 days at the default 12h: the slowest a dead query ever runs
+BACKOFF_GRACE = 2   # a quiet query is normal; backoff starts after the 3rd consecutive empty run
 
 
 @dataclass(frozen=True)
@@ -86,23 +88,52 @@ def _aware(dt: datetime) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
+def _dead_streaks(db: Session, now: datetime) -> dict[str, int]:
+    """Consecutive most-recent successful runs per query that found zero new jobs (last 60 days)."""
+    rows = db.execute(
+        select(SearchQuery.query_key, SearchQuery.new_jobs)
+        .where(SearchQuery.error.is_(None), SearchQuery.ran_at >= now - timedelta(days=60))
+        .order_by(SearchQuery.query_key, SearchQuery.ran_at.desc())
+    ).all()
+    streaks: dict[str, int] = {}
+    done: set[str] = set()
+    for key, new_jobs in rows:
+        if key in done:
+            continue
+        if new_jobs == 0:
+            streaks[key] = streaks.get(key, 0) + 1
+        else:
+            done.add(key)
+    return streaks
+
+
+def freshness_for(wait: timedelta) -> str:
+    """Search window must cover the gap since the last run, or backing off would silently drop posts."""
+    if wait <= timedelta(hours=24):
+        return "d"
+    return "w" if wait <= timedelta(days=7) else "m"
+
+
 def due_queries(db: Session, plan: list[QuerySpec] | None = None, now: datetime | None = None,
                 limit: int | None = None) -> list[QuerySpec]:
-    """Never-run queries first, then oldest-run first. Errored queries retry after an hour; ok ones after the cycle.
-    A never-run query backfills with a week of results instead of a day."""
+    """Never-run queries first (a week of backfill), then oldest-run first.
+    Errored queries retry after an hour. Queries that keep finding nothing new back off exponentially
+    (cycle x 2^(streak-2), i.e. after 3 empty runs, capped at MAX_BACKOFF) and widen their time window to match, so spend follows yield."""
     plan = plan or build_plan()
     now = now or datetime.now(timezone.utc)
     cycle = timedelta(hours=settings.google_query_cycle_hours)
     last = _last_attempts(db)
+    streaks = _dead_streaks(db, now)
     due: list[tuple[datetime, QuerySpec]] = []
     for spec in plan:
         prev = last.get(spec.key)
         if prev is None:
             due.append((datetime.min.replace(tzinfo=timezone.utc), QuerySpec(spec.text, "w")))
             continue
-        wait = ERROR_RETRY_AFTER if prev.error else cycle
+        wait = ERROR_RETRY_AFTER if prev.error else cycle * min(2 ** max(0, streaks.get(spec.key, 0) - BACKOFF_GRACE), MAX_BACKOFF)
         if _aware(prev.ran_at) + wait <= now:
-            due.append((_aware(prev.ran_at), spec))
+            # window = time since the last *successful* run is approximated by the wait we just served
+            due.append((_aware(prev.ran_at), QuerySpec(spec.text, freshness_for(max(wait, now - _aware(prev.ran_at))))))
     due.sort(key=lambda t: t[0])
     out = [s for _, s in due]
     return out[:limit] if limit else out
