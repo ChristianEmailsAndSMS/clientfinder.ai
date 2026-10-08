@@ -4,7 +4,8 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models import Job
+from ..models import Job, JobTag
+from ..tagging import tag_counts
 from ..schemas import JobOut
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -18,6 +19,7 @@ def list_jobs(
     type: str | None = None,
     min_pay: float | None = None,
     max_pay: float | None = None,
+    tag: list[str] | None = Query(None, description="repeatable; a job must have ALL given tags"),
     posted_within_days: int | None = Query(None, ge=1, le=365),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -37,9 +39,26 @@ def list_jobs(
     if posted_within_days:
         cutoff = datetime.now(timezone.utc) - timedelta(days=posted_within_days)
         stmt = stmt.where(or_(Job.posted_at >= cutoff, Job.first_seen_at >= cutoff))
+    for t in tag or []:
+        stmt = stmt.where(Job.id.in_(select(JobTag.job_id).where(JobTag.tag == t.lower())))
     stmt = stmt.limit(limit).offset(offset)
     rows = db.scalars(stmt).all()
-    return rows
+    tags_by_job: dict[int, list[str]] = {}
+    if rows:
+        for job_id, t in db.execute(select(JobTag.job_id, JobTag.tag).where(JobTag.job_id.in_([r.id for r in rows])).order_by(JobTag.tag)):
+            tags_by_job.setdefault(job_id, []).append(t)
+    out = []
+    for r in rows:
+        item = JobOut.model_validate(r)
+        item.tags = tags_by_job.get(r.id, [])
+        out.append(item)
+    return out
+
+
+@router.get("/tags")
+def job_tags(db: Session = Depends(get_db)) -> list[dict]:
+    """Tag counts for building filters, most common first."""
+    return [{"tag": t, "count": c} for t, c in tag_counts(db)]
 
 
 @router.get("/stats")

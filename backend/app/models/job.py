@@ -96,3 +96,33 @@ class SearchQuery(Base):
     results: Mapped[int] = mapped_column(Integer, default=0)
     new_jobs: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class JobTag(Base):
+    """Derived category/attribute tag on a job (see app/tagging.py). Rebuildable at any time from the job."""
+    __tablename__ = "job_tags"
+    __table_args__ = (Index("ix_job_tags_tag", "tag"),)
+
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), primary_key=True)
+    tag: Mapped[str] = mapped_column(String(48), primary_key=True)
+
+
+class FailedUrl(Base):
+    """A search result we could not turn into a job (fetch/extraction/DB error). Lets an admin requeue
+    it without spending another search credit. Rows are kept after success as status='resolved'."""
+    __tablename__ = "failed_urls"
+    __table_args__ = (Index("ix_failed_urls_status", "status", "last_failed_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    url_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    url: Mapped[str] = mapped_column(Text)
+    title: Mapped[str] = mapped_column(String(512), default="")
+    snippet: Mapped[str] = mapped_column(Text, default="")
+    platform: Mapped[str] = mapped_column(String(64), default="web")
+    source_key: Mapped[str] = mapped_column(String(64))
+    source_query: Mapped[str] = mapped_column(String(256), default="")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(12), default="pending")   # pending | resolved | dead
+    first_failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    last_failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)

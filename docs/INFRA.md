@@ -96,3 +96,50 @@ No swap: a runaway Chromium could trigger the OOM killer and take a sibling app 
 - [ ] Switch the server checkout back to the main branch after the Phase 0 branch is merged
 - [ ] App runs as superuser `clientfinder`; create a limited app role before launch (Phase 11)
 - [ ] Run apps as a non-root user (Phase 11)
+
+## 9. Backups
+
+| Item | Value |
+|---|---|
+| What | `pg_dump -Fc` of the `clientfinder` database from the `clientfinder_pg` container |
+| When | daily 03:30 UTC (systemd timer `clientfinder-backup.timer`, `Persistent=true` so a missed run happens at next boot) |
+| Where | `/var/backups/clientfinder/` on this VPS (dir mode 700, files 600) |
+| Verified | every dump is restored into a scratch database and its `jobs` rows counted before it is kept; a failed check fails the run (non-zero exit, nothing kept, `last_run.json` untouched) |
+| Retention | every backup for 14 days, plus the Sunday one for 8 weeks |
+| Status | `GET /admin/backups` (header `X-Admin-Token`): `ok` / `stale` (newest > 36h) / `none`; `last_run.json` next to the dumps |
+| Script | `deploy/backup.sh` (bash, no dependency on the Python app) |
+
+Install (once):
+
+```bash
+cp /root/clientfinder.ai/deploy/clientfinder-backup.{service,timer} /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now clientfinder-backup.timer
+systemctl start clientfinder-backup.service          # first backup now
+journalctl -u clientfinder-backup -n 20 --no-pager    # expect: "ok: ... restore-verified (N jobs rows)"
+systemctl list-timers clientfinder-backup.timer       # next run
+```
+
+Restore:
+
+```bash
+# Inspect a backup without touching production: restore into a separate database
+docker exec clientfinder_pg createdb -U clientfinder restored
+docker exec -i clientfinder_pg pg_restore -U clientfinder -d restored --no-owner < /var/backups/clientfinder/clientfinder-YYYY-MM-DD_HHMMSS.dump
+
+# Disaster recovery onto the live database (STOP the API and scheduler first)
+systemctl stop clientfinder-api clientfinder-scheduler
+docker exec -i clientfinder_pg pg_restore -U clientfinder -d clientfinder --clean --if-exists --no-owner < FILE
+systemctl start clientfinder-api clientfinder-scheduler
+
+# Check a dump is restorable at any time
+/root/clientfinder.ai/deploy/backup.sh --restore-test FILE
+```
+
+What this does NOT cover:
+
+- **Losing the VPS or its disk loses the backups too.** They are on the same machine. Add an off-box copy
+  (rclone to Backblaze B2 / S3, encrypted) before real customers pay (Phase 11).
+- Up to 24h of new data between backups.
+- Secrets: `.env` files are deliberately not in the backup. Keep a copy of the keys in a password manager.
+- Redis holds nothing durable yet (no RQ jobs); it is not backed up.
+

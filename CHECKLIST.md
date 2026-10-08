@@ -36,9 +36,9 @@ The approach: Google is already indexing Twitter/X, Reddit, LinkedIn posts, rand
 - [ ] **LLM extractor** (Claude Sonnet or Haiku): single prompt that reads any page HTML and returns `{is_real_job, title, company_or_poster, pay, type, apply_url, posted_at, platform, raw_snippet}`. Haiku is cheaper per call; Sonnet is more accurate — benchmark both.
 - [ ] **Durable sources, direct ingestion** (no Google needed, free): RemoteOK API, Remotive API, We Work Remotely RSS, ProBlogger, Mediabistro, Braintrust, Greenhouse/Lever/Ashby public boards filtered to copywriter/email/marketing, Upwork public RSS. These give us a clean baseline the Google-based layer can't miss.
 - [ ] Dedupe (hash of normalized title + company + poster)
-- [ ] Postgres schema: `jobs` table + `job_sources` enum + `job_tags` + `search_queries` + `scrape_runs` (audit)
+- [x] Postgres schema: `jobs` + `sources` + `job_tags` + `search_queries` + `scrape_runs` + `failed_urls` (migrations 0001-0003, tested on Postgres 16)
 - [ ] Scraper runs scheduled via **Celery Beat** or **APScheduler** (hourly for Google-search layer, 4x/day for durable sources)
-- [ ] Admin: "re-run source X now" + "requeue failed URLs" endpoints
+- [x] Admin: "re-run source X now" + "requeue failed URLs" endpoints (`/admin/*`, X-Admin-Token; swap for real admin auth in Phase 2/6)
 
 ## Phase 2 — Backend API
 
@@ -141,7 +141,7 @@ The approach: Google is already indexing Twitter/X, Reddit, LinkedIn posts, rand
 
 - [ ] Firewall rules on VPS (UFW/iptables), only ports 80/443 open, SSH key-only
 - [ ] Let's Encrypt SSL via nginx reverse proxy
-- [ ] Backups: Postgres daily to S3/B2, encrypted, 30-day retention
+- [ ] Backups: Postgres daily to S3/B2, encrypted, 30-day retention  _(local daily verified backups on the VPS are in place: `deploy/backup.sh`, see docs/INFRA.md §9. Still needed: the off-box encrypted copy.)_
 - [ ] Error monitoring (Sentry free tier)
 - [ ] Uptime monitoring (BetterUptime or UptimeRobot free)
 - [ ] Terms of service, privacy policy, cookie policy (GDPR-safe default)

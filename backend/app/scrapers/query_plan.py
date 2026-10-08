@@ -169,3 +169,21 @@ def run_due_queries(max_queries: int | None = None) -> list[dict]:
                        error=stats.get("search_error"))
         out.append(stats)
     return out
+
+
+def run_query_now(text: str, freshness: str = "w") -> dict:
+    """Admin 'run this query now'. Spends one search credit, so it respects the monthly budget and is logged."""
+    from . import pipeline
+
+    spec = next((q for q in build_plan() if q.text == text), None)
+    if spec is None:
+        raise KeyError(text)
+    with session_scope() as db:
+        if settings.serpapi_monthly_budget - searches_used_this_month(db) <= 0:
+            return {"query": text, "searched": False, "error": "monthly search budget exhausted"}
+    stats = pipeline.run_pipeline_for_query(text, freshness=freshness)
+    if stats.get("searched"):
+        with session_scope() as db:
+            log_search(db, QuerySpec(text, freshness), results=stats.get("search_hits", 0),
+                       new_jobs=stats.get("added", 0), error=stats.get("search_error"))
+    return stats

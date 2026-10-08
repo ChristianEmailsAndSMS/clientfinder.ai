@@ -14,17 +14,10 @@ from datetime import datetime, timedelta, timezone
 from apscheduler.schedulers.blocking import BlockingScheduler
 
 from .config import settings
-from .scrapers import ashby, greenhouse, lever, problogger, remoteok, remotive, weworkremotely
+from .scrapers.registry import DURABLE
 from .scrapers.query_plan import run_due_queries
 
 log = logging.getLogger("scheduler")
-
-DURABLE = (
-    ("remoteok", remoteok), ("problogger", problogger), ("greenhouse", greenhouse),
-    ("remotive", remotive),  # keep <= 4 runs/day (Remotive's request): durable interval of 6h or more
-    ("weworkremotely", weworkremotely), ("lever", lever), ("ashby", ashby),
-)
-
 
 def run_durable_source(name: str, module) -> None:
     try:
@@ -57,7 +50,7 @@ def build_scheduler() -> BlockingScheduler:
         job_defaults={"coalesce": True, "max_instances": 1, "misfire_grace_time": 600},
     )
     now = datetime.now(timezone.utc)
-    for i, (name, module) in enumerate(DURABLE):
+    for i, (name, module) in enumerate(DURABLE.items()):
         sched.add_job(
             run_durable_source, "interval", args=[name, module], id=f"durable:{name}",
             hours=max(settings.durable_sources_interval_hours, 6) if name == "remotive"

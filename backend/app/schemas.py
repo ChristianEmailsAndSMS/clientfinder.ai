@@ -24,6 +24,7 @@ class JobOut(BaseModel):
     last_seen_at: datetime
     source_key: str
     is_real_job: bool
+    tags: list[str] = []
 
     class Config:
         from_attributes = True

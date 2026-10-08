@@ -1,11 +1,13 @@
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
+from .api.admin import router as admin_router
 from .api.jobs import router as jobs_router
 
 app = FastAPI(title="Clientfinder.ai API", version="0.1.0")
 
 app.include_router(jobs_router)
+app.include_router(admin_router)
 
 _LANDING_HTML = (Path(__file__).resolve().parent / "templates" / "landing.html").read_text()
 

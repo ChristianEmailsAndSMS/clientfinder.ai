@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Clientfinder.ai backup daily
+
+[Timer]
+# 03:30 UTC daily; if the server was off at that time, run at next boot.
+OnCalendar=*-*-* 03:30:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

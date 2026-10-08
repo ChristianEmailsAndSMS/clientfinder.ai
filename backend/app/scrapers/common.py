@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from ..db import session_scope
 from ..dedup import dedupe_hash
 from ..models import Job, ScrapeRun, Source
+from ..tagging import set_tags
 
 log = logging.getLogger(__name__)
 
@@ -29,6 +30,16 @@ TITLE_KEYWORDS = (
     "landing page", "funnel", "creative strategist", "creative director", "growth marketing",
     "crm manager", "direct response", "conversion",
 )
+
+
+# VARCHAR limits on `jobs`. Postgres (unlike sqlite) rejects longer text, which would drop a good job.
+LIMITS = {"title": 512, "company_or_poster": 256, "pay_text": 128, "pay_period": 16, "type": 32,
+          "experience_level": 32, "location": 128}
+
+
+def clip(value, field: str):
+    n = LIMITS.get(field)
+    return value[:n] if isinstance(value, str) and n else value
 
 
 def title_matches(title: str | None, extra: tuple[str, ...] = ()) -> bool:
@@ -125,10 +136,10 @@ def ingest(source_key: str, display_name: str, platform: str, result: CollectRes
                 continue
             job = Job(
                 dedupe_hash=h, source_url=nj.url, platform=platform,
-                title=nj.title[:512], company_or_poster=nj.company,
+                title=clip(nj.title, "title"), company_or_poster=clip(nj.company, "company_or_poster"),
                 raw_snippet=(nj.description or nj.title)[:200], description=nj.description,
-                type=nj.type, pay_text=nj.pay_text, pay_min=nj.pay_min, pay_max=nj.pay_max,
-                pay_period=nj.pay_period, location=nj.location, remote=nj.remote,
+                type=clip(nj.type, "type"), pay_text=clip(nj.pay_text, "pay_text"), pay_min=nj.pay_min, pay_max=nj.pay_max,
+                pay_period=clip(nj.pay_period, "pay_period"), location=clip(nj.location, "location"), remote=nj.remote,
                 skills=nj.skills or None, posted_at=nj.posted_at,
                 first_seen_at=now, last_seen_at=now, source_key=source_key,
                 is_real_job=True, extraction_model="direct_api",
@@ -137,6 +148,7 @@ def ingest(source_key: str, display_name: str, platform: str, result: CollectRes
             try:
                 db.add(job)
                 db.flush()
+                set_tags(db, job)
                 sp.commit()
                 stats["added"] += 1
             except IntegrityError:

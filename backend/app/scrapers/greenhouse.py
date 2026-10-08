@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from ..db import session_scope
 from ..models import Job, Source, ScrapeRun
 from ..dedup import dedupe_hash
+from ..tagging import set_tags
 
 log = logging.getLogger(__name__)
 
@@ -118,6 +119,7 @@ def run() -> dict:
             try:
                 db.add(job)
                 db.flush()
+                set_tags(db, job)
                 sp.commit()
                 stats["added"] += 1
             except IntegrityError:

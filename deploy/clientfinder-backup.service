@@ -1,0 +1,12 @@
+# Install: cp deploy/clientfinder-backup.{service,timer} /etc/systemd/system/ && systemctl daemon-reload
+#          systemctl enable --now clientfinder-backup.timer
+[Unit]
+Description=Clientfinder.ai daily Postgres backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/root/clientfinder.ai/deploy/backup.sh
+# Backups contain user data: keep them private.
+UMask=0077

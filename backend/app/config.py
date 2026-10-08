@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     playwright_fallback: bool = True
     durable_sources_interval_hours: int = 6
 
+    # Admin API (/admin/*): header X-Admin-Token must match. Empty = admin API disabled (503).
+    # Generate: python3 -c "import secrets; print(secrets.token_urlsafe(32))". Replaced by real admin auth in Phase 2/6.
+    admin_token: str = ""
+    backup_dir: str = "/var/backups/clientfinder"
+
     jwt_secret: str = "change-me-dev-only"
     jwt_alg: str = "HS256"
 
