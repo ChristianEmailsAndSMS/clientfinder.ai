@@ -46,7 +46,7 @@ with CopyProfit.ai / EmailProfit.ai.
 | Decision | Needed by | Owner | Status |
 |---|---|---|---|
 | Final stack sign-off | Phase 2 | Christian | Open |
-| Shared vs separate Postgres instance | Phase 1 deploy | Christian | Open (INFRA.md §5) |
+| Shared vs separate Postgres instance | Phase 1 deploy | Christian | Separate (own container already running; copybot-db is CopyProfit's) |
 | Search provider (SerpAPI vs Serper) | Phase 1 | Christian | Open |
 | Extraction model (Haiku vs Sonnet) | Phase 1 | Benchmark | Open |
 | Rights to Dylan's chat-closing course content | Phase 8 | Christian | Open |
