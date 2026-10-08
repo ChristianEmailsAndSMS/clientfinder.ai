@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..db import session_scope
+from ..security_utils import redact
 from ..models import SearchQuery
 
 log = logging.getLogger(__name__)
@@ -141,7 +142,7 @@ def due_queries(db: Session, plan: list[QuerySpec] | None = None, now: datetime 
 
 def log_search(db: Session, spec: QuerySpec, *, results: int = 0, new_jobs: int = 0, error: str | None = None) -> None:
     db.add(SearchQuery(query_key=spec.key, provider=_provider(), freshness=spec.freshness,
-                       results=results, new_jobs=new_jobs, error=error[:1000] if error else None))
+                       results=results, new_jobs=new_jobs, error=redact(error)[:1000] if error else None))
 
 
 def run_due_queries(max_queries: int | None = None) -> list[dict]:

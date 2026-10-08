@@ -21,43 +21,22 @@ from app.scrapers import common, google_search, llm_extractor, page_fetcher, pip
 from app.scrapers.llm_extractor import ExtractionError
 from app.tagging import derive_tags, retag, set_tags, tag_counts
 
-TOKEN = "t" * 40
-H = {"X-Admin-Token": TOKEN}
+import authkit
+from authkit import CSRF
+
+ADMIN_EMAIL = "christian@emailsandsms.com"
+H = CSRF
 
 
 @pytest.fixture
 def env(monkeypatch):
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine, autoflush=False)
-
-    @contextmanager
-    def scope():
-        s = Session()
-        try:
-            yield s
-            s.commit()
-        except Exception:
-            s.rollback()
-            raise
-        finally:
-            s.close()
-
-    def override():
-        s = Session()
-        try:
-            yield s
-        finally:
-            s.close()
-
-    for mod in (pipeline, common, query_plan):
-        monkeypatch.setattr(mod, "session_scope", scope)
-    app.dependency_overrides[get_db] = override
-    monkeypatch.setattr(settings, "admin_token", TOKEN)
-    monkeypatch.setattr(settings, "dev_fixtures", False)
-    monkeypatch.setattr(settings, "anthropic_api_key", "k")
+    e = authkit.make_env(monkeypatch)
+    with e.scope() as db:
+        _, secret = authkit.make_user(db, ADMIN_EMAIL, admin=True)
+    assert authkit.login(e, e.client, ADMIN_EMAIL, secret=secret).status_code == 200
     admin._running.clear()
-    yield TestClient(app), scope
+    e.client.admin_secret = secret
+    yield e.client, e.scope
     app.dependency_overrides.clear()
 
 
@@ -115,17 +94,14 @@ def test_jobs_tag_filter_tags_field_and_counts(env):
 
 
 # ---------- admin auth ----------
-def test_admin_disabled_without_token(env, monkeypatch):
-    client, _ = env
-    monkeypatch.setattr(settings, "admin_token", "")
-    assert client.get("/admin/sources", headers=H).status_code == 503
-
-
-@pytest.mark.parametrize("hdr", [{}, {"X-Admin-Token": "wrong"}, {"X-Admin-Token": ""}])
-def test_admin_rejects_bad_tokens(env, hdr):
-    client, _ = env
-    assert client.get("/admin/sources", headers=hdr).status_code == 401
-    assert client.post("/admin/failed-urls/requeue", json={}, headers=hdr).status_code == 401
+def test_admin_endpoints_need_a_signed_in_admin(env):
+    client, scope = env
+    from fastapi.testclient import TestClient
+    anon = TestClient(app)
+    for method, path in (("get", "/admin/sources"), ("get", "/admin/overview"), ("get", "/admin/users"), ("get", "/admin/backups"),
+                         ("post", "/admin/retag"), ("post", "/admin/failed-urls/requeue"), ("post", "/admin/sources/lever/run")):
+        r = getattr(anon, method)(path, headers=H)
+        assert r.status_code == 401, (path, r.status_code)
 
 
 # ---------- sources ----------

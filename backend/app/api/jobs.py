@@ -7,8 +7,9 @@ from ..db import get_db
 from ..models import Job, JobTag
 from ..tagging import tag_counts
 from ..schemas import JobOut
+from ..security import public_guard
 
-router = APIRouter(prefix="/jobs", tags=["jobs"])
+router = APIRouter(prefix="/jobs", tags=["jobs"], dependencies=[Depends(public_guard)])
 
 
 @router.get("", response_model=list[JobOut])

@@ -12,6 +12,14 @@ WorkingDirectory=/root/clientfinder.ai/backend
 ExecStart=/root/clientfinder.ai/backend/.venv/bin/python -m app.scheduler
 Restart=always
 RestartSec=10
+# Hardening: limits what a compromised process could escalate to (does not change what the service normally reaches)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
 
 [Install]
 WantedBy=multi-user.target

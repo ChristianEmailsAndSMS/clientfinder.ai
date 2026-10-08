@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from ..db import session_scope
 from ..dedup import dedupe_hash
 from ..models import Job, ScrapeRun, Source
+from ..security_utils import safe_job_url
 from ..tagging import set_tags
 
 log = logging.getLogger(__name__)
@@ -125,6 +126,9 @@ def ingest(source_key: str, display_name: str, platform: str, result: CollectRes
 
         seen: set[str] = set()
         for nj in result.jobs:
+            if safe_job_url(nj.url) is None:
+                stats["errors"] += 1
+                continue
             h = dedupe_hash(url=nj.url, title=nj.title, company=nj.company)
             if h in seen:
                 continue

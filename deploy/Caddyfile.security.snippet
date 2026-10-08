@@ -1,0 +1,29 @@
+# Security headers + request limits for Caddy. Add this block ONCE near the top of /etc/caddy/Caddyfile, then add the
+# line `import cf_security` inside the clientfinder.ai block. Other sites on the box are unaffected.
+#
+#   cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak-$(date +%F)
+#   (edit)  &&  caddy validate --config /etc/caddy/Caddyfile  &&  systemctl reload caddy
+#
+# Example result:
+#   (cf_security) { ...this block... }
+#   clientfinder.ai, www.clientfinder.ai {
+#       import cf_security
+#       reverse_proxy 127.0.0.1:8000
+#   }
+#
+# The API sets the same headers itself; setting them here too protects the 404/502 pages Caddy serves on its own.
+
+(cf_security) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "same-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+	# Nothing here legitimately needs a large upload; this stops request-body floods.
+	request_body {
+		max_size 1MB
+	}
+}

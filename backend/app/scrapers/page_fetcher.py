@@ -13,8 +13,11 @@ import logging
 import httpx
 from bs4 import BeautifulSoup
 
+from urllib.parse import urljoin
+
 from ..config import settings
 from ..schemas import SearchResult
+from ..security_utils import UnsafeUrl, assert_public_url
 
 log = logging.getLogger(__name__)
 
@@ -24,17 +27,37 @@ UA = (
 )
 
 
+MAX_BYTES = 2_000_000     # a job page is tiny; this stops memory bombs (incl. decompression bombs)
+MAX_REDIRECTS = 5
+
+
 def fetch_simple(url: str, timeout: float = 20.0) -> str:
-    r = httpx.get(url, headers={"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"},
-                  timeout=timeout, follow_redirects=True)
-    r.raise_for_status()
-    return r.text
+    """GET with the SSRF guard on the first URL and on every redirect hop, and a hard cap on body size."""
+    headers = {"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"}
+    current = url
+    with httpx.Client(timeout=timeout, follow_redirects=False, headers=headers) as client:
+        for _ in range(MAX_REDIRECTS + 1):
+            assert_public_url(current)
+            with client.stream("GET", current) as r:
+                if r.is_redirect and r.headers.get("location"):
+                    current = urljoin(current, r.headers["location"])
+                    continue
+                r.raise_for_status()
+                body = bytearray()
+                for chunk in r.iter_bytes():
+                    body.extend(chunk)
+                    if len(body) > MAX_BYTES:
+                        break
+                return bytes(body[:MAX_BYTES]).decode(r.encoding or "utf-8", errors="replace")
+    raise UnsafeUrl("too many redirects")
 
 
 def fetch_firecrawl(url: str) -> str:
     """Fallback: Firecrawl returns clean markdown. Requires FIRECRAWL_API_KEY."""
     if not settings.firecrawl_api_key:
         raise RuntimeError("FIRECRAWL_API_KEY not set")
+    if not url.lower().startswith(("http://", "https://")):
+        raise UnsafeUrl("scheme not allowed")
     r = httpx.post(
         "https://api.firecrawl.dev/v1/scrape",
         headers={"Authorization": f"Bearer {settings.firecrawl_api_key}", "Content-Type": "application/json"},
@@ -48,6 +71,7 @@ def fetch_firecrawl(url: str) -> str:
 
 def fetch_playwright(url: str) -> str:
     """JS-rendered pages. Playwright must be installed and `playwright install chromium` run once."""
+    assert_public_url(url)
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
@@ -56,6 +80,15 @@ def fetch_playwright(url: str) -> str:
         browser = pw.chromium.launch(headless=True)
         try:
             page = browser.new_page(user_agent=UA)
+
+            def guard(route):
+                try:
+                    assert_public_url(route.request.url)
+                    route.continue_()
+                except UnsafeUrl:
+                    route.abort()
+
+            page.route("**/*", guard)
             page.goto(url, wait_until="networkidle", timeout=30_000)
             return page.content()
         finally:

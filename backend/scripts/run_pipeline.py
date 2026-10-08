@@ -17,9 +17,10 @@ from pathlib import Path
 # Add backend/ to path when run as a script
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.logging_setup import setup_logging  # noqa: E402
 from app.scrapers.pipeline import run_pipeline_for_query, run_pipeline_for_queries  # noqa: E402
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+setup_logging()
 
 
 def main() -> int:

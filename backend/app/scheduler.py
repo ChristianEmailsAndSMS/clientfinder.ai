@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 from apscheduler.schedulers.blocking import BlockingScheduler
 
 from .config import settings
+from .logging_setup import setup_logging
 from .scrapers.registry import DURABLE
 from .scrapers.query_plan import run_due_queries
 
@@ -69,7 +70,7 @@ def build_scheduler() -> BlockingScheduler:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    setup_logging()
     sched = build_scheduler()
     for job in sched.get_jobs():
         log.info("scheduled %s every %s", job.id, job.trigger)

@@ -97,6 +97,11 @@ No swap: a runaway Chromium could trigger the OOM killer and take a sibling app 
 - [ ] App runs as superuser `clientfinder`; create a limited app role before launch (Phase 11)
 - [ ] Run apps as a non-root user (Phase 11)
 
+## 8b. Security
+
+See `docs/SECURITY.md` (protocol, findings, runbooks) and run `deploy/security_audit.sh` after each deploy. Services still run as root
+from `/root`; the plan to change that is in SECURITY.md section 4.
+
 ## 9. Backups
 
 | Item | Value |

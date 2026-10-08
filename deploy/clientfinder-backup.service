@@ -10,3 +10,11 @@ Type=oneshot
 ExecStart=/root/clientfinder.ai/deploy/backup.sh
 # Backups contain user data: keep them private.
 UMask=0077
+# Hardening: limits what a compromised process could escalate to (does not change what the service normally reaches)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true

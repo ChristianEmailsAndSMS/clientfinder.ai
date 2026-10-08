@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Clientfinder Admin</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/admin/assets/dashboard.css">
+</head>
+<body>
+  <main id="app">
+    <p id="loading" class="muted">Loading…</p>
+
+    <!-- A. server not configured -->
+    <section id="v-config" hidden class="card narrow">
+      <h1>Server setup needed</h1>
+      <p>Sign-in is switched off until the server has a secret key. On the server, add this to
+         <code>/root/clientfinder.ai/backend/.env</code> and restart the API:</p>
+      <pre>JWT_SECRET=&lt;paste the output of: python3 -c "import secrets; print(secrets.token_urlsafe(48))"&gt;</pre>
+      <p class="muted" id="config-problem"></p>
+    </section>
+
+    <!-- B. first-run: create the admin account -->
+    <section id="v-setup" hidden class="card narrow">
+      <h1>Create your admin account</h1>
+      <div id="setup-1">
+        <p>On the server run <code>scripts/admin_cli.py setup-code</code>. It prints a one-time code. Enter it here with your email and a password.</p>
+        <form id="setup-form" autocomplete="off">
+          <label>Email<input name="email" type="email" required autocomplete="username" value="christian@emailsandsms.com"></label>
+          <label>Setup code<input name="setup_code" type="text" required spellcheck="false" autocomplete="off" placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX"></label>
+          <label>Password <span class="muted">(14+ characters)</span><input name="password" type="password" required minlength="14" autocomplete="new-password"></label>
+          <label>Repeat password<input name="password2" type="password" required minlength="14" autocomplete="new-password"></label>
+          <button type="submit">Continue</button>
+          <p class="error" id="setup-error" role="alert"></p>
+        </form>
+      </div>
+      <div id="setup-2" hidden>
+        <p><strong>Turn on two-factor sign-in.</strong> Scan this with an authenticator app (Google Authenticator, 1Password, Authy…), then enter the 6-digit code it shows.</p>
+        <img id="qr" alt="2FA QR code" width="200" height="200">
+        <p class="muted">Can't scan? Enter this key by hand: <code id="totp-secret"></code></p>
+        <form id="confirm-form" autocomplete="off">
+          <label>6-digit code<input name="totp_code" inputmode="numeric" pattern="[0-9 ]{6,7}" required autocomplete="one-time-code"></label>
+          <button type="submit">Finish and sign in</button>
+          <p class="error" id="confirm-error" role="alert"></p>
+        </form>
+      </div>
+    </section>
+
+    <!-- C. sign in -->
+    <section id="v-login" hidden class="card narrow">
+      <h1>Admin sign in</h1>
+      <form id="login-form">
+        <label>Email<input name="email" type="email" required autocomplete="username"></label>
+        <label>Password<input name="password" type="password" required autocomplete="current-password"></label>
+        <label id="totp-row" hidden>6-digit code<input name="totp_code" inputmode="numeric" autocomplete="one-time-code"></label>
+        <button type="submit">Sign in</button>
+        <p class="error" id="login-error" role="alert"></p>
+      </form>
+    </section>
+
+    <!-- D. dashboard -->
+    <section id="v-dash" hidden>
+      <header class="bar">
+        <h1>Clientfinder admin</h1>
+        <span class="grow"></span>
+        <span id="who" class="muted"></span>
+        <button id="btn-logout" class="ghost">Sign out</button>
+        <button id="btn-logout-all" class="ghost" title="Invalidate every session for this account">Sign out everywhere</button>
+      </header>
+      <nav id="tabs" class="tabs">
+        <button data-tab="overview" class="on">Overview</button>
+        <button data-tab="sources">Sources</button>
+        <button data-tab="failed">Failed URLs</button>
+        <button data-tab="users">Customers &amp; credits</button>
+        <button data-tab="security">Security log</button>
+      </nav>
+      <p id="flash" class="flash" hidden role="status"></p>
+      <div id="tab-overview" class="tab"></div>
+      <div id="tab-sources" class="tab" hidden></div>
+      <div id="tab-failed" class="tab" hidden></div>
+      <div id="tab-users" class="tab" hidden></div>
+      <div id="tab-security" class="tab" hidden></div>
+    </section>
+  </main>
+  <script src="/admin/assets/dashboard.js"></script>
+</body>
+</html>

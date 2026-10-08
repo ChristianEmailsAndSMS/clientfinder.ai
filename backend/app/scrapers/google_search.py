@@ -14,6 +14,32 @@ from ..schemas import SearchResult
 
 log = logging.getLogger(__name__)
 
+
+class SearchError(RuntimeError):
+    """A search call failed. The message never contains the request URL (it carries the API key)."""
+
+
+def _http_get(provider: str, url: str, **kw) -> httpx.Response:
+    try:
+        r = httpx.get(url, **kw)
+        r.raise_for_status()
+        return r
+    except httpx.HTTPStatusError as e:
+        raise SearchError(f"{provider} HTTP {e.response.status_code}") from None
+    except httpx.HTTPError as e:
+        raise SearchError(f"{provider} request failed: {type(e).__name__}") from None
+
+
+def _http_post(provider: str, url: str, **kw) -> httpx.Response:
+    try:
+        r = httpx.post(url, **kw)
+        r.raise_for_status()
+        return r
+    except httpx.HTTPStatusError as e:
+        raise SearchError(f"{provider} HTTP {e.response.status_code}") from None
+    except httpx.HTTPError as e:
+        raise SearchError(f"{provider} request failed: {type(e).__name__}") from None
+
 FIXTURE_DIR = Path(__file__).resolve().parent.parent.parent / "fixtures"
 
 
@@ -60,12 +86,7 @@ def _serpapi_results(query: str, num: int = 10, freshness: str | None = None) ->
     params = {"q": query, "api_key": settings.serpapi_api_key, "num": num, "hl": "en", "gl": "us"}
     if freshness:
         params["tbs"] = f"qdr:{freshness}"   # d = past 24h, w = past week, m = past month
-    r = httpx.get(
-        "https://serpapi.com/search.json",
-        params=params,
-        timeout=30,
-    )
-    r.raise_for_status()
+    r = _http_get("serpapi", "https://serpapi.com/search.json", params=params, timeout=30)
     data = r.json()
     out: list[SearchResult] = []
     for item in data.get("organic_results", []):
@@ -83,13 +104,12 @@ def _serpapi_results(query: str, num: int = 10, freshness: str | None = None) ->
 
 
 def _serper_results(query: str, num: int = 10, freshness: str | None = None) -> list[SearchResult]:
-    r = httpx.post(
-        "https://google.serper.dev/search",
+    r = _http_post(
+        "serper", "https://google.serper.dev/search",
         headers={"X-API-KEY": settings.serper_api_key, "Content-Type": "application/json"},
         json={"q": query, "num": num, "gl": "us", "hl": "en", **({"tbs": f"qdr:{freshness}"} if freshness else {})},
         timeout=30,
     )
-    r.raise_for_status()
     data = r.json()
     out: list[SearchResult] = []
     for item in data.get("organic", []):

@@ -1,36 +1,31 @@
-"""Admin endpoints. Guarded by the X-Admin-Token header (settings.admin_token); disabled when unset.
+"""Admin endpoints. Require a signed-in admin (allow-listed email + 2FA) and the CSRF header on writes.
 
 Long jobs (source runs, requeue) start in the background and return 202; poll GET /admin/sources or
 /admin/scrape-runs for the outcome. A per-key lock stops double-starts (single API process)."""
 from __future__ import annotations
 
-import hmac
 import json
 import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..db import get_db
-from ..models import FailedUrl, Job, ScrapeRun, Source
+from .. import credits
+from ..models import AuthEvent, CreditEntry, FailedUrl, Job, ScrapeRun, SearchQuery, Source, User
+from ..security import aware, csrf_guard, current_admin, log_event
 from ..scrapers import pipeline, query_plan
 from ..scrapers.registry import DURABLE
+from ..security import admin_emails
 from ..tagging import retag
 
 
-def require_admin(x_admin_token: str | None = Header(default=None)) -> None:
-    if not settings.admin_token:
-        raise HTTPException(503, "admin API disabled: set ADMIN_TOKEN")
-    if not x_admin_token or not hmac.compare_digest(x_admin_token.encode(), settings.admin_token.encode()):
-        raise HTTPException(401, "invalid admin token")
-
-
-router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
+router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(current_admin), Depends(csrf_guard)])
 
 _running: set[str] = set()
 _lock = threading.Lock()
@@ -160,8 +155,7 @@ def retag_all(db: Session = Depends(get_db)) -> dict:
     return {"retagged": retag(db)}
 
 
-@router.get("/backups")
-def backups() -> dict:
+def backups_info() -> dict:
     d = Path(settings.backup_dir)
     files = sorted(d.glob("clientfinder-*.dump"), key=lambda p: p.stat().st_mtime, reverse=True) if d.is_dir() else []
     now = datetime.now(timezone.utc).timestamp()
@@ -173,3 +167,138 @@ def backups() -> dict:
     except (OSError, ValueError):
         pass
     return {"status": status, "dir": str(d), "count": len(files), "latest": items, "last_run": last}
+
+
+@router.get("/backups")
+def backups() -> dict:
+    return backups_info()
+
+
+# ---------- overview ----------
+@router.get("/overview")
+def overview(db: Session = Depends(get_db)) -> dict:
+    now = datetime.now(timezone.utc)
+    total_jobs = db.scalar(select(func.count(Job.id))) or 0
+    new_24h = db.scalar(select(func.count(Job.id)).where(Job.first_seen_at >= now - timedelta(hours=24))) or 0
+    pending_failed = db.scalar(select(func.count(FailedUrl.id)).where(FailedUrl.status == "pending")) or 0
+    srcs = list_sources(db)
+    failing = [x["key"] for x in srcs if x["last_run"] and x["last_run"]["status"] == "failed" and not x["key"].startswith("google:")]
+    stale = [x["key"] for x in srcs if not x["key"].startswith("google:")
+             and (not x["last_run"] or (now - datetime.fromisoformat(x["last_run"]["at"])) > timedelta(hours=30))]
+    users = db.scalar(select(func.count(User.id)).where(User.is_admin.is_(False))) or 0
+    liability = db.scalar(select(func.coalesce(func.sum(User.balance_micro), 0)).where(User.is_admin.is_(False))) or 0
+    used = query_plan.searches_used_this_month(db)
+    return {
+        "jobs": {"total": total_jobs, "new_24h": new_24h},
+        "sources": {"count": len(srcs), "failing": failing, "stale": stale},
+        "failed_urls_pending": pending_failed,
+        "customers": {"count": users, "credit_liability_usd": credits.micro_to_usd(int(liability))},
+        "search_budget": {"used": used, "budget": settings.serpapi_monthly_budget},
+        "backups": {"status": backups_info()["status"]},
+        "security": {"admin_emails": sorted(admin_emails())},
+    }
+
+
+# ---------- customers + credits ----------
+def _user_row(u: User) -> dict:
+    return {"id": u.id, "email": u.email, "is_admin": u.is_admin, "is_active": u.is_active,
+            "balance_usd": credits.micro_to_usd(u.balance_micro), "created_at": _iso(u.created_at),
+            "last_login_at": _iso(u.last_login_at), "locked": bool(u.locked_until and aware(u.locked_until) > datetime.now(timezone.utc))}
+
+
+def _get_user(db: Session, user_id: int) -> User:
+    u = db.get(User, user_id)
+    if u is None:
+        raise HTTPException(404, "No such user")
+    return u
+
+
+@router.get("/users")
+def list_users(q: str | None = Query(None, max_length=100), limit: int = Query(100, ge=1, le=500), db: Session = Depends(get_db)) -> list[dict]:
+    stmt = select(User).order_by(User.id.desc()).limit(limit)
+    if q:
+        stmt = stmt.where(User.email.ilike(f"%{q.strip().lower()}%"))
+    return [_user_row(u) for u in db.scalars(stmt).all()]
+
+
+@router.get("/users/{user_id}/ledger")
+def user_ledger(user_id: int, limit: int = Query(100, ge=1, le=500), db: Session = Depends(get_db)) -> dict:
+    u = _get_user(db, user_id)
+    rows = db.scalars(select(CreditEntry).where(CreditEntry.user_id == user_id).order_by(CreditEntry.id.desc()).limit(limit)).all()
+    return {"user": _user_row(u), "entries": [
+        {"id": r.id, "at": _iso(r.created_at), "kind": r.kind, "amount_usd": credits.micro_to_usd(r.delta_micro),
+         "balance_after_usd": credits.micro_to_usd(r.balance_after_micro), "reason": r.reason, "ref": r.ref,
+         "by": r.actor_user_id} for r in rows]}
+
+
+class CreditAdjust(BaseModel):
+    amount_usd: str | float | int = Field(description="positive dollar amount, up to 6 decimals")
+    kind: str = Field(pattern="^(grant|revoke|refund)$")
+    reason: str = Field(min_length=3, max_length=200)
+
+
+@router.post("/users/{user_id}/credits")
+def adjust_credits(user_id: int, body: CreditAdjust, request: Request, admin: User = Depends(current_admin),
+                   db: Session = Depends(get_db)) -> dict:
+    u = _get_user(db, user_id)
+    try:
+        micro = credits.usd_to_micro(body.amount_usd)
+    except ValueError as e:
+        raise HTTPException(422, f"Invalid amount: {e}")
+    if micro <= 0:
+        raise HTTPException(422, "Amount must be greater than zero")
+    if micro > credits.usd_to_micro(settings.max_credit_adjust_usd):
+        raise HTTPException(422, f"Single adjustments are capped at ${settings.max_credit_adjust_usd:,.2f}")
+    delta = -micro if body.kind == "revoke" else micro
+    try:
+        entry = credits.apply(db, u.id, delta, body.kind, body.reason, actor_user_id=admin.id)
+    except credits.InsufficientCredits as e:
+        raise HTTPException(409, f"Cannot revoke more than the balance (${credits.micro_to_usd(e.balance_micro):,.4f})")
+    log_event(db, "credit_" + body.kind, request, user=admin, detail=f"user {u.id} {delta / credits.MICRO:+.6f} USD: {body.reason}")
+    db.commit()
+    return {"user": _user_row(u), "entry_id": entry.id}
+
+
+class ActiveBody(BaseModel):
+    active: bool
+
+
+@router.post("/users/{user_id}/active")
+def set_active(user_id: int, body: ActiveBody, request: Request, admin: User = Depends(current_admin), db: Session = Depends(get_db)) -> dict:
+    u = _get_user(db, user_id)
+    if u.id == admin.id:
+        raise HTTPException(409, "You cannot suspend your own account")
+    u.is_active = body.active
+    if not body.active:
+        u.session_version += 1                      # kick any open sessions immediately
+    log_event(db, "user_active" if body.active else "user_suspended", request, user=admin, detail=f"user {u.id}")
+    db.commit()
+    return _user_row(u)
+
+
+@router.post("/users/{user_id}/unlock")
+def unlock_user(user_id: int, request: Request, admin: User = Depends(current_admin), db: Session = Depends(get_db)) -> dict:
+    u = _get_user(db, user_id)
+    u.locked_until, u.failed_logins = None, 0
+    log_event(db, "user_unlocked", request, user=admin, detail=f"user {u.id}")
+    db.commit()
+    return _user_row(u)
+
+
+@router.post("/users/{user_id}/logout-everywhere")
+def kick_user(user_id: int, request: Request, admin: User = Depends(current_admin), db: Session = Depends(get_db)) -> dict:
+    u = _get_user(db, user_id)
+    u.session_version += 1
+    log_event(db, "user_kicked", request, user=admin, detail=f"user {u.id}")
+    db.commit()
+    return _user_row(u)
+
+
+# ---------- security audit log ----------
+@router.get("/security/events")
+def security_events(limit: int = Query(100, ge=1, le=500), event: str | None = Query(None, max_length=32), db: Session = Depends(get_db)) -> list[dict]:
+    q = select(AuthEvent).order_by(AuthEvent.id.desc()).limit(limit)
+    if event:
+        q = q.where(AuthEvent.event == event)
+    return [{"at": _iso(e.created_at), "event": e.event, "email": e.email, "ip": e.ip, "detail": e.detail,
+             "user_agent": (e.user_agent or "")[:80]} for e in db.scalars(q).all()]

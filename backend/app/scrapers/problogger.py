@@ -3,6 +3,7 @@ Friendly site, stable DOM. One of our durable sources."""
 from __future__ import annotations
 
 import logging
+from urllib.parse import urljoin
 from datetime import datetime, timezone
 
 import httpx
@@ -13,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from ..db import session_scope
 from ..models import Job, Source, ScrapeRun
 from ..dedup import dedupe_hash
+from ..security_utils import safe_job_url
 from ..tagging import set_tags
 
 log = logging.getLogger(__name__)
@@ -35,7 +37,7 @@ def fetch_listings() -> list[dict]:
         if not title:
             continue
         out.append({
-            "url": a["href"],
+            "url": urljoin(LISTING_URL, a["href"]),   # hrefs can be relative
             "title": title,
             "snippet": card.get_text(" ", strip=True)[:400],
         })
@@ -65,6 +67,8 @@ def run() -> dict:
         seen_in_batch: set[str] = set()
         for row in rows:
             url, title = row["url"], row["title"]
+            if not safe_job_url(url):
+                continue
             h = dedupe_hash(url=url, title=title, company=None)
             if h in seen_in_batch:
                 continue

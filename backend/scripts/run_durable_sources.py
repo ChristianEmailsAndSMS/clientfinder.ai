@@ -10,9 +10,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.logging_setup import setup_logging  # noqa: E402
 from app.scrapers import ashby, greenhouse, lever, problogger, remoteok, remotive, weworkremotely  # noqa: E402
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+setup_logging()
 
 
 def main() -> int:

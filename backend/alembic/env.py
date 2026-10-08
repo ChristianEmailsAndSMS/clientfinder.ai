@@ -9,13 +9,14 @@ from app import models           # noqa: F401,E402  — register models with Bas
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
-config.set_main_option("sqlalchemy.url", settings.database_url)
+_url = settings.migration_database_url or settings.database_url   # schema changes may need the owner login
+config.set_main_option("sqlalchemy.url", _url)
 target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
     context.configure(
-        url=settings.database_url,
+        url=_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},

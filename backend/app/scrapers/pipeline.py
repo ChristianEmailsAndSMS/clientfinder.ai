@@ -18,6 +18,7 @@ from ..dedup import dedupe_hash
 from ..tagging import set_tags
 from ..config import settings
 from . import google_search, page_fetcher, llm_extractor
+from ..security_utils import redact, safe_job_url
 from .common import clip
 from .llm_extractor import ExtractionError
 
@@ -42,7 +43,10 @@ def result_hash(result: SearchResult) -> str:
 def _upsert_job(db: Session, source: Source, result: SearchResult, extracted: ExtractedJob,
                 seen_in_batch: set[str], fetched: bool = True) -> tuple[bool, bool]:
     """Returns (added, updated)."""
-    url = extracted.apply_url or result.url
+    # The model reads attacker-controlled pages: only ever store a plain http(s) link (never javascript:, data:, etc.)
+    url = safe_job_url(extracted.apply_url) or safe_job_url(result.url)
+    if url is None:
+        return (False, False)
     h = result_hash(result)
     if h in seen_in_batch:
         return (False, False)
@@ -115,12 +119,12 @@ def _record_failure(db: Session, source_key: str, result: SearchResult, error: s
     fu = db.scalar(select(FailedUrl).where(FailedUrl.url_hash == h))
     if fu:
         fu.attempts = (fu.attempts or 0) + 1 if fu.status != "resolved" else 1
-        fu.error, fu.last_failed_at = error[:1000], now
+        fu.error, fu.last_failed_at = redact(error)[:1000], now
         fu.status = "dead" if fu.attempts >= MAX_FAILURE_ATTEMPTS else "pending"
         return
     db.add(FailedUrl(url_hash=h, url=result.url, title=result.title[:512], snippet=result.snippet,
                      platform=result.platform, source_key=source_key, source_query=result.source_query[:256],
-                     error=error[:1000], attempts=1, status="pending", first_failed_at=now, last_failed_at=now))
+                     error=redact(error)[:1000], attempts=1, status="pending", first_failed_at=now, last_failed_at=now))
 
 
 def _resolve_failure(db: Session, result: SearchResult) -> None:
@@ -194,7 +198,7 @@ def run_pipeline_for_query(query: str, num: int = 10, freshness: str | None = No
         results = google_search.search(query, num=num, freshness=freshness)
     except Exception as e:
         log.exception("search failed for %r", query)
-        stats["search_error"] = str(e)
+        stats["search_error"] = redact(e)
         return stats
     stats["search_hits"] = len(results)
     if not results:
@@ -251,5 +255,5 @@ def run_pipeline_for_queries(queries: Iterable[str] | None = None, num: int = 10
             out.append(run_pipeline_for_query(q, num=num))
         except Exception as e:  # one bad query (HTTP error, quota) must not stop the rest
             log.exception("query %r failed", q)
-            out.append({"query": q, "error": str(e)})
+            out.append({"query": q, "error": redact(e)})
     return out

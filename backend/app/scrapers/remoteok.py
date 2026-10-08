@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from ..db import session_scope
 from ..models import Job, Source, ScrapeRun
 from ..dedup import dedupe_hash
+from ..security_utils import safe_job_url
 from ..tagging import set_tags
 
 log = logging.getLogger(__name__)
@@ -65,7 +66,7 @@ def run() -> dict:
                 continue
             stats["matched"] += 1
             url = row.get("url") or row.get("apply_url")
-            if not url:
+            if not safe_job_url(url):
                 continue
             title = row.get("position", "")
             company = row.get("company")
