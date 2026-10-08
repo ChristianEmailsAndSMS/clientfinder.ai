@@ -8,7 +8,7 @@
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/assets/site.css">
 </head>
-<body>
+<body data-page="home">
   <div class="wrap">
     <header class="topbar">
       <a class="brand" href="/">clientfinder<b>.ai</b></a>
@@ -16,8 +16,8 @@
       <nav>
         <a class="navlink" href="#how">How it works</a>
         <a class="navlink" href="#faq">FAQ</a>
-        <a class="btn sm" href="/login">Sign in</a>
-        <a class="btn sm primary" href="/login#signup">Create account</a>
+        <a class="btn sm" href="#signin">Sign in</a>
+        <a class="btn sm primary" href="#signup">Create account</a>
       </nav>
     </header>
 
@@ -26,15 +26,66 @@
         <span class="pill"><span class="dot" id="live-dot"></span><span id="live-text">Checking the feed…</span></span>
         <h1>Find clients<br><span class="grad">the moment they post.</span></h1>
         <p class="lede">Every hiring post for copywriters, email marketers, funnel builders and creative strategists, collected into one database you can search and filter instantly. Need something specific? Run your own search and choose exactly what to look for.</p>
-        <div class="cta">
-          <a class="btn primary lg" href="/login#signup">Create free account</a>
-          <a class="btn lg" href="/login">Sign in</a>
-        </div>
-        <p class="fine">Browsing the database is free with an account. No card needed to sign up.</p>
+        <a class="btn primary lg mobile-only mt20" href="#signup">Create free account</a>
+        <ul class="ticks">
+          <li>Search and filter the whole database, free</li>
+          <li>Run your own search for the exact role you sell</li>
+          <li>Open the original post and pitch while it is fresh</li>
+        </ul>
       </div>
 
+      <!-- sign up / sign in lives right here, so clientfinder.ai is the only page you need -->
+      <div class="card auth glass inhero" id="auth-panel">
+        <div id="v-main">
+          <h2 class="authtitle" id="auth-title">Create your free account</h2>
+          <p class="muted authsub">No card needed. Browsing the database is free.</p>
+          <p id="notice" class="error" role="alert" hidden></p>
+          <div class="tabs2" role="tablist">
+            <button id="tab-up" role="tab" type="button" class="on">Create account</button>
+            <button id="tab-in" role="tab" type="button">Sign in</button>
+          </div>
+
+          <form id="form-up" autocomplete="on">
+            <label class="field">Email<input class="input" name="email" type="email" required autocomplete="username"></label>
+            <label class="field">Password
+              <span class="pwrow"><input class="input" name="password" type="password" required minlength="12" autocomplete="new-password" maxlength="256"><button type="button" class="link" data-show>Show</button></span>
+              <span class="hint">At least 12 characters. A few random words works well.</span>
+            </label>
+            <p class="error" id="err-up" role="alert"></p>
+            <button class="btn primary" type="submit" id="btn-up">Create my account</button>
+          </form>
+
+          <form id="form-in" autocomplete="on" hidden>
+            <label class="field">Email<input class="input" name="email" type="email" required autocomplete="username"></label>
+            <label class="field">Password
+              <span class="pwrow"><input class="input" name="password" type="password" required autocomplete="current-password" maxlength="256"><button type="button" class="link" data-show>Show</button></span>
+            </label>
+            <label class="field" id="row-code" hidden>6-digit code from your authenticator app
+              <input class="input" name="totp_code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="123456">
+            </label>
+            <p class="error" id="err-in" role="alert"></p>
+            <button class="btn primary" type="submit" id="btn-in">Sign in</button>
+          </form>
+        </div>
+
+        <div id="v-2fa" hidden>
+          <h2 class="authtitle">Turn on two-factor sign-in</h2>
+          <p class="muted">Admin accounts need a second step. Scan this with an authenticator app (1Password, Authy, Google Authenticator), then enter the 6-digit code it shows.</p>
+          <img id="qr" alt="Two-factor QR code" width="200" height="200">
+          <p class="hint">Cannot scan? Enter this key by hand:</p>
+          <div class="keybox" id="totp-key"></div>
+          <form id="form-2fa" autocomplete="off">
+            <label class="field">6-digit code<input class="input" name="totp_code" inputmode="numeric" required autocomplete="one-time-code" maxlength="7"></label>
+            <p class="error" id="err-2fa" role="alert"></p>
+            <button class="btn primary" type="submit">Turn on and continue</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section class="peek">
       <div class="window" aria-label="Preview of the latest jobs">
-        <div class="chrome"><i></i><i></i><i></i><span>Latest in the database</span></div>
+        <div class="chrome"><i></i><i></i><i></i><span>Fresh in the database right now</span></div>
         <div id="preview"><div class="prow"><div class="skel h44"></div></div></div>
         <div class="lock"><span id="lock-ico"></span><span>Company, full post and the apply link unlock when you sign in.</span></div>
       </div>
@@ -98,7 +149,7 @@
     <div class="band">
       <h2>Stop hunting. Start pitching.</h2>
       <p class="muted mb22">Create your free account and open the database.</p>
-      <a class="btn primary lg" href="/login#signup">Create free account</a>
+      <a class="btn primary lg" href="#signup">Create free account</a>
     </div>
 
     <footer class="foot">
@@ -107,6 +158,7 @@
     </footer>
   </div>
   <script src="/assets/common.js"></script>
+  <script src="/assets/login.js"></script>
   <script src="/assets/home.js"></script>
 </body>
 </html>

@@ -8,8 +8,9 @@ Money rules: nothing is charged unless the search actually ran; the charge is on
 from __future__ import annotations
 
 import logging
-import math
 import re
+import math
+from decimal import ROUND_CEILING, Decimal
 from datetime import timedelta
 
 from sqlalchemy import func, select
@@ -19,6 +20,7 @@ from . import credits
 from .config import settings
 from .db import session_scope
 from .models import Job, User, UserSearch, UserSearchJob
+from . import pricing
 from .pricing import CREDIT_MARKUP
 from .scrapers import pipeline, query_plan
 from .scrapers.google_search import SearchError  # noqa: F401  (re-exported for callers)
@@ -32,7 +34,9 @@ SOURCE_LABEL = "Customer searches"
 SITES = ("twitter.com", "x.com", "reddit.com", "linkedin.com/posts", "indeed.com", "upwork.com")
 FRESHNESS = ("d", "w", "m")
 STALE_AFTER = timedelta(minutes=10)
-TYPICAL_TOKENS = (2000, 400)           # input, output tokens of a typical extraction, for estimates
+# input, output tokens of a typical extraction, for estimates only (actual tokens are billed). Haiku 5.5's tokenizer makes ~30% more
+# tokens than 4.5 did, and thinking at low effort adds some output.
+TYPICAL_TOKENS = (2600, 900)
 
 
 class SearchRefused(Exception):
@@ -60,15 +64,19 @@ def full_query(query: str, site: str | None) -> str:
 
 
 # ---------- prices ----------
+def our_search_cost_micro() -> int:
+    """What one Google search costs US (plan price / searches), in micro-USD, rounded up."""
+    return int((Decimal(str(settings.serpapi_cost_per_search_usd)) * credits.MICRO).to_integral_value(ROUND_CEILING))
+
+
 def search_fee_micro() -> int:
-    return math.ceil(settings.serpapi_cost_per_search_usd * CREDIT_MARKUP * credits.MICRO)
+    """What the customer pays for the search itself: our cost x CREDIT_MARKUP, rounded up."""
+    return int((Decimal(str(settings.serpapi_cost_per_search_usd)) * credits.MICRO * Decimal(str(CREDIT_MARKUP))).to_integral_value(ROUND_CEILING))
 
 
 def typical_extraction_micro() -> int:
-    try:
-        return credits.usage_cost_micro(settings.extraction_model, *TYPICAL_TOKENS)
-    except ValueError:                       # unpriced model: assume a conservative figure rather than zero
-        return 8_000
+    m = pricing.charge_micro(settings.extraction_model, *TYPICAL_TOKENS)
+    return m if m is not None else 8_000
 
 
 def estimated_user_price_micro() -> int:
@@ -76,12 +84,14 @@ def estimated_user_price_micro() -> int:
 
 
 def estimated_user_price_usd() -> float:
-    return round(estimated_user_price_micro() / credits.MICRO, 4)
+    return estimated_user_price_micro() / credits.MICRO
 
 
 def live_search_ready() -> tuple[bool, str]:
     if settings.dev_fixtures:
         return True, ""                       # local development only: fixtures, no real searches
+    if pricing.rates(settings.extraction_model, 0) is None:
+        return False, "Custom search is paused: the extraction model has no price configured, so it cannot be billed correctly."
     if not (settings.serpapi_api_key or settings.serper_api_key):
         return False, "Custom search is being switched on. Browsing the database works now."
     if not settings.anthropic_api_key:
@@ -203,16 +213,16 @@ def _finish(search_id: int, user_id: int, text: str, fresh: str, stats: dict) ->
             s.error = redact(stats.get("search_error") or stats.get("error") or "Search did not run") + " You were not charged."
             return
         query_plan.log_search(db, query_plan.QuerySpec(text, fresh), results=stats.get("search_hits", 0), new_jobs=stats.get("added", 0))
-        try:
-            extraction = credits.usage_cost_micro(settings.extraction_model, stats.get("tokens_in", 0), stats.get("tokens_out", 0)) \
-                if (stats.get("tokens_in") or stats.get("tokens_out")) else 0
-        except ValueError:
-            extraction = typical_extraction_micro() * max(1, stats.get("extracted", 0))
-        fee = search_fee_micro()
-        total = fee + extraction
+        tin, tout = stats.get("tokens_in", 0), stats.get("tokens_out", 0)
+        extraction = credits.usage_cost_micro(settings.extraction_model, tin, tout) if (tin or tout) else 0
+        our_extraction = pricing.cost_micro(settings.extraction_model, tin, tout) if (tin or tout) else 0
+        fee, our_cost = search_fee_micro(), our_search_cost_micro() + our_extraction
+        # The customer pays at least CREDIT_MARKUP x what the search really cost us (the floor is belt and braces: the two parts
+        # already round up individually).
+        total = max(fee + extraction, math.ceil(our_cost * CREDIT_MARKUP))
         credits.apply(db, user_id, -total, "usage", f"Search: {s.query}"[:200], ref=f"usersearch:{search_id}", allow_negative=True,
-                      meta={"search_id": search_id, "fee_micro": fee, "extraction_micro": extraction,
-                            "tokens_in": stats.get("tokens_in", 0), "tokens_out": stats.get("tokens_out", 0)})
+                      meta={"search_id": search_id, "fee_micro": fee, "extraction_micro": extraction, "our_cost_micro": our_cost,
+                            "charged_micro": total, "tokens_in": tin, "tokens_out": tout, "model": settings.extraction_model})
         ids = sorted(set(stats.get("job_ids", [])))
         for jid in ids:
             db.add(UserSearchJob(search_id=search_id, job_id=jid))

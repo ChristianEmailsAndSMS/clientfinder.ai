@@ -7,12 +7,6 @@
   const chips = document.getElementById("source-chips");
   for (const s of SOURCES) chips.appendChild(h("span", { class: "chip", text: CF.PLATFORM[s] }));
 
-  // If you are already signed in, the buttons should take you straight into the app.
-  api("GET", "/auth/me").then((r) => {
-    if (!r.ok) return;
-    for (const a of document.querySelectorAll('a[href="/login"], a[href="/login#signup"]')) { a.setAttribute("href", "/app"); if (a.classList.contains("primary")) a.textContent = "Open the app"; else a.textContent = "My account"; }
-  });
-
   api("GET", "/public/stats").then((r) => {
     if (!r.ok) return;
     const d = r.data;

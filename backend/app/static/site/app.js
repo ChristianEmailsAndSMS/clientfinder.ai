@@ -216,7 +216,9 @@
     clear(body).append(
       h("div", { class: "bal grad", text: money(r.data.balance_usd) }),
       h("p", { class: "muted", text: "Credits pay for searches you run yourself. Browsing and filtering the database is always free." }),
-      h("div", { class: "sresult mt16" }, h("strong", { text: "Adding credits" }), h("p", { class: "muted", text: "Card payments are launching soon. Until then, email christian@emailsandsms.com and we will top up your account." })),
+      h("div", { class: "sresult mt16" }, h("strong", { text: "Adding credits" }),
+        h("p", { class: "muted", text: r.data.buy_url ? "Pay on the secure checkout page. Credits are added to your account once the payment is confirmed. If they are not there within a day, email christian@emailsandsms.com." : "Card payments are launching soon. Until then, email christian@emailsandsms.com and we will top up your account." }),
+        r.data.buy_url && /^https:\/\//.test(r.data.buy_url) ? h("a", { class: "btn primary mt12", href: r.data.buy_url, target: "_blank", rel: "noopener noreferrer", text: "Buy credits" }) : null),
       h("h3", { class: "mt20", text: "History" }),
       r.data.entries.length ? h("table", { class: "t" }, h("thead", {}, h("tr", {}, ["When", "What", "Amount", "Balance"].map((x) => h("th", { text: x })))),
         h("tbody", {}, r.data.entries.map((e) => h("tr", {}, h("td", { text: ago(e.at) }), h("td", { text: e.reason || e.kind }),

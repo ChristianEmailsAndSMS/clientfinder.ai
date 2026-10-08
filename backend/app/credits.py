@@ -9,7 +9,6 @@ Rules:
   * Price charged = Claude API cost x CREDIT_MARKUP (app/pricing.py), rounded up."""
 from __future__ import annotations
 
-import math
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from sqlalchemy import select, update
@@ -17,7 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .models import CreditEntry, User
-from .pricing import charge_usd
+from .pricing import charge_micro
 
 MICRO = 1_000_000
 MAX_USD = Decimal("1000000")       # hard ceiling for any single amount; stays far inside BIGINT
@@ -104,11 +103,11 @@ def require_balance(db: Session, user_id: int, needed_micro: int) -> None:
 
 
 def usage_cost_micro(model: str, input_tokens: int, output_tokens: int) -> int:
-    """What a call costs the user, in micro-USD. Refuses unpriced models rather than guessing."""
-    usd = charge_usd(model, input_tokens, output_tokens)
-    if usd is None:
+    """What a call costs the customer, in micro-USD. Refuses unpriced models rather than guessing."""
+    micro = charge_micro(model, input_tokens, output_tokens)
+    if micro is None:
         raise ValueError(f"no price for model {model!r}; refusing to charge a guess")
-    return math.ceil(usd * MICRO)
+    return micro
 
 
 def charge_usage(db: Session, user_id: int, model: str, input_tokens: int, output_tokens: int, reason: str,

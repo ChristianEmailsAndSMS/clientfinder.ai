@@ -188,7 +188,15 @@ def overview(db: Session = Depends(get_db)) -> dict:
     users = db.scalar(select(func.count(User.id)).where(User.is_admin.is_(False))) or 0
     liability = db.scalar(select(func.coalesce(func.sum(User.balance_micro), 0)).where(User.is_admin.is_(False))) or 0
     used = query_plan.searches_used_this_month(db)
+    charged = ours = n = 0
+    for (meta,) in db.execute(select(CreditEntry.meta).where(CreditEntry.kind == "usage", CreditEntry.created_at >= now - timedelta(days=30)).limit(20000)):
+        if meta and meta.get("our_cost_micro"):
+            n += 1
+            charged += meta.get("charged_micro", 0)
+            ours += meta["our_cost_micro"]
     return {
+        "customer_searches_30d": {"count": n, "charged_usd": credits.micro_to_usd(charged), "our_cost_usd": credits.micro_to_usd(ours),
+                                  "margin_x": round(charged / ours, 3) if ours else None},
         "jobs": {"total": total_jobs, "new_24h": new_24h},
         "sources": {"count": len(srcs), "failing": failing, "stale": stale},
         "failed_urls_pending": pending_failed,

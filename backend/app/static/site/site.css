@@ -138,6 +138,14 @@ footer.foot{margin-top:80px;padding:28px 0 48px;border-top:1px solid var(--line)
 #qr{display:block;margin:14px auto;background:#fff;padding:8px;border-radius:12px;width:200px;height:200px}
 .keybox{word-break:break-all;background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;text-align:center}
 
+/* home: panel inside the hero */
+.auth.inhero{width:100%;max-width:460px;justify-self:end;padding:28px}
+.authtitle{font-size:21px;letter-spacing:-.02em;margin-bottom:4px}.authsub{font-size:14px;margin-bottom:16px}
+.ticks{list-style:none;margin-top:26px}.ticks li{padding:5px 0 5px 28px;position:relative;color:#c5ccd8}
+.ticks li::before{content:"";position:absolute;left:5px;top:12px;width:12px;height:7px;border-left:2px solid var(--good);border-bottom:2px solid var(--good);transform:rotate(-45deg)}
+.peek{max-width:860px;margin:12px auto 36px}
+.welcome{display:grid;gap:12px}.welcome .who{word-break:break-all}
+
 /* ---------- app ---------- */
 .apphead{position:sticky;top:0;z-index:30;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:12px 20px}
 .apphead .search{flex:1;max-width:560px;position:relative}.apphead .search .input{margin:0;padding-left:38px}
@@ -174,10 +182,12 @@ table.t{width:100%;border-collapse:collapse;font-size:14px}table.t th{color:var(
 .bal{font-size:40px;font-weight:800;letter-spacing:-.03em}
 .mobile-only{display:none}
 @media (max-width:960px){
-  .hero{grid-template-columns:1fr;gap:32px}.two{grid-template-columns:1fr}
+  .topbar nav a.navlink{display:none}.topbar{padding:16px 0}.topbar nav{gap:8px}
+  .auth.inhero{justify-self:stretch;max-width:none}
+  .hero{grid-template-columns:1fr;gap:32px;padding-top:12px}.two{grid-template-columns:1fr}
   .layout{grid-template-columns:1fr;padding:16px 14px 60px}
   .filters{position:fixed;inset:0 0 0 auto;width:min(340px,92vw);z-index:50;max-height:none;background:var(--bg2);padding:18px;border-left:1px solid var(--line2);transform:translateX(105%);transition:transform .22s;overflow-y:auto}
   .filters.open{transform:none}.mobile-only{display:inline-flex}
   .apphead{flex-wrap:wrap}.apphead .search{order:5;flex-basis:100%;max-width:none}
-  .window{order:-1}
+  
 }

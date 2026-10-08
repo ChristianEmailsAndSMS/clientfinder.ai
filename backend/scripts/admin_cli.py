@@ -8,7 +8,7 @@ create or recover an admin account.
     python scripts/admin_cli.py unlock EMAIL              clear a login lockout
     python scripts/admin_cli.py grant EMAIL AMOUNT_USD    add credit to any account (also available in the dashboard)
 
-After create-admin, sign in at https://clientfinder.ai/login. The first sign-in shows a QR code to turn on 2FA."""
+After create-admin, sign in at https://clientfinder.ai (the home page has the sign-in panel). The first sign-in shows a QR code to turn on 2FA."""
 from __future__ import annotations
 
 import argparse
@@ -72,7 +72,7 @@ def cmd_create(args) -> int:
     with session_scope() as db:
         db.add(User(email=email, password_hash=hash_password(pw), is_admin=True, is_active=True, totp_enabled=False))
     _warn_secrets()
-    print(f"Created admin account {email}.\nNow sign in at https://clientfinder.ai/login. The first sign-in will show a QR code to turn on 2FA.")
+    print(f"Created admin account {email}.\nNow go to https://clientfinder.ai and sign in. The first sign-in shows a QR code to turn on 2FA.")
     return 0
 
 
@@ -94,7 +94,7 @@ def cmd_reset(args) -> int:
         u.session_version += 1                                   # ends every open session
         u.locked_until, u.failed_logins = None, 0
     _warn_secrets()
-    print(f"{email}: password changed, 2FA cleared, signed out everywhere.\nSign in at https://clientfinder.ai/login and scan the new QR code.")
+    print(f"{email}: password changed, 2FA cleared, signed out everywhere.\nGo to https://clientfinder.ai, sign in, and scan the new QR code.")
     return 0
 
 

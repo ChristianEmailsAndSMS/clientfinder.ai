@@ -1,7 +1,7 @@
 # What it costs to run (estimates, not measurements)
 
 **Unverified inputs.** SerpAPI price (~$75 for 5,000 searches = $0.015/search; bigger plans cost less per search, price unknown),
-Claude Haiku price ($1 / $5 per million tokens in/out) and tokens per page (~2,000 in, ~400 out ≈ $0.004). Check all three, then
+Claude Haiku 5.5 price ($0.10 / $0.50 per million tokens in/out, as configured in `app/pricing.py`; extraction is ~10× cheaper than with Haiku 4.5, ≈ $0.0005 per page) and tokens per page (~2,600 in, ~900 out incl. thinking). Check all three, then
 re-run `backend/scripts/cost_report.py` after a week of real use.
 
 ## Cost does not grow with customers
@@ -36,3 +36,10 @@ Repeating a search within 6 hours is served from the database and costs nobody a
 3. Cache customer searches (built): popular searches get cheaper.
 4. Snippet-only extraction for social posts (built for X/LinkedIn) and Anthropic batch pricing for scheduled extraction (not built).
 5. Move to a bigger SerpAPI plan or a cheaper provider once volume justifies it (Serper is already supported in the code).
+
+
+## Customer-paid searches (live search)
+Customers pay for their own searches from prepaid credits. Charge = max(fee + extraction, 1.5 × our real cost). With Haiku 5.5 the SerpAPI
+search ($0.015) dominates, so a typical 10-result search costs us about $0.02 and the customer about $0.033. The scheduled Google plan
+stays OFF (`GOOGLE_SCHEDULE_ENABLED=0`) so API keys alone never spend your money on a timer. The real margin is shown on the admin
+dashboard and in `scripts/cost_report.py`; it must read 1.50×.

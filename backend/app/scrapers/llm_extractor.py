@@ -19,7 +19,12 @@ log = logging.getLogger(__name__)
 
 
 class ExtractionError(Exception):
-    """The page could not be turned into a job. Callers skip the row; they must not store a guess."""
+    """The page could not be turned into a job. Callers skip the row; they must not store a guess.
+    `usage` is set when the model WAS called (refusal, cut-off, bad JSON): those tokens cost real money and are billed."""
+
+    def __init__(self, message: str, usage: dict | None = None):
+        super().__init__(message)
+        self.usage = usage
 
 EXTRACTION_PROMPT = """You are a job-posting extractor. Read the HTML/text below and return STRICT JSON with the shape:
 {
@@ -121,21 +126,22 @@ def _heuristic_mock(result: SearchResult, page_text: str) -> ExtractedJob:
     )
 
 
-def _call_model(prompt: str) -> tuple[str, dict]:
-    """One Claude call. Returns (text, usage). Split out so tests can stub it."""
+# Models that accept `output_config.effort` (older ones, e.g. claude-haiku-4-5, return a 400 if it is sent).
+_EFFORT_PREFIXES = ("claude-haiku-5", "claude-sonnet-5", "claude-opus-5", "claude-fable", "claude-mythos")
+MAX_OUTPUT_TOKENS = 2048        # Haiku 5.5 thinks by default and thinking counts toward max_tokens: leave room for the JSON
+
+
+def _call_model(prompt: str) -> tuple[str, dict, str]:
+    """One Claude call. Returns (text, usage, stop_reason). Split out so tests can stub it.
+    Reads content blocks by TYPE: a response can begin with a `thinking` block, so content[0] is not the answer."""
     import anthropic
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-    resp = client.messages.create(
-        model=settings.extraction_model,
-        max_tokens=1024,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    usage = {
-        "model": settings.extraction_model,
-        "input_tokens": resp.usage.input_tokens,
-        "output_tokens": resp.usage.output_tokens,
-    }
-    return resp.content[0].text, usage
+    client = anthropic.Anthropic(api_key=settings.anthropic_api_key, max_retries=2, timeout=60.0)
+    kwargs = {"output_config": {"effort": "low"}} if settings.extraction_model.startswith(_EFFORT_PREFIXES) else {}
+    resp = client.messages.create(model=settings.extraction_model, max_tokens=MAX_OUTPUT_TOKENS,
+                                  messages=[{"role": "user", "content": prompt}], **kwargs)
+    usage = {"model": settings.extraction_model, "input_tokens": resp.usage.input_tokens, "output_tokens": resp.usage.output_tokens}
+    text = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
+    return text, usage, (resp.stop_reason or "")
 
 
 def _claude_extract(result: SearchResult, page_html: str) -> ExtractedJob:
@@ -145,10 +151,14 @@ def _claude_extract(result: SearchResult, page_html: str) -> ExtractedJob:
     # Not str.format(): the prompt contains literal JSON braces.
     prompt = EXTRACTION_PROMPT.replace("{source_hint}", result.platform).replace("{page_text}", page_text)
     try:
-        text, usage = _call_model(prompt)
+        text, usage, stop = _call_model(prompt)
     except Exception as e:
-        raise ExtractionError(f"model call failed: {e}") from e
-    log.info("extract %s tokens_in=%s tokens_out=%s", result.url, usage["input_tokens"], usage["output_tokens"])
+        raise ExtractionError(f"model call failed: {type(e).__name__}") from e
+    log.info("extract %s tokens_in=%s tokens_out=%s stop=%s", result.url, usage["input_tokens"], usage["output_tokens"], stop)
+    if stop == "refusal":                                   # safety classifier declined; there is no server-side fallback on Haiku 5.5
+        raise ExtractionError("model declined this page", usage)
+    if stop == "max_tokens":                                # thinking + answer did not fit: the JSON is cut off, do not parse it
+        raise ExtractionError("model output was cut off", usage)
     text = text.strip()
     # Trim code fences if the model added them
     if text.startswith("```"):
@@ -160,9 +170,9 @@ def _claude_extract(result: SearchResult, page_html: str) -> ExtractedJob:
         data.setdefault("apply_url", result.url)
         job = ExtractedJob(**data)
     except (json.JSONDecodeError, TypeError, ValidationError) as e:
-        raise ExtractionError(f"unparseable model output: {e}") from e
+        raise ExtractionError(f"unparseable model output: {e}", usage) from e
     if job.is_real_job and not job.title.strip():
-        raise ExtractionError("real job without a title")
+        raise ExtractionError("real job without a title", usage)
     job.usage = usage
     return job
 

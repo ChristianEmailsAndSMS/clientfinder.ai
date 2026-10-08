@@ -170,6 +170,9 @@ def _run_one(db: Session, source: Source, result: SearchResult, seen: set[str], 
     except ExtractionError as e:
         log.warning("skipping %s: %s", result.url, e)
         stats["skipped"] += 1
+        if e.usage:                                          # the model WAS called: those tokens cost money, so they are counted
+            stats["tokens_in"] += e.usage.get("input_tokens", 0)
+            stats["tokens_out"] += e.usage.get("output_tokens", 0)
         _record_failure(db, source.key, result, f"extraction: {e}")
     except Exception as e:
         log.exception("pipeline row failed: %s", e)

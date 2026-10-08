@@ -17,7 +17,7 @@ from app.scrapers.google_search import SearchError
 from app.security import utcnow
 from app.tagging import set_tags
 
-MODEL = "claude-haiku-4-5-20251001"
+MODEL = "claude-haiku-5-5"            # the default extraction model: $0.10 in / $0.50 out per million tokens
 
 
 @pytest.fixture
@@ -223,8 +223,9 @@ def test_a_search_runs_stores_jobs_and_charges_exactly_what_it_cost(env, live):
 
 
 def test_the_price_includes_the_1_5x_markup(env, live):
-    cost_micro = credits.usage_cost_micro(MODEL, 2000, 400)
-    assert cost_micro == 6000                                         # $0.004 * 1.5
+    assert settings.extraction_model == MODEL
+    # 2,000 in + 400 out on Haiku 5.5 = $0.0002 + $0.0002 = $0.0004 for us; customers pay 1.5x = $0.0006
+    assert credits.usage_cost_micro(MODEL, 2000, 400) == 600
     assert live_search.search_fee_micro() == 22_500                   # $0.015 * 1.5
 
 
@@ -368,7 +369,7 @@ def test_estimate_reports_affordability_and_never_runs_anything(env, live):
     c = member(env, balance_usd=0.001)
     q = c.post("/searches/estimate", json={"query": "hiring copywriter", "freshness": "w"}, headers=CSRF).json()
     assert q["ready"] is True and q["cached"] is False and q["affordable"] is False
-    assert q["price_usd"] == live_search.estimated_user_price_usd() and 0.05 < q["price_usd"] < 0.2
+    assert q["price_usd"] == live_search.estimated_user_price_usd() and 0.02 < q["price_usd"] < 0.06
     assert live.searches == []
 
 
@@ -378,3 +379,77 @@ def test_cached_results_never_leak_other_peoples_balance_or_identity(env, live):
     b = member(env, "b@example.com", 0)
     body = b.get(f"/searches/{run(b).json()['id']}").text
     assert "a@example.com" not in body and "user_id" not in body
+
+
+# =============== the 1.5x guarantee ===============
+@pytest.mark.parametrize("usage,results", [((2000, 400), 3), ((2600, 900), 10), ((1, 1), 1), ((120_000, 3000), 2), ((5000, 2048), 7)])
+def test_every_search_is_charged_at_least_1_5x_what_it_really_cost_us_and_not_a_cent_more(env, live, usage, results):
+    from app import pricing
+    live.usage, live.n = usage, results
+    c = member(env, balance_usd=5)
+    sid = run(c, f"margin check {usage[0]}").json()["id"]
+    with env.scope() as db:
+        e = db.scalar(select(CreditEntry).where(CreditEntry.ref == f"usersearch:{sid}"))
+        meta = e.meta
+        charged, our_cost = -e.delta_micro, meta["our_cost_micro"]
+    # independent recomputation of our real cost from the raw rates (not through the code under test)
+    r_in, r_out = (0.50, 2.50) if usage[0] > 100_000 else (0.10, 0.50)
+    real_extraction = results * (usage[0] * r_in + usage[1] * r_out)
+    real_cost = settings.serpapi_cost_per_search_usd * 1_000_000 + real_extraction
+    assert our_cost >= real_cost - 1e-6 and our_cost - real_cost < 3          # we record what we really spent (rounded up)
+    assert charged >= 1.5 * real_cost - 1e-6                                  # the customer pays at least 1.5x
+    assert charged <= 1.5 * real_cost + 5                                     # ...and only rounding on top: never an accidental surcharge
+    assert meta["charged_micro"] == charged
+
+
+def test_tokens_from_pages_the_model_read_but_we_could_not_use_are_charged_too(env, live, monkeypatch):
+    live.n = 3
+    calls = {"n": 0}
+    def extract(r, h):
+        calls["n"] += 1
+        if calls["n"] == 2:                                              # one page: model refused, but we paid for the tokens
+            raise llm_extractor.ExtractionError("model declined this page", {"model": MODEL, "input_tokens": 3000, "output_tokens": 50})
+        return ExtractedJob(is_real_job=True, title=r.title, usage={"model": MODEL, "input_tokens": 2000, "output_tokens": 400})
+    monkeypatch.setattr(llm_extractor, "extract", extract)
+    c = member(env, balance_usd=5)
+    sid = run(c, "partial failure").json()["id"]
+    with env.scope() as db:
+        meta = db.scalar(select(CreditEntry).where(CreditEntry.ref == f"usersearch:{sid}")).meta
+    assert meta["tokens_in"] == 2000 + 3000 + 2000 and meta["tokens_out"] == 400 + 50 + 400
+
+
+def test_search_refuses_to_run_when_the_model_has_no_price(env, live, monkeypatch):
+    monkeypatch.setattr(settings, "extraction_model", "claude-some-future-model")
+    c = member(env, balance_usd=5)
+    r = run(c)
+    assert r.status_code == 503 and "no price" in r.json()["detail"]
+    assert live.searches == []
+
+
+def test_the_scheduled_google_plan_is_not_started_by_adding_keys(env, live):
+    from app import scheduler
+    assert settings.google_schedule_enabled is False and scheduler.google_layer_ready()[0] is False
+
+
+# =============== buy-credits link + margin display ===============
+def test_buy_url_is_shown_only_when_configured_and_https(env, monkeypatch):
+    c = member(env)
+    assert c.get("/account/credits").json()["buy_url"] is None
+    monkeypatch.setattr(settings, "whop_checkout_url", "https://whop.com/checkout/abc")
+    assert c.get("/account/credits").json()["buy_url"] == "https://whop.com/checkout/abc"
+    for bad in ("http://whop.com/x", "javascript:alert(1)", "//evil.example", "whop.com/x"):
+        monkeypatch.setattr(settings, "whop_checkout_url", bad)
+        assert c.get("/account/credits").json()["buy_url"] is None, bad
+
+
+def test_admin_overview_reports_the_real_margin_on_customer_searches(env, live):
+    from authkit import login, make_user, CSRF as _CSRF
+    c = member(env, balance_usd=5)
+    run(c, "margin one"); run(c, "margin two")
+    with env.scope() as db:
+        _, secret = make_user(db, "christian@emailsandsms.com", admin=True)
+    admin_client = TestClient(app)
+    assert login(env, admin_client, "christian@emailsandsms.com", secret=secret).status_code == 200
+    o = admin_client.get("/admin/overview").json()["customer_searches_30d"]
+    assert o["count"] == 2 and o["charged_usd"] > o["our_cost_usd"] > 0
+    assert 1.5 <= o["margin_x"] <= 1.51                                        # exactly the markup, plus rounding only

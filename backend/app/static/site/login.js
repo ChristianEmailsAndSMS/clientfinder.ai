@@ -1,32 +1,55 @@
+// Sign up / sign in. Used by BOTH the home page (panel inside the hero) and /login (standalone), so clientfinder.ai is all you need.
 (() => {
   "use strict";
-  const { api, detail, safeNext } = CF;
+  const { h, api, detail, safeNext, clear } = CF;
   const $ = (id) => document.getElementById(id);
+  const onHome = document.body.dataset.page === "home";
   const params = new URLSearchParams(location.search);
   const next = safeNext(params.get("next"), "/app");
   let setupToken = null;
 
-  function go() { location.replace(next); }
+  const go = () => location.replace(next);
 
-  // already signed in? skip the form
-  api("GET", "/auth/me").then((r) => { if (r.ok) go(); });
+  // ---------- already signed in? ----------
+  api("GET", "/auth/me").then((r) => {
+    if (!r.ok) return;
+    if (!onHome) { go(); return; }                       // /login: skip the form
+    const panel = clear($("auth-panel"));                 // home: replace the form with a welcome panel
+    panel.append(h("div", { class: "welcome" },
+      h("h2", { class: "authtitle", text: "Welcome back" }),
+      h("div", { class: "muted who", text: r.data.email }),
+      h("a", { class: "btn primary lg", href: "/app", text: "Open the app" }),
+      r.data.is_admin ? h("a", { class: "btn", href: "/admin", text: "Admin dashboard" }) : null,
+      h("button", { class: "btn", type: "button", text: "Sign out", onclick: async () => { await api("POST", "/auth/logout"); location.reload(); } })));
+  });
+
   api("GET", "/auth/status").then((r) => {
-    if (r.ok && !r.data.auth_configured) {
+    if (r.ok && !r.data.auth_configured && $("notice")) {
       const n = $("notice"); n.hidden = false;
       n.textContent = "Sign-in is not switched on yet: the server is missing JWT_SECRET (see docs/SECURITY.md).";
     }
   });
 
-  function tab(which) {
+  // ---------- tabs ----------
+  function tab(which, focus) {
     const up = which === "up";
     $("tab-in").classList.toggle("on", !up); $("tab-up").classList.toggle("on", up);
     $("form-in").hidden = up; $("form-up").hidden = !up;
-    (up ? $("form-up") : $("form-in")).elements.email.focus();
-    history.replaceState(null, "", up ? "#signup" : location.pathname + location.search);
+    if ($("auth-title")) $("auth-title").textContent = up ? "Create your free account" : "Welcome back";
+    if (focus) (up ? $("form-up") : $("form-in")).elements.email.focus({ preventScroll: false });
   }
-  $("tab-in").addEventListener("click", () => tab("in"));
-  $("tab-up").addEventListener("click", () => tab("up"));
-  if (location.hash === "#signup") tab("up");
+  $("tab-in").addEventListener("click", () => { tab("in", true); setHash("#signin"); });
+  $("tab-up").addEventListener("click", () => { tab("up", true); setHash("#signup"); });
+  function setHash(hash) { history.replaceState(null, "", location.pathname + location.search + hash); }
+
+  // Buttons and links elsewhere on the page ("Create account", "Sign in", "Create free account") point at #signup / #signin.
+  function fromHash(focus) {
+    if (location.hash === "#signup") { tab("up", focus); if (onHome && focus) $("auth-panel").scrollIntoView({ behavior: "smooth", block: "center" }); }
+    else if (location.hash === "#signin") { tab("in", focus); if (onHome && focus) $("auth-panel").scrollIntoView({ behavior: "smooth", block: "center" }); }
+  }
+  window.addEventListener("hashchange", () => fromHash(true));
+  if (onHome) { tab(location.hash === "#signin" ? "in" : "up", false); }      // visitors land on "Create account"
+  else { tab(location.hash === "#signup" ? "up" : "in", true); }               // /login lands on "Sign in"
 
   for (const b of document.querySelectorAll("[data-show]")) {
     b.addEventListener("click", () => {
@@ -38,6 +61,7 @@
 
   function busy(btn, on, label) { btn.disabled = on; btn.textContent = on ? "One moment…" : label; }
 
+  // ---------- create account ----------
   $("form-up").addEventListener("submit", async (e) => {
     e.preventDefault();
     const f = e.target, err = $("err-up"), btn = $("btn-up");
@@ -45,10 +69,11 @@
     const r = await api("POST", "/auth/signup", { email: f.elements.email.value, password: f.elements.password.value });
     if (r.ok) { go(); return; }
     busy(btn, false, "Create my account");
-    err.textContent = CF.detail(r);
+    err.textContent = detail(r);
     if (r.status === 409) { $("form-in").elements.email.value = f.elements.email.value; }
   });
 
+  // ---------- sign in ----------
   $("form-in").addEventListener("submit", async (e) => {
     e.preventDefault();
     const f = e.target, err = $("err-in"), btn = $("btn-in");
@@ -64,6 +89,7 @@
     err.textContent = detail(r);
   });
 
+  // ---------- admin: first sign-in turns on 2FA ----------
   async function startEnrol(token) {
     setupToken = token;
     const r = await api("POST", "/auth/2fa/start", { setup_token: token });

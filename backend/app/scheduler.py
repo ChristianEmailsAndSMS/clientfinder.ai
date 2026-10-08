@@ -2,8 +2,8 @@
 
 - Durable sources (RemoteOK, ProBlogger, Greenhouse, Remotive, WWR, Lever, Ashby): every DURABLE_SOURCES_INTERVAL_HOURS (default 6 = 4x/day),
   first run shortly after start.
-- Google-search layer: every GOOGLE_SEARCH_INTERVAL_MINUTES (default 60). Only scheduled when a search key AND an
-  Anthropic key are configured and DEV_FIXTURES is off, so fake fixture data can never be scheduled.
+- Google-search layer: every GOOGLE_SEARCH_INTERVAL_MINUTES (default 60). Only when GOOGLE_SCHEDULE_ENABLED=1 AND a search key AND an
+  Anthropic key are configured AND DEV_FIXTURES is off. It spends the owner's money, so it is opt-in; customer searches do not need it.
 
 Run it as its own systemd unit (deploy/clientfinder-scheduler.service), separate from the API."""
 from __future__ import annotations
@@ -36,6 +36,8 @@ def run_google_layer() -> None:
 
 
 def google_layer_ready() -> tuple[bool, str]:
+    if not settings.google_schedule_enabled:
+        return False, "GOOGLE_SCHEDULE_ENABLED is off (customer-paid searches only; nothing is spent on a timer)"
     if settings.dev_fixtures:
         return False, "DEV_FIXTURES is on (fake data)"
     if not (settings.serpapi_api_key or settings.serper_api_key):

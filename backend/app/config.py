@@ -20,9 +20,13 @@ class Settings(BaseSettings):
     firecrawl_api_key: str = ""
 
     anthropic_api_key: str = ""
-    extraction_model: str = "claude-haiku-4-5-20251001"
+    # claude-haiku-5-5: $0.10 / $0.50 per million tokens. Must have an entry in app/pricing.py or customer searches refuse to run.
+    extraction_model: str = "claude-haiku-5-5"
 
     # Scheduler cadence (app/scheduler.py)
+    # The scheduled Google plan (app/scrapers/query_plan.py) spends YOUR money on a timer. It is OFF by default: having the API keys
+    # only enables customer-paid searches. Set GOOGLE_SCHEDULE_ENABLED=1 to also run the scheduled plan at your own cost.
+    google_schedule_enabled: bool = False
     google_search_interval_minutes: int = 60     # how often the scheduler checks for due queries
     google_query_cycle_hours: int = 12           # each query in the plan re-runs this often
     google_max_queries_per_tick: int = 6         # cap per scheduler tick (spreads load, bounds a backlog)
@@ -47,6 +51,9 @@ class Settings(BaseSettings):
     # Free credit given to a new account. Keep 0 until sign-up requires a verified email: otherwise throwaway
     # accounts can farm free credit (live searches cost real money).
     signup_bonus_usd: float = 0.0
+    # Where customers pay for credits (your Whop checkout page). Shown as a "Buy credits" button. Until the Whop webhook exists,
+    # YOU add the credits after you see the payment (dashboard > Customers > Manage, or `admin_cli.py grant`).
+    whop_checkout_url: str = ""
     # The job feed needs a signed-in account (otherwise anyone could read or scrape the whole product for free).
     # The home page shows only a small, redacted preview. Set JOBS_REQUIRE_LOGIN=0 only for local development.
     jobs_require_login: bool = True

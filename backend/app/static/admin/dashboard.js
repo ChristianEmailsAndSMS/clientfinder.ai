@@ -93,6 +93,9 @@
       stat(`${o.search_budget.used} / ${o.search_budget.budget}`, "Google searches this month"),
       stat(o.failed_urls_pending, "failed URLs waiting", o.failed_urls_pending ? "warn" : "good"),
       stat(o.backups.status, "backups", o.backups.status === "ok" ? "good" : "bad"),
+      stat(o.customer_searches_30d.margin_x == null ? "none yet" : o.customer_searches_30d.margin_x.toFixed(2) + "×",
+           `customer searches, 30 days: ${o.customer_searches_30d.count} runs, charged ${usd(o.customer_searches_30d.charged_usd)} for ${usd(o.customer_searches_30d.our_cost_usd)} of real cost`,
+           o.customer_searches_30d.margin_x != null && o.customer_searches_30d.margin_x < 1.5 ? "bad" : "good"),
     ));
     const problems = [];
     if (o.sources.failing.length) problems.push("Failing sources: " + o.sources.failing.join(", "));

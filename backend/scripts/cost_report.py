@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlalchemy import select  # noqa: E402
 
 from app.db import session_scope  # noqa: E402
-from app.models import Job, SearchQuery  # noqa: E402
+from app.models import CreditEntry, Job, SearchQuery  # noqa: E402
 from app.pricing import cost_usd  # noqa: E402
 from app.scrapers.query_plan import month_start  # noqa: E402
 
@@ -38,6 +38,10 @@ def main() -> int:
         jobs = db.execute(select(Job.extra, Job.source_key, Job.extraction_model).where(Job.first_seen_at >= since)).all()
         total_jobs = len(jobs)
 
+    with session_scope() as db:
+        usage = db.execute(select(CreditEntry.meta).where(CreditEntry.kind == "usage", CreditEntry.created_at >= since)).all()
+    charged = sum((m or {}).get("charged_micro", 0) for (m,) in usage)
+    ours = sum((m or {}).get("our_cost_micro", 0) for (m,) in usage)
     ok = [q for q in searches if q.error is None]  # rows: (query_key, new_jobs, error)
     search_usd = len(ok) * per_search
     tin = tout = 0
@@ -64,6 +68,8 @@ def main() -> int:
     spend = search_usd + ext_usd
     print(f"total scraping spend: ${spend:.2f}  ->  ${spend / total_jobs:.3f} per new job" if total_jobs else "no jobs yet")
 
+    if ours:
+        print(f"\ncustomer searches this month: charged ${charged / 1e6:.4f} for ${ours / 1e6:.4f} of real cost = {charged / ours:.3f}x (target 1.5x)")
     by_q: dict[str, list[int]] = defaultdict(lambda: [0, 0])
     for key, new_jobs, _err in ok:
         by_q[key][0] += 1
