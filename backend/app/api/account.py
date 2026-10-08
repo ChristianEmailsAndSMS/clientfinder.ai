@@ -1,10 +1,10 @@
 """What a signed-in customer can see about their own credits."""
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import live_search
+from .. import live_search, whop_api
 from ..config import settings
 from ..credits import micro_to_usd
 from ..db import get_db
@@ -21,9 +21,12 @@ def my_credits(limit: int = Query(50, ge=1, le=200), user: User = Depends(curren
     rows = db.scalars(select(CreditEntry).where(CreditEntry.user_id == user.id).order_by(CreditEntry.id.desc()).limit(limit)).all()
     buy = settings.whop_checkout_url.strip()
     per_search = live_search.estimated_user_price_usd() or 0
-    bundles = [{"usd": usd, "url": url.strip(), "searches": int(usd // per_search) if per_search else None}
-               for usd, url in ((27, settings.whop_checkout_27), (47, settings.whop_checkout_47), (97, settings.whop_checkout_97))
-               if url.strip().startswith("https://")]
+    if whop_api.configured():                       # links are created on click: nothing to paste in .env per bundle
+        links = [(usd, None) for usd in whop_api.BUNDLES]
+    else:
+        links = [(usd, url.strip()) for usd, url in ((27, settings.whop_checkout_27), (47, settings.whop_checkout_47), (97, settings.whop_checkout_97))
+                 if url.strip().startswith("https://")]
+    bundles = [{"usd": usd, "url": url, "searches": int(usd // per_search) if per_search else None} for usd, url in links]
     return {
         "bundles": bundles,
         "buy_url": buy if buy.startswith("https://") else None,          # only https links from the owner's config
@@ -70,3 +73,30 @@ def save_profile(body: ProfileBody, request: Request, user: User = Depends(curre
     user.profile = {"about": body.about.strip(), "links": body.links.strip()}
     db.commit()
     return user.profile
+
+
+class CheckoutBody(BaseModel):
+    usd: int
+
+
+_checkout_hits: dict[int, list[float]] = {}
+
+
+@router.post("/checkout")
+def checkout(body: CheckoutBody, request: Request, user: User = Depends(current_user)) -> dict:
+    """A fresh Whop checkout link for one bundle, tagged with this account so the payment finds its way back."""
+    import time
+    csrf_guard(request)
+    if not whop_api.configured():
+        raise HTTPException(503, "Checkout is not set up yet. Email christian@emailsandsms.com to add credits.")
+    if body.usd not in whop_api.BUNDLES:
+        raise HTTPException(422, "Choose one of the listed amounts.")
+    now = time.time()
+    hits = [t for t in _checkout_hits.get(user.id, []) if t > now - 3600]
+    if len(hits) >= 12:
+        raise HTTPException(429, "Too many checkout attempts. Try again in a while.")
+    _checkout_hits[user.id] = hits + [now]
+    try:
+        return {"url": whop_api.create_checkout(user.id, user.email, body.usd)}
+    except whop_api.WhopApiError as e:
+        raise HTTPException(502, str(e))

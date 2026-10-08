@@ -155,3 +155,100 @@ def test_2fa_stays_required_by_default_and_for_non_allowlisted_admins(env, monke
         authkit.make_user(db, "other-admin@example.com", admin=True, totp=False)
     r = TestClient(app).post("/auth/login", json={"email": "other-admin@example.com", "password": authkit.PW}, headers=authkit.CSRF)
     assert r.status_code == 403                                  # not in ADMIN_EMAILS: still no admin access
+
+
+# =============== checkout links created through Whop's API ===============
+from app import whop_api  # noqa: E402
+
+
+class FakeResp:
+    def __init__(self, status=200, body=None, text=""):
+        self.status_code, self._body, self.text = status, body, text or json.dumps(body or {})
+    def json(self):
+        if self._body is None:
+            raise ValueError("no json")
+        return self._body
+
+
+@pytest.fixture
+def whop_on(env, monkeypatch):
+    monkeypatch.setattr(settings, "whop_api_key", "whop_SECRET_KEY_123456789")
+    monkeypatch.setattr(settings, "whop_company_id", "biz_test")
+    sent = []
+    def fake_post(payload):
+        sent.append(payload)
+        return FakeResp(200, {"id": "ch_1", "purchase_url": "https://whop.com/checkout/ch_1"})
+    monkeypatch.setattr(whop_api, "_post", fake_post)
+    whop_api._last = sent
+    return sent
+
+
+def buyer(env, email="buyer@example.com"):
+    with env.scope() as db:
+        uid, _ = authkit.make_user(db, email)
+    c = TestClient(app)
+    assert authkit.login(env, c, email).status_code == 200
+    c.uid = uid
+    return c
+
+
+def test_checkout_creates_a_link_for_exactly_the_chosen_bundle_and_tags_the_buyer(env, whop_on):
+    c = buyer(env)
+    r = c.post("/account/checkout", json={"usd": 47}, headers=authkit.CSRF)
+    assert r.status_code == 200 and r.json() == {"url": "https://whop.com/checkout/ch_1"}
+    p = whop_on[0]
+    assert p["plan"]["initial_price"] == 47 and p["plan"]["plan_type"] == "one_time" and p["plan"]["currency"] == "usd" and p["plan"]["company_id"] == "biz_test"
+    assert p["metadata"]["cf_user_id"] == str(c.uid) and p["redirect_url"].endswith("/app")
+    assert "SECRET_KEY" not in json.dumps(p)
+
+
+def test_checkout_only_sells_the_listed_bundles_and_needs_login_and_csrf(env, whop_on):
+    c = buyer(env)
+    for bad in (1, 28, 0, -27, 10000):
+        assert c.post("/account/checkout", json={"usd": bad}, headers=authkit.CSRF).status_code == 422
+    assert c.post("/account/checkout", json={"usd": 27}).status_code == 403
+    assert TestClient(app).post("/account/checkout", json={"usd": 27}, headers=authkit.CSRF).status_code == 401
+    assert not whop_on
+
+
+def test_checkout_failures_are_explained_and_never_leak_the_key(env, whop_on, monkeypatch):
+    c = buyer(env)
+    monkeypatch.setattr(whop_api, "_post", lambda p: FakeResp(401, text='{"error":"bad key whop_SECRET_KEY_123456789 lacks plan:create"}'))
+    r = c.post("/account/checkout", json={"usd": 27}, headers=authkit.CSRF)
+    assert r.status_code == 502 and "401" in r.json()["detail"] and "SECRET_KEY_123456789" not in r.json()["detail"]
+    monkeypatch.setattr(whop_api, "_post", lambda p: FakeResp(200, {"id": "x"}))
+    assert c.post("/account/checkout", json={"usd": 27}, headers=authkit.CSRF).status_code == 502
+    monkeypatch.setattr(whop_api, "_post", lambda p: FakeResp(200, {"purchase_url": "http://not-https.example"}))
+    assert c.post("/account/checkout", json={"usd": 27}, headers=authkit.CSRF).status_code == 502
+
+
+def test_checkout_is_off_without_keys_and_rate_limited_per_account(env, monkeypatch):
+    c = buyer(env)
+    assert c.post("/account/checkout", json={"usd": 27}, headers=authkit.CSRF).status_code == 503
+    monkeypatch.setattr(settings, "whop_api_key", "k"); monkeypatch.setattr(settings, "whop_company_id", "biz_x")
+    monkeypatch.setattr(whop_api, "_post", lambda p: FakeResp(200, {"purchase_url": "https://whop.com/c/1"}))
+    from app.api import account as acct
+    acct._checkout_hits.clear()
+    codes = [c.post("/account/checkout", json={"usd": 27}, headers=authkit.CSRF).status_code for _ in range(14)]
+    assert codes[:12] == [200] * 12 and codes[12:] == [429, 429]
+
+
+def test_credits_page_lists_bundles_without_urls_when_the_api_is_on(env, whop_on):
+    b = buyer(env).get("/account/credits").json()["bundles"]
+    assert [x["usd"] for x in b] == [27, 47, 97] and all(x["url"] is None for x in b)
+
+
+def test_payment_is_matched_by_the_account_id_we_put_in_the_checkout_even_if_the_email_differs(env):
+    user(env, "signup@example.com"); c = TestClient(app)
+    with env.scope() as db:
+        uid = db.scalar(select(User.id).where(User.email == "signup@example.com"))
+    payload = {"type": "payment.succeeded", "data": {"user": {"email": "different-paypal-email@example.com"}, "currency": "usd", "total": 47,
+                                                   "metadata": {"cf_user_id": str(uid), "cf_bundle_usd": "47"}}}
+    assert post(c, payload, msg_id="evt_meta").json()["status"] == "credited"
+    assert bal(env, "signup@example.com") == 47_000_000
+
+
+def test_a_forged_or_unknown_account_id_never_credits_anyone(env):
+    user(env); c = TestClient(app)
+    payload = {"type": "payment.succeeded", "data": {"currency": "usd", "total": 20, "metadata": {"cf_user_id": "99999"}}}
+    assert post(c, payload).json()["status"] == "unmatched" and bal(env) == 0

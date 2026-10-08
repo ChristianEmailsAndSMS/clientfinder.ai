@@ -314,13 +314,26 @@
     modal("Credits", body);
     const r = await api("GET", "/account/credits?limit=30");
     if (!r.ok) { clear(body).append(h("p", { class: "error", text: detail(r) })); return; }
+    const buyErr = h("p", { class: "error", hidden: true });
+    const bundleTile = (b) => {
+      const kids = [h("strong", { text: "$" + b.usd }), h("small", { text: b.searches ? `about ${num(b.searches)} searches` : "credit for searches and pitch drafts" })];
+      if (b.url && /^https:\/\//.test(b.url)) return h("a", { class: "tile bundle", href: b.url, target: "_blank", rel: "noopener noreferrer" }, kids);
+      const t = h("button", { class: "tile bundle", type: "button" }, kids);
+      t.addEventListener("click", async () => {                         // a fresh checkout link is created for this account on every click
+        t.disabled = true; buyErr.hidden = true;
+        const c = await api("POST", "/account/checkout", { usd: b.usd });
+        t.disabled = false;
+        if (c.ok && /^https:\/\//.test(c.data.url || "")) { window.open(c.data.url, "_blank", "noopener,noreferrer"); return; }
+        buyErr.textContent = c.ok ? "Could not start checkout." : detail(c); buyErr.hidden = false;
+      });
+      return t;
+    };
     clear(body).append(
       h("div", { class: "bal grad", text: me.unlimited ? "Unlimited" : money(r.data.balance_usd) }),
       h("p", { class: "muted", text: "Credits pay for searches you run yourself. Browsing and filtering the database is always free." }),
       r.data.bundles && r.data.bundles.length ? h("div", { class: "mt16" }, h("strong", { text: "Buy credits" }),
         h("p", { class: "muted", text: "Pay at checkout with the same email you signed up with. You get credit equal to what you pay, and it never expires." }),
-        h("div", { class: "tiles" }, r.data.bundles.map((b) => h("a", { class: "tile bundle", href: b.url, target: "_blank", rel: "noopener noreferrer" },
-          h("strong", { text: "$" + b.usd }), h("small", { text: b.searches ? `about ${num(b.searches)} searches` : "credit for searches and pitch drafts" }))))) : "",
+        h("div", { class: "tiles" }, r.data.bundles.map((b) => bundleTile(b))), buyErr) : "",
       r.data.bundles && r.data.bundles.length ? "" : h("div", { class: "sresult mt16" }, h("strong", { text: "Adding credits" }),
         h("p", { class: "muted", text: r.data.buy_url ? "Pay on the secure checkout page. Credits are added to your account once the payment is confirmed. If they are not there within a day, email christian@emailsandsms.com." : "Card payments are launching soon. Until then, email christian@emailsandsms.com and we will top up your account." }),
         r.data.buy_url && /^https:\/\//.test(r.data.buy_url) ? h("a", { class: "btn primary mt12", href: r.data.buy_url, target: "_blank", rel: "noopener noreferrer", text: "Buy credits" }) : null),

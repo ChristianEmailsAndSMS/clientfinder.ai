@@ -73,6 +73,15 @@ def extract_email(data) -> str | None:
     return None
 
 
+def extract_user_id(data) -> int | None:
+    """The account id our own server put in the checkout's metadata (signed webhook, so a buyer cannot forge it)."""
+    for path in (("metadata", "cf_user_id"), ("checkout_configuration", "metadata", "cf_user_id"), ("plan", "metadata", "cf_user_id")):
+        v = _dig(data, *path)
+        if isinstance(v, (str, int)) and str(v).isdigit() and len(str(v)) <= 9:
+            return int(v)
+    return None
+
+
 def extract_amount_micro(data) -> tuple[int | None, str]:
     """The amount actually paid, in micro-USD, or (None, why). Uses the first field present, never sums or guesses between several."""
     cur = next((str(_dig(data, k)).lower() for k in ("currency",) if isinstance(_dig(data, k), str)), None)
@@ -108,15 +117,17 @@ def process(db: Session, event_id: str, body: dict) -> PaymentEvent:
         ev.email = extract_email(data)
         amount, why = extract_amount_micro(data)
         ev.amount_micro = amount
-        user = db.scalar(select(User).where(User.email == ev.email)) if ev.email else None
+        uid = extract_user_id(data)
+        user = db.get(User, uid) if uid else None
+        if user is None and ev.email:
+            user = db.scalar(select(User).where(User.email == ev.email))
+        ev.email = ev.email or (user.email if user else None)
         if amount is None:
             ev.status, ev.note = "review", why
         elif amount > credits.usd_to_micro(settings.whop_max_topup_usd):
             ev.status, ev.note = "review", f"over the ${settings.whop_max_topup_usd:,.0f} auto-credit limit"
-        elif not ev.email:
-            ev.status, ev.note = "unmatched", "no buyer email in the payment"
         elif not user or not user.is_active:
-            ev.status, ev.note = "unmatched", "no account with that email yet"
+            ev.status, ev.note = "unmatched", "no account matches this payment (no account id or email we recognise)"
         else:
             ev.status, ev.user_id = "credited", user.id
     elif etype:

@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     # YOU add the credits after you see the payment (dashboard > Customers > Manage, or `admin_cli.py grant`).
     whop_checkout_url: str = ""
     # One Whop checkout link per credit bundle (create a plan at that exact price in Whop). The customer gets credit equal to what they pay.
+    # Preferred: let the server create a checkout link per click through Whop's API (no plans to make by hand).
+    whop_api_key: str = ""                     # Whop dashboard > Developer > API keys. Needs checkout_configuration + plan create scopes.
+    whop_company_id: str = ""                  # your Whop business id, starts with biz_
+    whop_product_id: str = ""                  # optional: attach the credit plans to an existing product (prod_...)
+    public_url: str = "https://clientfinder.ai"
     whop_checkout_27: str = ""
     whop_checkout_47: str = ""
     whop_checkout_97: str = ""
