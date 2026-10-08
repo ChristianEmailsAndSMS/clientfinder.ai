@@ -1,6 +1,4 @@
-from pathlib import Path
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
 from .api.account import router as account_router
 from .api.admin import router as admin_router
 from .api.auth import router as auth_router
@@ -8,6 +6,9 @@ from .api.dashboard import router as dashboard_router
 from .config import settings
 from .logging_setup import setup_logging
 from .api.jobs import router as jobs_router
+from .api.public import router as public_router
+from .api.site import router as site_router
+from .api.searches import router as searches_router
 
 setup_logging()
 
@@ -26,8 +27,8 @@ _BASE_HEADERS = {
     "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
     "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
 }
-# The admin dashboard loads only its own files (no inline script or third-party code), and must never be cached.
-_ADMIN_CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+# Every page loads only its own files (no inline script or style, no third-party code).
+_PAGE_CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
               "connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
 
 
@@ -36,24 +37,19 @@ async def security_headers(request: Request, call_next):
     response = await call_next(request)
     for k, v in _BASE_HEADERS.items():
         response.headers.setdefault(k, v)
-    if request.url.path.startswith(("/admin", "/auth", "/account")):
+    response.headers["Content-Security-Policy"] = _PAGE_CSP
+    if request.url.path.startswith(("/admin", "/auth", "/account", "/app", "/login", "/searches", "/jobs")):
         response.headers["Cache-Control"] = "no-store"
-        response.headers["Content-Security-Policy"] = _ADMIN_CSP
     return response
 
 app.include_router(jobs_router)
+app.include_router(public_router)
+app.include_router(searches_router)
+app.include_router(site_router)
 app.include_router(dashboard_router)
 app.include_router(auth_router)
 app.include_router(account_router)
 app.include_router(admin_router)
-
-_LANDING_HTML = (Path(__file__).resolve().parent / "templates" / "landing.html").read_text()
-
-
-@app.get("/", response_class=HTMLResponse, include_in_schema=False)
-def landing():
-    return _LANDING_HTML
-
 
 @app.get("/health")
 def health():

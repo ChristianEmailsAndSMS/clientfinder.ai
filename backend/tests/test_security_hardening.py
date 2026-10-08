@@ -218,7 +218,7 @@ def test_dangerous_apply_url_from_the_model_is_never_stored():
     pipeline._upsert_job(db, src, good, ex, set())
     assert db.scalar(select(Job)).source_url == "https://example.org/real"      # fell back to the page we found
     bad = good.model_copy(update={"url": "javascript:alert(1)"})
-    assert pipeline._upsert_job(db, src, bad, ex, set()) == (False, False)
+    assert pipeline._upsert_job(db, src, bad, ex, set()) == (False, False, None)
     assert db.query(Job).count() == 1
 
 
@@ -236,14 +236,16 @@ def test_docs_and_schema_are_not_public_by_default():
         assert c.get(path).status_code == 404
 
 
-def test_security_headers_on_every_response_and_csp_on_admin():
+def test_security_headers_and_csp_on_every_response():
     c = TestClient(app)
-    r = c.get("/health")
-    assert r.headers["x-content-type-options"] == "nosniff" and r.headers["x-frame-options"] == "DENY"
-    assert "max-age" in r.headers["strict-transport-security"] and r.headers["referrer-policy"] == "same-origin"
-    a = c.get("/admin/sources")
-    assert a.headers["cache-control"] == "no-store" and "script-src 'self'" in a.headers["content-security-policy"]
-    assert "content-security-policy" not in r.headers          # landing page keeps working
+    for path in ("/health", "/", "/login", "/admin/sources", "/auth/me", "/assets/app.js"):
+        r = c.get(path, follow_redirects=False)
+        assert r.headers["x-content-type-options"] == "nosniff" and r.headers["x-frame-options"] == "DENY", path
+        assert "max-age" in r.headers["strict-transport-security"] and r.headers["referrer-policy"] == "same-origin", path
+        csp = r.headers["content-security-policy"]
+        assert "script-src 'self'" in csp and "style-src 'self'" in csp and "unsafe-inline" not in csp and "frame-ancestors 'none'" in csp, path
+    for path in ("/admin/sources", "/auth/me", "/jobs", "/login"):
+        assert c.get(path, follow_redirects=False).headers["cache-control"] == "no-store", path
 
 
 def test_risky_defaults_are_off():
@@ -251,3 +253,5 @@ def test_risky_defaults_are_off():
     assert fields["playwright_fallback"].default is False
     assert fields["enable_docs"].default is False
     assert fields["dev_fixtures"].default is False
+    assert fields["jobs_require_login"].default is True
+    assert fields["signup_bonus_usd"].default == 0

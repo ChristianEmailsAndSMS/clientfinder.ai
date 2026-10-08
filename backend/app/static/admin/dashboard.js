@@ -35,7 +35,7 @@
 
   function view(name) {
     $("loading").hidden = true;
-    for (const id of ["v-config", "v-setup", "v-login", "v-dash"]) $(id).hidden = id !== "v-" + name;
+    $("v-dash").hidden = name !== "dash";
   }
   let flashTimer;
   function flash(msg, bad) {
@@ -50,58 +50,18 @@
   }
 
   // ---------- boot ----------
+  // Sign-in lives on /login. Anyone who is not a signed-in admin is sent there and returned here afterwards.
   async function boot() {
-    const st = await api("GET", "/auth/setup/status");
-    if (!st.ok) { view("login"); return; }
-    if (!st.data.auth_configured) { $("config-problem").textContent = st.data.problem || ""; view("config"); return; }
     const me = await api("GET", "/auth/me");
-    if (me.ok && me.data.is_admin) { enterDashboard(me.data); return; }
-    view(st.data.needs_setup ? "setup" : "login");
+    if (!me.ok || !me.data.is_admin) { location.replace("/login?next=" + encodeURIComponent("/admin")); return; }
+    enterDashboard(me.data);
   }
-
-  // ---------- account setup ----------
-  let setupCtx = {};
-  $("setup-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const f = new FormData(e.target), err = $("setup-error");
-    err.textContent = "";
-    if (f.get("password") !== f.get("password2")) { err.textContent = "The two passwords do not match."; return; }
-    setupCtx = { email: f.get("email"), setup_code: f.get("setup_code") };
-    const r = await api("POST", "/auth/setup/start", { ...setupCtx, password: f.get("password") });
-    if (!r.ok) { err.textContent = detail(r); return; }
-    $("qr").src = r.data.qr;
-    $("totp-secret").textContent = r.data.totp_secret;
-    $("setup-1").hidden = true; $("setup-2").hidden = false;
-    e.target.reset();
-  });
-  $("confirm-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const err = $("confirm-error"); err.textContent = "";
-    const r = await api("POST", "/auth/setup/confirm", { ...setupCtx, totp_code: new FormData(e.target).get("totp_code") });
-    if (!r.ok) { err.textContent = detail(r); return; }
-    e.target.reset(); setupCtx = {}; $("qr").removeAttribute("src");
-    enterDashboard(r.data);
-  });
-
-  // ---------- login / logout ----------
-  $("login-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const f = new FormData(e.target), err = $("login-error");
-    err.textContent = "";
-    const r = await api("POST", "/auth/login", { email: f.get("email"), password: f.get("password"), totp_code: f.get("totp_code") || null });
-    if (r.ok) { e.target.reset(); $("totp-row").hidden = true; enterDashboard(r.data); return; }
-    if (r.status === 401 && r.data && r.data.detail === "totp_required") {
-      $("totp-row").hidden = false; e.target.elements.totp_code.focus(); err.textContent = "Enter the 6-digit code from your authenticator app."; return;
-    }
-    err.textContent = detail(r);
-  });
-  $("btn-logout").addEventListener("click", async () => { await api("POST", "/auth/logout"); location.reload(); });
-  $("btn-logout-all").addEventListener("click", async () => { await api("POST", "/auth/logout-all"); location.reload(); });
+  $("btn-logout").addEventListener("click", async () => { await api("POST", "/auth/logout"); location.replace("/login"); });
+  $("btn-logout-all").addEventListener("click", async () => { await api("POST", "/auth/logout-all"); location.replace("/login"); });
 
   // ---------- dashboard shell ----------
   const renderers = { overview: renderOverview, sources: renderSources, failed: renderFailed, users: renderUsers, security: renderSecurity };
   function enterDashboard(me) {
-    if (!me.is_admin) { view("login"); $("login-error").textContent = "This account is not an admin."; return; }
     $("who").textContent = me.email;
     view("dash");
     openTab("overview");
@@ -114,7 +74,7 @@
   $("tabs").addEventListener("click", (e) => { const t = e.target.dataset && e.target.dataset.tab; if (t) openTab(t); });
   async function guarded(method, path, body) {
     const r = await api(method, path, body);
-    if (r.status === 401) { flash("Your session ended. Please sign in again.", true); setTimeout(() => location.reload(), 1200); }
+    if (r.status === 401) { flash("Your session ended. Please sign in again.", true); setTimeout(() => location.replace("/login?next=/admin"), 1200); }
     return r;
   }
 

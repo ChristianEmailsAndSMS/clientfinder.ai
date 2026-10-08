@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     google_search_interval_minutes: int = 60     # how often the scheduler checks for due queries
     google_query_cycle_hours: int = 12           # each query in the plan re-runs this often
     google_max_queries_per_tick: int = 6         # cap per scheduler tick (spreads load, bounds a backlog)
+    # What one Google search costs us (SerpAPI plan price / searches). Customers pay this x CREDIT_MARKUP. Check your plan.
+    serpapi_cost_per_search_usd: float = 0.015
+    search_cache_hours: int = 6              # same search within this window is served from our database, free
+    user_searches_per_day: int = 20          # live (non-cached) searches per customer per 24h
+    user_search_results: int = 10            # Google results processed per live search
+    user_search_max_concurrent: int = 3      # live searches running at once, whole site
     serpapi_monthly_budget: int = 4500           # hard stop. SerpAPI free tier is ~100/mo: set 100 until you upgrade
     # Chromium would run as root with no sandbox on pages from the open web. Keep OFF until the scraper runs as an
     # unprivileged user (docs/SECURITY.md, "Run as a non-root user").
@@ -33,13 +39,17 @@ class Settings(BaseSettings):
     enable_docs: bool = False        # /docs, /redoc, /openapi.json. Off in production.
     durable_sources_interval_hours: int = 6
 
-    # Who may create an admin account (via a one-time setup code printed on the server). Comma-separated.
+    # Only these emails can be admin, and only via `scripts/admin_cli.py create-admin` on the server (browser sign-up for them is blocked,
+    # because without email verification anyone could register the owner's address first). Comma-separated.
     admin_emails: str = "christian@emailsandsms.com"
     cookie_secure: bool = True       # session cookie only over HTTPS. Tests/local dev over http set COOKIE_SECURE=0.
     session_hours: int = 12
-    # The public job feed. Turn JOBS_REQUIRE_LOGIN=1 on before launch: otherwise anyone can read (or scrape) the whole product
-    # for free. Left off only because customer sign-up (Phase 4) does not exist yet.
-    jobs_require_login: bool = False
+    # Free credit given to a new account. Keep 0 until sign-up requires a verified email: otherwise throwaway
+    # accounts can farm free credit (live searches cost real money).
+    signup_bonus_usd: float = 0.0
+    # The job feed needs a signed-in account (otherwise anyone could read or scrape the whole product for free).
+    # The home page shows only a small, redacted preview. Set JOBS_REQUIRE_LOGIN=0 only for local development.
+    jobs_require_login: bool = True
     public_rate_limit_per_min: int = 120      # per IP, on the public job endpoints (0 = off)
     max_credit_adjust_usd: float = 1000.0     # sanity cap on a single admin grant/revoke
     backup_dir: str = "/var/backups/clientfinder"

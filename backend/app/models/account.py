@@ -74,3 +74,32 @@ class SetupCode(Base):
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class UserSearch(Base):
+    """A live search a customer ran (or got served from cache). Costs credits unless `cached`."""
+    __tablename__ = "user_searches"
+    __table_args__ = (Index("ix_user_searches_user_created", "user_id", "created_at"),
+                      Index("ix_user_searches_key_finished", "query_key", "finished_at"))
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    query: Mapped[str] = mapped_column(String(200))                     # as the user typed it (cleaned)
+    query_key: Mapped[str] = mapped_column(String(300))                  # normalised: cache identity
+    freshness: Mapped[str] = mapped_column(String(4), default="w")      # d | w | m
+    site: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    status: Mapped[str] = mapped_column(String(10), default="queued")   # queued | running | done | failed
+    cached: Mapped[bool] = mapped_column(Boolean, default=False)
+    results_count: Mapped[int] = mapped_column(Integer, default=0)
+    new_jobs: Mapped[int] = mapped_column(Integer, default=0)
+    cost_micro: Mapped[int] = mapped_column(BigInteger, default=0)      # what the user was charged
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class UserSearchJob(Base):
+    __tablename__ = "user_search_jobs"
+
+    search_id: Mapped[int] = mapped_column(ForeignKey("user_searches.id", ondelete="CASCADE"), primary_key=True)
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), primary_key=True)

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Clientfinder.ai</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+  <header class="apphead glass">
+    <a class="brand" href="/app">clientfinder<b>.ai</b></a>
+    <div class="search" id="search-wrap"></div>
+    <span class="grow"></span>
+    <button class="credits" id="btn-credits" type="button" aria-label="Credits and billing"><span id="bal">$0.00</span><small>credits</small></button>
+    <button class="btn primary" id="btn-run" type="button">Run a search</button>
+    <div class="menu" id="menu"></div>
+  </header>
+
+  <div class="layout">
+    <aside class="filters" id="filters" aria-label="Filters"></aside>
+    <main>
+      <div class="rhead">
+        <button class="btn sm mobile-only" id="btn-filters" type="button">Filters</button>
+        <h1 id="count">Loading…</h1>
+        <span class="grow"></span>
+        <label class="muted" for="sort">Sort</label>
+        <select class="input" id="sort"></select>
+      </div>
+      <div class="active" id="active"></div>
+      <div id="list" aria-live="polite"></div>
+      <div class="more" id="more"></div>
+    </main>
+  </div>
+  <div id="modal-root"></div>
+  <script src="/assets/common.js"></script>
+  <script src="/assets/app.js"></script>
+</body>
+</html>

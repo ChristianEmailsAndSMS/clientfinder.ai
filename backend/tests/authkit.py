@@ -15,6 +15,8 @@ from app.config import settings
 from app.db import Base, get_db
 from app.main import app
 from app.models import User
+from app import live_search
+from app.api import public as public_api
 from app.scrapers import common, pipeline, query_plan
 
 PW = "correct horse battery staple"
@@ -45,13 +47,14 @@ def make_env(monkeypatch):
         finally:
             s.close()
 
-    for mod in (pipeline, common, query_plan):
+    for mod in (pipeline, common, query_plan, live_search):
         monkeypatch.setattr(mod, "session_scope", scope)
     app.dependency_overrides[get_db] = override
     fast = PasswordHasher(time_cost=1, memory_cost=8, parallelism=1)         # tests do hundreds of hashes
     monkeypatch.setattr(sec, "_ph", fast)
     monkeypatch.setattr(sec, "_DUMMY_HASH", fast.hash("dummy-for-timing"))
     monkeypatch.setattr(sec, "_public_limiter", sec.RateLimiter())            # no cross-test rate-limit bleed
+    public_api._cache.clear()
     monkeypatch.setattr(settings, "jwt_secret", "k" * 48)
     monkeypatch.setattr(settings, "cookie_secure", False)                    # TestClient speaks http
     monkeypatch.setattr(settings, "admin_emails", "christian@emailsandsms.com")

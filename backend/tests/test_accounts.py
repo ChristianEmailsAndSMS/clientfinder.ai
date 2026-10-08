@@ -15,10 +15,15 @@ from authkit import CSRF, PW, login, make_user, totp_now
 from app import security as sec
 from app.config import settings
 from app.main import app
-from app.models import AuthEvent, CreditEntry, SetupCode, User
+from app.models import AuthEvent, CreditEntry, User
 
 EMAIL = "christian@emailsandsms.com"
 STATIC = Path(__file__).resolve().parent.parent / "app" / "static" / "admin"
+
+
+class SimpleNs:
+    def __init__(self, **kw):
+        self.__dict__.update(kw)
 
 
 @pytest.fixture
@@ -28,116 +33,186 @@ def env(monkeypatch):
     app.dependency_overrides.clear()
 
 
-def issue_code(env, email=EMAIL, minutes=30):
-    code = sec.new_setup_code()
+def signup(client, email="new.person@example.com", password=PW):
+    return client.post("/auth/signup", json={"email": email, "password": password}, headers=CSRF)
+
+
+# =============== customer sign-up ===============
+def test_signup_creates_an_account_and_signs_the_person_in(env):
+    r = signup(env.client)
+    assert r.status_code == 201
+    assert r.json() == {"id": r.json()["id"], "email": "new.person@example.com", "is_admin": False, "totp_enabled": False, "balance_usd": 0.0}
+    assert "cf_session" in r.cookies
+    assert env.client.get("/auth/me").json()["email"] == "new.person@example.com"
     with env.scope() as db:
-        db.add(SetupCode(email=email, code_hash=sec.hash_setup_code(code), expires_at=sec.utcnow() + timedelta(minutes=minutes)))
-    return code
+        u = db.scalar(select(User))
+        assert u.password_hash.startswith("$argon2id$") and PW not in u.password_hash
+        assert (u.is_admin, u.is_active, u.balance_micro) == (False, True, 0)
+        assert [e.event for e in db.scalars(select(AuthEvent))] == ["signup"]
 
 
-def start(env, code, email=EMAIL, password=PW):
-    return env.client.post("/auth/setup/start", json={"email": email, "setup_code": code, "password": password}, headers=CSRF)
-
-
-def confirm(env, code, totp, email=EMAIL):
-    return env.client.post("/auth/setup/confirm", json={"email": email, "setup_code": code, "totp_code": totp}, headers=CSRF)
-
-
-# =============== first-run account setup ("Create your admin account") ===============
-def test_status_before_and_after_setup(env):
-    s = env.client.get("/auth/setup/status").json()
-    assert s == {"auth_configured": True, "problem": None, "needs_setup": True}
-    code = issue_code(env)
-    secret = start(env, code).json()["totp_secret"]
-    assert confirm(env, code, totp_now(secret)).status_code == 200
-    assert env.client.get("/auth/setup/status").json()["needs_setup"] is False
-
-
-def test_full_setup_flow_creates_a_working_admin(env):
-    code = issue_code(env)
-    r = start(env, code)
-    assert r.status_code == 200
-    body = r.json()
-    assert body["otpauth_uri"].startswith("otpauth://totp/") and "Clientfinder.ai" in body["otpauth_uri"]
-    assert body["qr"].startswith("data:image/svg+xml") and len(body["totp_secret"]) >= 16
-    with env.scope() as db:                                    # not usable until 2FA is confirmed
-        u = db.scalar(select(User).where(User.email == EMAIL))
-        assert (u.is_active, u.totp_enabled, u.is_admin) == (False, False, True)
-        assert u.totp_secret_enc and body["totp_secret"] not in u.totp_secret_enc          # encrypted at rest
-        assert PW not in u.password_hash and u.password_hash.startswith("$argon2id$")
-    assert login(env, env.client, EMAIL).status_code == 401                               # cannot sign in yet
-    c = confirm(env, code, totp_now(body["totp_secret"]))
-    assert c.status_code == 200 and c.json()["is_admin"] is True
-    assert "cf_session" in c.cookies
-    me = env.client.get("/auth/me")
-    assert me.status_code == 200 and me.json()["email"] == EMAIL
-    assert env.client.get("/admin/overview").status_code == 200
-
-
-def test_setup_code_works_once(env):
-    code = issue_code(env)
-    secret = start(env, code).json()["totp_secret"]
-    assert confirm(env, code, totp_now(secret)).status_code == 200
-    assert start(env, code).status_code == 403                  # consumed
-
-
-def test_setup_rejects_wrong_code_and_burns_it_after_five_tries(env):
-    code = issue_code(env)
-    for _ in range(5):
-        assert start(env, "AAAAA-BBBBB-CCCCC-DDDDD-EEEEE").status_code == 403
-    assert start(env, code).status_code == 403                  # the real code is now dead too: a new one is needed
+def test_signup_email_is_normalised_and_unique(env):
+    assert signup(env.client, "  Mixed.Case@Example.COM ").status_code == 201
+    r = signup(TestClient(app), "mixed.case@example.com")
+    assert r.status_code == 409 and "already exists" in r.json()["detail"]
     with env.scope() as db:
-        assert db.scalar(select(SetupCode)).used_at is not None
-        assert db.query(AuthEvent).filter(AuthEvent.event == "setup_fail").count() >= 5
+        assert db.scalar(select(User.email)) == "mixed.case@example.com"
 
 
-def test_setup_rejects_expired_code_and_unlisted_emails(env):
-    assert start(env, issue_code(env, minutes=-1)).status_code == 403
-    code = issue_code(env, email="attacker@example.com")
-    r = start(env, code, email="attacker@example.com")
-    assert r.status_code == 403 and r.json()["detail"] == "Invalid setup code"       # same message: no hints
+def test_signup_can_then_sign_in_later(env):
+    signup(env.client, "later@example.com")
+    other = TestClient(app)
+    assert login(env, other, "later@example.com").status_code == 200
+    assert other.get("/auth/me").status_code == 200
+
+
+@pytest.mark.parametrize("email", ["", "not-an-email", "a@b", "two@@example.com", "spaces in@example.com", "x" * 400 + "@example.com"])
+def test_signup_rejects_bad_emails(env, email):
+    assert signup(env.client, email).status_code in (422,)
+
+
+@pytest.mark.parametrize("pw", ["short", "a" * 20, "passwordpassword", "newperson-secret-1"])
+def test_signup_enforces_password_policy(env, pw):
+    assert signup(env.client, "new.person@example.com", pw).status_code == 422
+
+
+def test_owner_address_cannot_be_registered_in_the_browser(env):
+    r = signup(env.client, EMAIL)
+    assert r.status_code == 403 and "reserved" in r.json()["detail"]
+    r = signup(env.client, EMAIL.upper())
+    assert r.status_code == 403
     with env.scope() as db:
-        assert db.scalar(select(User).where(User.email == "attacker@example.com")) is None
+        assert db.scalar(select(User)) is None
 
 
-def test_setup_without_any_issued_code_is_refused(env):
-    assert start(env, "AAAAA-BBBBB-CCCCC-DDDDD-EEEEE").status_code == 403
-
-
-@pytest.mark.parametrize("pw", ["short", "a" * 20, "password" * 3, "christianpassword1"])
-def test_setup_enforces_password_policy(env, pw):
-    r = start(env, issue_code(env), password=pw)
-    assert r.status_code == 422, pw
-
-
-def test_confirm_with_wrong_2fa_code_is_refused_and_counts_against_the_code(env):
-    code = issue_code(env)
-    secret = start(env, code).json()["totp_secret"]
-    wrong = "000000" if totp_now(secret) != "000000" else "111111"
-    assert confirm(env, code, wrong).status_code == 403
-    assert env.client.get("/auth/me").status_code == 401
-    assert confirm(env, code, totp_now(secret)).status_code == 200      # still recoverable with the right code
-
-
-def test_confirm_requires_start_first(env):
-    code = issue_code(env)
-    assert confirm(env, code, "123456").status_code == 409
-
-
-def test_setup_not_allowed_when_account_already_active(env):
-    code = issue_code(env)
-    secret = start(env, code).json()["totp_secret"]
-    confirm(env, code, totp_now(secret))
-    again = issue_code(env)
-    assert start(env, again).status_code == 409                          # must use reset-admin from the server shell
-
-
-def test_setup_disabled_when_server_secret_is_weak(env, monkeypatch):
+def test_signup_needs_the_csrf_header_and_a_configured_server(env, monkeypatch):
+    assert env.client.post("/auth/signup", json={"email": "a@example.com", "password": PW}).status_code == 403
     monkeypatch.setattr(settings, "jwt_secret", "change-me-dev-only")
-    s = env.client.get("/auth/setup/status").json()
-    assert s["auth_configured"] is False and s["needs_setup"] is False and "JWT_SECRET" in s["problem"]
-    assert start(env, "x").status_code == 503
+    assert signup(env.client).status_code == 503
+
+
+def test_signup_is_throttled_per_ip_and_globally(env, monkeypatch):
+    for i in range(sec.SIGNUPS_PER_IP_PER_HOUR):
+        assert signup(TestClient(app), f"user{i}@example.com").status_code == 201
+    r = signup(TestClient(app), "one.too.many@example.com")
+    assert r.status_code == 429 and "hour" in r.json()["detail"]
+    with env.scope() as db:                                     # a different IP is fine until the global ceiling
+        db.query(AuthEvent).update({AuthEvent.ip: "203.0.113.9"})
+    assert signup(TestClient(app), "other.ip@example.com").status_code == 201
+    monkeypatch.setattr(sec, "SIGNUPS_GLOBAL_PER_HOUR", 3)
+    assert signup(TestClient(app), "busy@example.com").status_code == 429
+
+
+def test_signup_bonus_is_off_by_default_and_works_when_enabled(env, monkeypatch):
+    assert signup(env.client, "nobonus@example.com").json()["balance_usd"] == 0.0
+    monkeypatch.setattr(settings, "signup_bonus_usd", 2.5)
+    r = signup(TestClient(app), "bonus@example.com")
+    assert r.json()["balance_usd"] == 2.5
+    with env.scope() as db:
+        e = db.scalar(select(CreditEntry))
+        assert (e.kind, e.delta_micro, e.reason) == ("grant", 2_500_000, "Welcome credit")
+
+
+def test_customers_never_get_admin_access(env):
+    signup(env.client)
+    for path in ("/admin/overview", "/admin/users", "/admin/sources"):
+        assert env.client.get(path).status_code == 403
+    assert env.client.post("/admin/retag", headers=CSRF).status_code == 403
+
+
+def test_auth_status_reports_configuration(env, monkeypatch):
+    assert env.client.get("/auth/status").json() == {"auth_configured": True, "problem": None}
+    monkeypatch.setattr(settings, "jwt_secret", "short")
+    s = env.client.get("/auth/status").json()
+    assert s["auth_configured"] is False and "JWT_SECRET" in s["problem"]
     assert env.client.post("/auth/login", json={"email": EMAIL, "password": PW}, headers=CSRF).status_code == 503
+
+
+# =============== admin: first sign-in turns on 2FA ===============
+@pytest.fixture
+def fresh_admin(env):
+    """The owner account as created by `admin_cli.py create-admin`: admin flag, password, no 2FA yet."""
+    with env.scope() as db:
+        uid, _ = make_user(db, EMAIL, admin=True, totp=False)
+    return SimpleNs(id=uid)
+
+
+def first_login(env):
+    r = env.client.post("/auth/login", json={"email": EMAIL, "password": PW}, headers=CSRF)
+    return r, (r.json().get("setup_token") if r.status_code == 401 else None)
+
+
+def test_first_admin_login_returns_an_enrolment_token_not_a_session(env, fresh_admin):
+    r, token = first_login(env)
+    assert r.status_code == 401 and r.json()["detail"] == "totp_setup_required" and token
+    assert "cf_session" not in r.cookies
+    assert env.client.get("/auth/me").status_code == 401 and env.client.get("/admin/overview").status_code == 401
+    assert env.client.cookies.get("cf_session") is None
+
+
+def test_full_admin_enrolment_flow(env, fresh_admin):
+    _, token = first_login(env)
+    s = env.client.post("/auth/2fa/start", json={"setup_token": token}, headers=CSRF)
+    assert s.status_code == 200
+    body = s.json()
+    assert body["otpauth_uri"].startswith("otpauth://totp/") and body["qr"].startswith("data:image/svg+xml") and len(body["totp_secret"]) >= 16
+    with env.scope() as db:
+        u = db.scalar(select(User))
+        assert u.totp_enabled is False and body["totp_secret"] not in u.totp_secret_enc          # pending, encrypted
+    wrong = "000000" if totp_now(body["totp_secret"]) != "000000" else "111111"
+    assert env.client.post("/auth/2fa/confirm", json={"setup_token": token, "totp_code": wrong}, headers=CSRF).status_code == 403
+    assert env.client.get("/auth/me").status_code == 401
+    c = env.client.post("/auth/2fa/confirm", json={"setup_token": token, "totp_code": totp_now(body["totp_secret"])}, headers=CSRF)
+    assert c.status_code == 200 and c.json()["is_admin"] is True and c.json()["totp_enabled"] is True
+    assert env.client.get("/admin/overview").status_code == 200                                   # now a real admin session
+    again = TestClient(app)                                                                       # later sign-ins need password + code
+    r = again.post("/auth/login", json={"email": EMAIL, "password": PW}, headers=CSRF)
+    assert r.status_code == 401 and r.json()["detail"] == "totp_required"
+
+
+def test_enrolment_token_cannot_be_reused_forged_or_expired(env, fresh_admin, monkeypatch):
+    _, token = first_login(env)
+    secret = env.client.post("/auth/2fa/start", json={"setup_token": token}, headers=CSRF).json()["totp_secret"]
+    env.client.post("/auth/2fa/confirm", json={"setup_token": token, "totp_code": totp_now(secret)}, headers=CSRF)
+    other = TestClient(app)
+    for tok in (token, token[:-3] + "abc", "garbage", ""):                                       # already enrolled / tampered
+        assert other.post("/auth/2fa/start", json={"setup_token": tok}, headers=CSRF).status_code == 401
+    # a normal session cookie is not an enrolment token, and an enrolment token is not a session
+    session = env.client.cookies["cf_session"]
+    assert other.post("/auth/2fa/start", json={"setup_token": session}, headers=CSRF).status_code == 401
+    other.cookies.set("cf_session", token)
+    assert other.get("/auth/me").status_code == 401
+    # expired
+    with env.scope() as db:
+        db.query(User).update({User.totp_enabled: False, User.totp_secret_enc: None})
+    monkeypatch.setattr(sec, "ENROL_MINUTES", -1)
+    _, expired = first_login(env)
+    assert other.post("/auth/2fa/start", json={"setup_token": expired}, headers=CSRF).status_code == 401
+
+
+def test_enrolment_token_dies_when_sessions_are_revoked(env, fresh_admin):
+    _, token = first_login(env)
+    with env.scope() as db:
+        db.query(User).update({User.session_version: User.session_version + 1})
+    assert env.client.post("/auth/2fa/start", json={"setup_token": token}, headers=CSRF).status_code == 401
+
+
+def test_enrolment_needs_csrf_and_is_throttled(env, fresh_admin):
+    _, token = first_login(env)
+    assert env.client.post("/auth/2fa/start", json={"setup_token": token}).status_code == 403
+    env.client.post("/auth/2fa/start", json={"setup_token": token}, headers=CSRF)
+    for _ in range(sec.LOCKOUT_AFTER):
+        env.client.post("/auth/2fa/confirm", json={"setup_token": token, "totp_code": "000000"}, headers=CSRF)
+    with env.scope() as db:
+        assert db.scalar(select(User)).locked_until is not None                                    # wrong codes lock the account too
+
+
+def test_admin_flag_alone_is_not_enough(env):
+    with env.scope() as db:
+        make_user(db, "impostor@example.com", admin=True, totp=False)                            # not in ADMIN_EMAILS
+    r = env.client.post("/auth/login", json={"email": "impostor@example.com", "password": PW}, headers=CSRF)
+    assert r.status_code == 403
+    assert "setup_token" not in r.text
 
 
 # =============== login ===============
@@ -147,10 +222,6 @@ def admin(env):
         uid, secret = make_user(db, EMAIL, admin=True)
     return SimpleNs(id=uid, secret=secret)
 
-
-class SimpleNs:
-    def __init__(self, **kw):
-        self.__dict__.update(kw)
 
 
 def test_login_success_sets_a_locked_down_cookie(env, admin, monkeypatch):
@@ -209,13 +280,6 @@ def test_suspended_user_cannot_login(env):
     with env.scope() as db:
         make_user(db, "gone@example.com", admin=False, active=False)
     assert login(env, env.client, "gone@example.com").status_code == 401
-
-
-def test_admin_without_2fa_is_refused(env):
-    with env.scope() as db:
-        make_user(db, EMAIL, admin=True, totp=False)
-    r = login(env, env.client, EMAIL)
-    assert r.status_code == 403 and "2FA" in r.json()["detail"]
 
 
 def test_oversized_inputs_are_rejected_before_hashing(env):
@@ -385,9 +449,12 @@ def test_overview_reports_customer_liability_excluding_admins(env, admin):
 
 
 # =============== dashboard files ===============
-def test_dashboard_page_and_assets_are_served_with_strict_csp(env):
-    r = env.client.get("/admin")
-    assert r.status_code == 200 and "Create your admin account" in r.text
+def test_dashboard_page_redirects_to_sign_in_and_serves_admins_with_strict_csp(env, admin):
+    anon = env.client.get("/admin", follow_redirects=False)
+    assert anon.status_code == 302 and anon.headers["location"] == "/login?next=/admin"
+    c = signed_in(env, admin)
+    r = c.get("/admin")
+    assert r.status_code == 200 and "Clientfinder admin" in r.text and "Create your admin account" not in r.text
     csp = r.headers["content-security-policy"]
     assert "script-src 'self'" in csp and "unsafe-inline" not in csp and "unsafe-eval" not in csp and "frame-ancestors 'none'" in csp
     assert r.headers["cache-control"] == "no-store"
@@ -413,7 +480,7 @@ def test_dashboard_has_no_inline_script_or_style_and_never_uses_innerhtml():
 def test_dashboard_script_only_calls_our_own_endpoints():
     code = (STATIC / "dashboard.js").read_text()
     urls = set(re.findall(r"""["'`](/[a-z][^"'`]*)["'`]""", code))
-    assert all(u.startswith(("/auth/", "/admin/")) for u in urls if "/" in u[1:] or u in ("/admin",)), urls
+    assert all(u in ("/admin", "/login") or u.startswith(("/auth/", "/admin/", "/login")) for u in urls if "/" in u[1:] or u in ("/admin", "/login")), urls
     assert "http://" not in code and "https://" not in code
 
 
@@ -421,6 +488,7 @@ def test_dashboard_script_only_calls_our_own_endpoints():
 def test_public_feed_is_rate_limited_per_ip(env, monkeypatch):
     from app import security
     monkeypatch.setattr(security, "_public_limiter", security.RateLimiter())
+    monkeypatch.setattr(settings, "jobs_require_login", False)       # isolate the rate limiter
     monkeypatch.setattr(settings, "public_rate_limit_per_min", 5)
     codes = [env.client.get("/jobs").status_code for _ in range(8)]
     assert codes == [200] * 5 + [429] * 3
@@ -450,6 +518,7 @@ def test_jobs_can_require_login(env, monkeypatch):
 def test_rate_limit_off_when_zero(env, monkeypatch):
     from app import security
     monkeypatch.setattr(security, "_public_limiter", security.RateLimiter())
+    monkeypatch.setattr(settings, "jobs_require_login", False)
     monkeypatch.setattr(settings, "public_rate_limit_per_min", 0)
     assert all(env.client.get("/jobs").status_code == 200 for _ in range(30))
 
@@ -485,3 +554,12 @@ def test_data_key_rotation_keeps_old_secrets_readable_and_encrypts_with_the_new_
 def test_short_data_keys_are_ignored(env, monkeypatch):
     monkeypatch.setattr(settings, "data_encryption_key", "short")
     assert sec.decrypt_secret(sec.encrypt_secret("X")) == "X"           # falls back to the JWT-derived key, no crash
+
+
+def test_job_feed_requires_login_by_default(env):
+    assert type(settings).model_fields["jobs_require_login"].default is True
+    anon = TestClient(app)
+    for path in ("/jobs", "/jobs/stats", "/jobs/tags"):
+        assert anon.get(path).status_code == 401
+    signup(env.client)
+    assert env.client.get("/jobs").status_code == 200

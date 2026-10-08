@@ -30,7 +30,7 @@ Each item below was reproduced or tested; the tests live in `backend/tests/` and
 | 8 | Playwright fallback on by default | Chromium running as **root with no sandbox** on untrusted web pages | Default off. Enable only after section 4 | Fixed (disabled) |
 | 9 | Static `ADMIN_TOKEN` header for admin access (and it appeared in a screenshot) | Anyone holding the token is admin; no 2FA, no audit trail | Removed. Replaced by session login + 2FA | **Fixed. Delete `ADMIN_TOKEN` from `.env`** |
 | 10 | App connected to Postgres as a superuser | A single SQL bug = full control of the database server | `deploy/db_least_privilege.sql` creates a role that cannot alter/drop/create anything; verified refused on 9 destructive statements | Provided; **needs applying on the server (section 4)** |
-| 11 | Public `/jobs` had no rate limit and no login option | Entire product scrapeable | 120 requests/min per IP; `JOBS_REQUIRE_LOGIN=1` switch | Fixed; **turn the switch on before launch** |
+| 11 | Public `/jobs` had no rate limit and no login option | Entire product scrapeable | Login required by default; 120 requests/min per IP; the home page shows only a 6-row redacted preview | Fixed |
 | 12 | 2FA secrets keyed to `JWT_SECRET` | Rotating the session secret would break everyone's 2FA | Separate `DATA_ENCRYPTION_KEY`, with `..._PREVIOUS` for rotation | Fixed, tested; **set the key** |
 | 13 | Password policy accepted repeats such as `passwordpasswordpassword` | Weak admin password | Rejects repeats, common words plus a few characters, email name; 14+ chars for admins | Fixed, tested |
 | 14 | Unbounded credit amounts (`1e400`, `nan`) | Crash or absurd balance | Exact decimal parsing, finite, max 6 decimals, hard ceiling, plus a $1,000 cap per admin adjustment | Fixed, tested |
@@ -38,7 +38,7 @@ Each item below was reproduced or tested; the tests live in `backend/tests/` and
 
 ### Verified how
 
-- 226 automated tests (run `pytest` in `backend/`), including tampered/forged/expired/`alg=none` tokens, 2FA replay, lockout, CSRF, role checks, SSRF redirect
+- 293 automated tests (run `pytest` in `backend/`), including tampered/forged/expired/`alg=none` tokens, 2FA replay, lockout, CSRF, role checks, SSRF redirect
   to an internal host, secret redaction, and credit ledger invariants.
 - Mutation checks: I deliberately broke the 2FA replay check, session revocation, the admin email allow-list, the CSRF check
   and the ledger's overdraw guard; each break made a test fail.
@@ -70,8 +70,13 @@ Each item below was reproduced or tested; the tests live in `backend/tests/` and
   `scripts/admin_cli.py unlock EMAIL`.
 - Sessions: 12-hour signed token in an HttpOnly, Secure, SameSite=Strict cookie. "Sign out everywhere" and suspending a user
   invalidate every token immediately (server-side version counter).
-- Account creation: only with a one-time code printed on the server (`scripts/admin_cli.py setup-code`), valid 30 minutes, burned
-  after 5 wrong guesses, only for emails in `ADMIN_EMAILS`. Nobody on the internet can create an admin.
+- Customer accounts: anyone can sign up with email + password (12+ characters, no 2FA required). Sign-ups are limited to 5 per IP per
+  hour and 200 per hour site-wide. New accounts get **$0 credit** (`SIGNUP_BONUS_USD`): until sign-up verifies email addresses, free credit
+  could be farmed with throwaway accounts, and live searches cost real money.
+- The owner address (`ADMIN_EMAILS`) **cannot be registered in the browser**. Without email verification, whoever registered it first
+  would own the admin account. The admin account is created on the server with `scripts/admin_cli.py create-admin` (password typed in the
+  terminal, never shown), then the first browser sign-in forces 2FA enrolment through a 10-minute token that is not a session. Once Resend
+  email verification exists (Phase 4) this can become a normal sign-up.
 - Audit log: every sign-in, failure, lockout, setup step and admin action (including every credit change) is recorded and
   visible in the dashboard's Security log.
 
@@ -85,8 +90,8 @@ Each item below was reproduced or tested; the tests live in `backend/tests/` and
    DATA_ENCRYPTION_KEY=<a different value, same command>
    ```
    Then `chmod 600 .env`. Keep a copy of both values in a password manager: losing `DATA_ENCRYPTION_KEY` means 2FA must be re-enrolled.
-3. Create your admin account: `cd /root/clientfinder.ai/backend && .venv/bin/python scripts/admin_cli.py setup-code`, open
-   `https://clientfinder.ai/admin`, follow "Create your admin account".
+3. Create your admin account: `cd /root/clientfinder.ai/backend && .venv/bin/python scripts/admin_cli.py create-admin` (choose a password;
+   you will not see it), then sign in at `https://clientfinder.ai/login` and scan the 2FA QR code.
 4. Run `deploy/security_audit.sh` and fix FAILs.
 
 **This week**
@@ -99,10 +104,10 @@ Each item below was reproduced or tested; the tests live in `backend/tests/` and
 
 **Before launch**
 9. Run the services as a non-root user (below). Until then, keep `PLAYWRIGHT_FALLBACK` off.
-10. `JOBS_REQUIRE_LOGIN=1` once customer sign-up exists.
+10. ~~`JOBS_REQUIRE_LOGIN`~~ is now on by default; the job feed needs an account.
 11. Off-server, encrypted backups (e.g. `rclone` to Backblaze B2 with a crypt remote) plus an alert when a backup fails.
 12. Whop webhook with signature verification and idempotent crediting (`credits.apply(..., ref=payment_id)` is ready for it).
-13. Customer sign-up with email verification and password reset (Resend), plus rate limits on those endpoints.
+13. Email verification and password reset (Resend) for customers; then grant a small welcome credit and let the owner register normally.
 14. Pin dependency versions with hashes (`pip-compile --generate-hashes`) and run `pip-audit` in CI.
 15. Add API workers behind Caddy only after moving the rate limiter to Redis (it is per-process today).
 
@@ -122,8 +127,8 @@ Nothing here needs the Docker socket: the app reaches Postgres on `127.0.0.1:543
 ## 5. Runbooks
 
 **Create or recover the admin account** (lost phone, forgot password, locked out): on the server run
-`.venv/bin/python scripts/admin_cli.py reset-admin christian@emailsandsms.com`, then use the printed code on `/admin`. This signs
-out every session and disables the old 2FA device.
+`.venv/bin/python scripts/admin_cli.py reset-admin christian@emailsandsms.com` (choose a new password), then sign in at `/login` and scan
+the new QR code. This signs out every session and disables the old 2FA device.
 
 **Locked out after failed attempts:** wait 15 minutes, or `scripts/admin_cli.py unlock EMAIL`.
 
@@ -162,3 +167,17 @@ why). Correct it with an adjustment; never edit the table by hand (the app role 
 | Weekly | Read the dashboard Security log (look for repeated `login_fail`, `setup_fail`, `lockout`); confirm backup status is `ok` |
 | Monthly | `deploy/backup.sh --restore-test <newest dump>`; `pip-audit`; `apt upgrade` and reboot if required; review who has access to the server and the Whop/Resend/SerpAPI/Anthropic accounts |
 | Quarterly | Rotate `JWT_SECRET`; review this file |
+
+## 8. Customer sign-up and live search: what can go wrong
+
+| Risk | Control |
+|---|---|
+| Bots mass-create accounts | 5 per IP per hour, 200 per hour overall, password policy, $0 starting credit (nothing to farm) |
+| Someone registers the owner's email | Blocked for every address in `ADMIN_EMAILS` |
+| A customer runs up our SerpAPI / Claude bill | Needs credit first (balance must cover the estimate), 20 new searches per day, one running search per user, 3 at once site-wide, the monthly search budget still applies, and the price is charged from the ledger |
+| Cache poisoning / one customer's search showing another's data | Cached results are shared jobs only; a search record is visible only to its owner (404 for anyone else) |
+| Search text abused to hit our servers | The text only goes to Google as a query. Fetching the result pages goes through the SSRF guard |
+| Double-charging | One ledger entry per search, `ref=usersearch:<id>`; a retry cannot charge twice. Failed searches charge nothing |
+| A customer reads other accounts | Every `/searches` and `/account` call is scoped to the signed-in user; admin-only data stays behind the 2FA admin check |
+| Open redirect after sign-in | `next=` accepts only same-site relative paths (tested) |
+| Stored XSS from scraped text | The interface never uses `innerHTML`; every value is inserted as text; strict CSP (no inline script/style). Enforced by tests that scan all scripts |

@@ -41,15 +41,15 @@ def result_hash(result: SearchResult) -> str:
 
 
 def _upsert_job(db: Session, source: Source, result: SearchResult, extracted: ExtractedJob,
-                seen_in_batch: set[str], fetched: bool = True) -> tuple[bool, bool]:
-    """Returns (added, updated)."""
+                seen_in_batch: set[str], fetched: bool = True) -> tuple[bool, bool, int | None]:
+    """Returns (added, updated, job_id)."""
     # The model reads attacker-controlled pages: only ever store a plain http(s) link (never javascript:, data:, etc.)
     url = safe_job_url(extracted.apply_url) or safe_job_url(result.url)
     if url is None:
-        return (False, False)
+        return (False, False, None)
     h = result_hash(result)
     if h in seen_in_batch:
-        return (False, False)
+        return (False, False, None)
     seen_in_batch.add(h)
     existing = db.scalar(select(Job).where(Job.dedupe_hash == h))
     now = datetime.now(timezone.utc)
@@ -64,7 +64,7 @@ def _upsert_job(db: Session, source: Source, result: SearchResult, extracted: Ex
         if extracted.skills and not existing.skills:
             existing.skills = extracted.skills
         set_tags(db, existing)
-        return (False, True)
+        return (False, True, existing.id)
 
     job = Job(
         dedupe_hash=h,
@@ -97,10 +97,10 @@ def _upsert_job(db: Session, source: Source, result: SearchResult, extracted: Ex
         db.flush()
         set_tags(db, job)
         sp.commit()
-        return (True, False)
+        return (True, False, job.id)
     except IntegrityError:
         sp.rollback()
-        return (False, True)
+        return (False, True, db.scalar(select(Job.id).where(Job.dedupe_hash == h)))
 
 
 def _source_key(query: str) -> str:
@@ -140,6 +140,7 @@ def _process(db: Session, source: Source, result: SearchResult, seen: set[str], 
         if h not in seen:
             known.last_seen_at = datetime.now(timezone.utc)
             stats["updated"] += 1
+            stats["job_ids"].append(known.id)
         seen.add(h)
         _resolve_failure(db, result)
         return
@@ -152,7 +153,9 @@ def _process(db: Session, source: Source, result: SearchResult, seen: set[str], 
         stats["skipped"] += 1
         _resolve_failure(db, result)
         return
-    added, updated = _upsert_job(db, source, result, extracted, seen, fetched)
+    added, updated, job_id = _upsert_job(db, source, result, extracted, seen, fetched)
+    if job_id is not None:
+        stats["job_ids"].append(job_id)
     stats["extracted"] += 1
     stats["added"] += int(added)
     stats["updated"] += int(updated)
@@ -176,7 +179,7 @@ def _run_one(db: Session, source: Source, result: SearchResult, seen: set[str], 
 
 def _new_stats(query: str) -> dict:
     return {"query": query, "searched": False, "search_hits": 0, "extracted": 0, "added": 0, "updated": 0,
-            "skipped": 0, "errors": 0, "tokens_in": 0, "tokens_out": 0}
+            "skipped": 0, "errors": 0, "tokens_in": 0, "tokens_out": 0, "job_ids": []}
 
 
 def _live_ready(stats: dict, what: str) -> bool:
@@ -187,7 +190,8 @@ def _live_ready(stats: dict, what: str) -> bool:
     return True
 
 
-def run_pipeline_for_query(query: str, num: int = 10, freshness: str | None = None) -> dict:
+def run_pipeline_for_query(query: str, num: int = 10, freshness: str | None = None, *, source_key: str | None = None,
+                           source_label: str | None = None) -> dict:
     """Execute the full pipeline for one search query. Returns a stats dict.
     stats["searched"] is True only if a search was actually attempted (i.e. may have cost a credit)."""
     stats = _new_stats(query)
@@ -206,7 +210,7 @@ def run_pipeline_for_query(query: str, num: int = 10, freshness: str | None = No
         return stats
 
     with session_scope() as db:
-        source = _get_or_create_source(db, _source_key(query), "google_search", f"Google: {query}"[:128])
+        source = _get_or_create_source(db, source_key or _source_key(query), "google_search", (source_label or f"Google: {query}")[:128])
         run = ScrapeRun(source_id=source.id, status="running")
         db.add(run)
         db.flush()

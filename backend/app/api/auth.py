@@ -1,30 +1,30 @@
-"""Login, logout and first-run admin setup.
+"""Sign up, sign in, sign out, and 2FA enrolment for admins.
 
-First-run setup (the "Create your admin account" screen): on the server run `scripts/admin_cli.py setup-code`; it prints a
-one-time code. In the browser enter your email (must be in ADMIN_EMAILS), that code and a password, scan the QR code with an
-authenticator app, and confirm with a 6-digit code. Nobody without server access can create an admin."""
+Customers: email + password, no code needed.
+Admins: the owner's account is created on the server (`scripts/admin_cli.py create-admin`) because without email verification
+anyone could register the owner's address first. The first browser sign-in then walks the admin through turning on 2FA."""
 from __future__ import annotations
 
-import hmac
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from .. import credits
 from ..config import settings
-from ..credits import micro_to_usd
 from ..db import get_db
-from ..models import SetupCode, User
+from ..models import User
 from ..security import (LOCKOUT_AFTER, LOCKOUT_MINUTES, _ph, admin_emails, aware, check_totp, clear_session_cookie, client_ip,
-                        csrf_guard, current_user, encrypt_secret, hash_password, hash_setup_code, ip_throttled, log_event,
-                        new_totp_secret, normalize_email, password_problem, qr_data_uri, require_secrets, secrets_ready,
-                        set_session_cookie, totp_uri, utcnow, verify_password)
+                        csrf_guard, current_user, encrypt_secret, hash_password, ip_throttled, issue_enrol_token, log_event,
+                        new_totp_secret, normalize_email, password_problem, qr_data_uri, read_enrol_token, require_secrets,
+                        secrets_ready, set_session_cookie, signup_throttle_reason, totp_uri, utcnow, verify_password)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-SETUP_MAX_ATTEMPTS = 5
 GENERIC_LOGIN_ERROR = "Invalid email, password or code"
 
 
@@ -34,108 +34,67 @@ class LoginBody(BaseModel):
     totp_code: str | None = Field(None, max_length=12)
 
 
-class SetupStart(BaseModel):
+class SignupBody(BaseModel):
     email: str = Field(max_length=320)
-    setup_code: str = Field(max_length=64)
     password: str = Field(max_length=256)
 
 
-class SetupConfirm(BaseModel):
-    email: str = Field(max_length=320)
-    setup_code: str = Field(max_length=64)
+class EnrolStart(BaseModel):
+    setup_token: str = Field(max_length=2000)
+
+
+class EnrolConfirm(BaseModel):
+    setup_token: str = Field(max_length=2000)
     totp_code: str = Field(max_length=12)
 
 
 def _me(user: User) -> dict:
-    return {"id": user.id, "email": user.email, "is_admin": user.is_admin, "totp_enabled": user.totp_enabled,
-            "balance_usd": micro_to_usd(user.balance_micro)}
+    return {"id": user.id, "email": user.email, "is_admin": user.is_admin and user.email in admin_emails(),
+            "totp_enabled": user.totp_enabled, "balance_usd": credits.micro_to_usd(user.balance_micro)}
 
 
-# ---------- status ----------
-@router.get("/setup/status")
-def setup_status(db: Session = Depends(get_db)) -> dict:
+@router.get("/status")
+def status() -> dict:
     ok, why = secrets_ready()
-    has_admin = db.scalar(select(User.id).where(User.is_admin.is_(True), User.is_active.is_(True), User.totp_enabled.is_(True)).limit(1))
-    return {"auth_configured": ok, "problem": None if ok else why, "needs_setup": ok and has_admin is None}
+    return {"auth_configured": ok, "problem": None if ok else why}
 
 
-# ---------- first-run setup ----------
-def _valid_setup_code(db: Session, request: Request, email: str, code: str) -> SetupCode:
-    """Return the matching live setup code or raise a generic 403. Wrong guesses burn the code after 5 tries."""
-    if email not in admin_emails():
-        log_event(db, "setup_fail", request, email=email, detail="email not allowed")
-        db.commit()
-        raise HTTPException(403, "Invalid setup code")
-    row = db.scalar(select(SetupCode).where(SetupCode.email == email, SetupCode.used_at.is_(None)).order_by(SetupCode.id.desc()).limit(1))
-    if row is None or aware(row.expires_at) < utcnow() or row.attempts >= SETUP_MAX_ATTEMPTS:
-        log_event(db, "setup_fail", request, email=email, detail="no live code")
-        db.commit()
-        raise HTTPException(403, "Invalid setup code")
-    if not hmac.compare_digest(row.code_hash, hash_setup_code(code)):
-        row.attempts += 1
-        if row.attempts >= SETUP_MAX_ATTEMPTS:
-            row.used_at = utcnow()                       # burned: a new code must be issued on the server
-        log_event(db, "setup_fail", request, email=email, detail=f"wrong code ({row.attempts}/{SETUP_MAX_ATTEMPTS})")
-        db.commit()
-        raise HTTPException(403, "Invalid setup code")
-    return row
-
-
-def _setup_guard(request: Request, db: Session) -> None:
+# ---------- sign up ----------
+@router.post("/signup", status_code=201)
+def signup(body: SignupBody, request: Request, response: Response, db: Session = Depends(get_db)) -> dict:
     require_secrets()
     csrf_guard(request)
-    if ip_throttled(db, client_ip(request)):
-        raise HTTPException(429, "Too many attempts. Try again later.")
-
-
-@router.post("/setup/start")
-def setup_start(body: SetupStart, request: Request, db: Session = Depends(get_db)) -> dict:
-    _setup_guard(request, db)
+    ip = client_ip(request)
+    why = signup_throttle_reason(db, ip) or ("Too many attempts. Try again later." if ip_throttled(db, ip) else None)
+    if why:
+        raise HTTPException(429, why)
     email = normalize_email(body.email)
-    _valid_setup_code(db, request, email, body.setup_code)
-    existing = db.scalar(select(User).where(User.email == email))
-    if existing and existing.is_active and existing.totp_enabled:
-        raise HTTPException(409, "This account already exists. Sign in instead.")
-    problem = password_problem(body.password, email, admin=True)
+    if email in admin_emails():
+        raise HTTPException(403, "This address is reserved for the site owner. If it is yours, sign in instead.")
+    problem = password_problem(body.password, email, admin=False)
     if problem:
         raise HTTPException(422, problem)
-    secret = new_totp_secret()
-    user = existing or User(email=email, password_hash="")
-    user.password_hash, user.is_admin, user.is_active = hash_password(body.password), True, False      # inactive until 2FA is confirmed
-    user.totp_secret_enc, user.totp_enabled, user.totp_last_step = encrypt_secret(secret), False, None
+    if db.scalar(select(User.id).where(User.email == email)):
+        raise HTTPException(409, "An account with this email already exists. Sign in instead.")
+    user = User(email=email, password_hash=hash_password(body.password), is_admin=False, is_active=True)
     db.add(user)
-    log_event(db, "setup_started", request, email=email)
-    db.commit()
-    uri = totp_uri(secret, email)
-    return {"totp_secret": secret, "otpauth_uri": uri, "qr": qr_data_uri(uri)}
-
-
-@router.post("/setup/confirm")
-def setup_confirm(body: SetupConfirm, request: Request, response: Response, db: Session = Depends(get_db)) -> dict:
-    _setup_guard(request, db)
-    email = normalize_email(body.email)
-    code_row = _valid_setup_code(db, request, email, body.setup_code)
-    user = db.scalar(select(User).where(User.email == email))
-    if user is None or user.is_active or not user.is_admin:
-        raise HTTPException(409, "Start setup first")
-    if not check_totp(user, body.totp_code):
-        code_row.attempts += 1
-        if code_row.attempts >= SETUP_MAX_ATTEMPTS:
-            code_row.used_at = utcnow()
-        log_event(db, "setup_fail", request, email=email, detail="wrong 2FA code")
-        db.commit()
-        raise HTTPException(403, "That code did not match. Check your phone's clock and try the next code.")
-    user.is_active, user.totp_enabled, user.last_login_at = True, True, utcnow()
-    code_row.used_at = utcnow()
-    log_event(db, "setup_ok", request, user=user)
+    try:
+        db.flush()
+    except IntegrityError:                       # two sign-ups for the same address raced
+        db.rollback()
+        raise HTTPException(409, "An account with this email already exists. Sign in instead.")
+    if settings.signup_bonus_usd > 0:
+        credits.apply(db, user.id, credits.usd_to_micro(settings.signup_bonus_usd), "grant", "Welcome credit")
+    user.last_login_at = utcnow()
+    log_event(db, "signup", request, user=user)
     db.commit()
     set_session_cookie(response, user)
     return _me(user)
 
 
-# ---------- login / logout ----------
+# ---------- sign in / out ----------
 @router.post("/login")
-def login(body: LoginBody, request: Request, response: Response, db: Session = Depends(get_db)) -> dict:
+def login(body: LoginBody, request: Request, response: Response, db: Session = Depends(get_db)):
     require_secrets()
     csrf_guard(request)
     ip = client_ip(request)
@@ -166,7 +125,12 @@ def login(body: LoginBody, request: Request, response: Response, db: Session = D
             db.commit()
             raise HTTPException(401, GENERIC_LOGIN_ERROR)
     elif user.is_admin:
-        raise HTTPException(403, "Admin accounts require 2FA. Run: scripts/admin_cli.py reset-admin")
+        if user.email not in admin_emails():
+            raise HTTPException(403, "Admin access required")
+        # Password is right but 2FA is not set up yet: hand back a short-lived enrolment token (NOT a session).
+        log_event(db, "totp_setup_required", request, user=user)
+        db.commit()
+        return JSONResponse(status_code=401, content={"detail": "totp_setup_required", "setup_token": issue_enrol_token(user)})
 
     user.failed_logins, user.locked_until, user.last_login_at = 0, None, now
     if _ph.check_needs_rehash(user.password_hash):
@@ -189,7 +153,7 @@ def me(user: User = Depends(current_user)) -> dict:
 
 
 @router.post("/logout")
-def logout(request: Request, response: Response, db: Session = Depends(get_db)) -> dict:
+def logout(request: Request, response: Response) -> dict:
     csrf_guard(request)
     clear_session_cookie(response)
     return {"ok": True}
@@ -203,3 +167,44 @@ def logout_all(request: Request, response: Response, user: User = Depends(curren
     db.commit()
     clear_session_cookie(response)
     return {"ok": True}
+
+
+# ---------- 2FA enrolment (admins) ----------
+def _enrolling_admin(request: Request, db: Session, token: str) -> User:
+    require_secrets()
+    csrf_guard(request)
+    if ip_throttled(db, client_ip(request)):
+        raise HTTPException(429, "Too many attempts. Try again later.")
+    claims = read_enrol_token(token)
+    user = db.get(User, int(claims["sub"])) if claims and str(claims["sub"]).isdigit() else None
+    if (not user or not user.is_active or not user.is_admin or user.totp_enabled
+            or user.session_version != claims["sv"] or user.email not in admin_emails()):
+        raise HTTPException(401, "That sign-in expired. Sign in again.")
+    return user
+
+
+@router.post("/2fa/start")
+def twofa_start(body: EnrolStart, request: Request, db: Session = Depends(get_db)) -> dict:
+    user = _enrolling_admin(request, db, body.setup_token)
+    secret = new_totp_secret()
+    user.totp_secret_enc, user.totp_last_step = encrypt_secret(secret), None       # pending until confirmed
+    db.commit()
+    uri = totp_uri(secret, user.email)
+    return {"totp_secret": secret, "otpauth_uri": uri, "qr": qr_data_uri(uri)}
+
+
+@router.post("/2fa/confirm")
+def twofa_confirm(body: EnrolConfirm, request: Request, response: Response, db: Session = Depends(get_db)) -> dict:
+    user = _enrolling_admin(request, db, body.setup_token)
+    if not user.totp_secret_enc:
+        raise HTTPException(409, "Start 2FA setup first")
+    if not check_totp(user, body.totp_code):
+        _register_failure(db, user, utcnow())
+        log_event(db, "totp_fail", request, user=user, detail="enrolment")
+        db.commit()
+        raise HTTPException(403, "That code did not match. Check your phone's clock and try the next code.")
+    user.totp_enabled, user.failed_logins, user.locked_until, user.last_login_at = True, 0, None, utcnow()
+    log_event(db, "totp_enabled", request, user=user)
+    db.commit()
+    set_session_cookie(response, user)
+    return _me(user)

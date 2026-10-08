@@ -1,49 +1,31 @@
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, func, or_
+
+from fastapi import APIRouter, Depends, Query, Response
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..models import Job, JobTag
-from ..tagging import tag_counts
 from ..schemas import JobOut
 from ..security import public_guard
+from ..tagging import tag_counts
 
 router = APIRouter(prefix="/jobs", tags=["jobs"], dependencies=[Depends(public_guard)])
 
+SORTS = {
+    "newest": lambda: (Job.first_seen_at.desc(), Job.id.desc()),
+    "oldest": lambda: (Job.first_seen_at.asc(), Job.id.asc()),
+    "pay_high": lambda: (Job.pay_max.desc().nulls_last(), Job.first_seen_at.desc()),
+    "pay_low": lambda: (Job.pay_min.asc().nulls_last(), Job.first_seen_at.desc()),
+}
 
-@router.get("", response_model=list[JobOut])
-def list_jobs(
-    db: Session = Depends(get_db),
-    q: str | None = Query(None, description="keyword search on title/company/snippet"),
-    platform: str | None = None,
-    type: str | None = None,
-    min_pay: float | None = None,
-    max_pay: float | None = None,
-    tag: list[str] | None = Query(None, description="repeatable; a job must have ALL given tags"),
-    posted_within_days: int | None = Query(None, ge=1, le=365),
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
-):
-    stmt = select(Job).order_by(Job.first_seen_at.desc())
-    if q:
-        like = f"%{q}%"
-        stmt = stmt.where(or_(Job.title.ilike(like), Job.company_or_poster.ilike(like), Job.raw_snippet.ilike(like)))
-    if platform:
-        stmt = stmt.where(Job.platform == platform)
-    if type:
-        stmt = stmt.where(Job.type == type)
-    if min_pay is not None:
-        stmt = stmt.where(Job.pay_max >= min_pay)
-    if max_pay is not None:
-        stmt = stmt.where(Job.pay_min <= max_pay)
-    if posted_within_days:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=posted_within_days)
-        stmt = stmt.where(or_(Job.posted_at >= cutoff, Job.first_seen_at >= cutoff))
-    for t in tag or []:
-        stmt = stmt.where(Job.id.in_(select(JobTag.job_id).where(JobTag.tag == t.lower())))
-    stmt = stmt.limit(limit).offset(offset)
-    rows = db.scalars(stmt).all()
+
+def _like(q: str) -> str:
+    """Escape LIKE wildcards so a visitor's '%' or '_' is matched literally instead of matching everything."""
+    return "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+
+
+def serialize_jobs(db: Session, rows) -> list[JobOut]:
     tags_by_job: dict[int, list[str]] = {}
     if rows:
         for job_id, t in db.execute(select(JobTag.job_id, JobTag.tag).where(JobTag.job_id.in_([r.id for r in rows])).order_by(JobTag.tag)):
@@ -54,6 +36,71 @@ def list_jobs(
         item.tags = tags_by_job.get(r.id, [])
         out.append(item)
     return out
+
+
+@router.get("", response_model=list[JobOut])
+def list_jobs(
+    response: Response,
+    db: Session = Depends(get_db),
+    q: str | None = Query(None, max_length=100, description="keyword search on title/company/snippet"),
+    platform: list[str] | None = Query(None, description="repeatable; any of these platforms"),
+    type: list[str] | None = Query(None, description="repeatable; any of these job types"),
+    pay_period: str | None = Query(None, pattern="^(hour|year|project)$"),
+    min_pay: float | None = Query(None, ge=0, le=10_000_000),
+    max_pay: float | None = Query(None, ge=0, le=10_000_000),
+    has_pay: bool | None = None,
+    remote: bool | None = None,
+    tag: list[str] | None = Query(None, description="repeatable; a job must have ALL given tags"),
+    posted_within_days: int | None = Query(None, ge=1, le=365),
+    sort: str = Query("newest", pattern="^(newest|oldest|pay_high|pay_low)$"),
+    limit: int = Query(30, ge=1, le=100),
+    offset: int = Query(0, ge=0, le=10_000),
+):
+    conds = [Job.is_real_job.is_(True)]
+    if q and q.strip():
+        like = _like(q.strip())
+        conds.append(or_(Job.title.ilike(like, escape="\\"), Job.company_or_poster.ilike(like, escape="\\"),
+                         Job.raw_snippet.ilike(like, escape="\\")))
+    if platform:
+        conds.append(Job.platform.in_(platform))
+    if type:
+        conds.append(Job.type.in_(type))
+    if pay_period:
+        conds.append(Job.pay_period == pay_period)
+    if min_pay is not None:
+        conds.append(Job.pay_max >= min_pay)
+    if max_pay is not None:
+        conds.append(Job.pay_min <= max_pay)
+    if has_pay:
+        conds.append(or_(Job.pay_min.is_not(None), Job.pay_max.is_not(None), Job.pay_text.is_not(None)))
+    if remote is not None:
+        conds.append(Job.remote.is_(True) if remote else or_(Job.remote.is_(False), Job.remote.is_(None)))
+    if posted_within_days:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=posted_within_days)
+        conds.append(or_(Job.posted_at >= cutoff, (Job.posted_at.is_(None)) & (Job.first_seen_at >= cutoff)))
+    for t in tag or []:
+        conds.append(Job.id.in_(select(JobTag.job_id).where(JobTag.tag == t.lower())))
+
+    response.headers["X-Total-Count"] = str(db.scalar(select(func.count(Job.id)).where(*conds)) or 0)
+    rows = db.scalars(select(Job).where(*conds).order_by(*SORTS[sort]()).limit(limit).offset(offset)).all()
+    return serialize_jobs(db, rows)
+
+
+@router.get("/facets")
+def facets(db: Session = Depends(get_db)) -> dict:
+    """Everything the filter sidebar needs in one call: value + count for each filter."""
+    real = Job.is_real_job.is_(True)
+    def counts(col):
+        return [{"value": v, "count": c} for v, c in db.execute(
+            select(col, func.count(Job.id)).where(real, col.is_not(None)).group_by(col).order_by(func.count(Job.id).desc())).all()]
+    return {
+        "total": db.scalar(select(func.count(Job.id)).where(real)) or 0,
+        "platforms": counts(Job.platform),
+        "types": counts(Job.type),
+        "pay_periods": counts(Job.pay_period),
+        "tags": [{"value": t, "count": c} for t, c in tag_counts(db)],
+        "newest_at": (db.scalar(select(func.max(Job.first_seen_at)).where(real)) or datetime.now(timezone.utc)).isoformat(),
+    }
 
 
 @router.get("/tags")

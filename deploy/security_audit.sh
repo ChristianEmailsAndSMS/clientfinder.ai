@@ -33,7 +33,8 @@ if [[ ! -r "$ENV_FILE" ]]; then F ".env not found/readable"; else
   [[ "$(envval COOKIE_SECURE)" =~ ^(0|false|False)$ ]] && F "COOKIE_SECURE is off: session cookie can travel over plain http" || P "session cookie is Secure"
   [[ -n "$(envval ADMIN_TOKEN)" ]] && W "ADMIN_TOKEN is still in .env: the old static token no longer does anything. Delete the line."
   [[ "$(envval PLAYWRIGHT_FALLBACK)" =~ ^(1|true|True)$ ]] && W "PLAYWRIGHT_FALLBACK on: Chromium opens untrusted pages. Only safe once the scraper runs as a non-root user."
-  [[ "$(envval JOBS_REQUIRE_LOGIN)" =~ ^(1|true|True)$ ]] && P "job feed requires login" || W "JOBS_REQUIRE_LOGIN is off: the job feed is public. Turn it on before launch."
+  [[ "$(envval JOBS_REQUIRE_LOGIN)" =~ ^(0|false|False)$ ]] && F "JOBS_REQUIRE_LOGIN is off: the whole job database is public and scrapeable" || P "job feed requires an account"
+  [[ "$(envval SIGNUP_BONUS_USD)" =~ ^0*\.?0*$ ]] && P "no free signup credit (nothing to farm)" || W "SIGNUP_BONUS_USD is set: without email verification, throwaway accounts can farm free credit"
   dburl=$(envval DATABASE_URL); dbuser=$(sed -E 's#^[a-z+]+://([^:@/]+).*#\1#' <<<"$dburl")
   if [[ -n "$dbuser" ]] && have docker && docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$PG_CONTAINER"; then
     su=$(docker exec "$PG_CONTAINER" psql -U clientfinder -d postgres -Atc "select rolsuper from pg_roles where rolname='$dbuser'" 2>/dev/null)
@@ -105,6 +106,8 @@ if have curl; then
     [[ "$(code /openapi.json)" == "404" ]] && P "/openapi.json not exposed" || F "/openapi.json is exposed"
     c=$(code /admin/overview); [[ "$c" == "401" ]] && P "admin API refuses anonymous callers" || F "/admin/overview returned $c to an anonymous caller"
     c=$(code /admin/users); [[ "$c" == "401" ]] && P "customer list refuses anonymous callers" || F "/admin/users returned $c to an anonymous caller"
+    c=$(code /jobs); [[ "$c" == "401" ]] && P "job feed refuses anonymous callers" || F "/jobs returned $c to an anonymous caller"
+    c=$(code /app); [[ "$c" == "302" ]] && P "/app redirects visitors to sign in" || W "/app returned $c to an anonymous caller (expected a redirect)"
     h=$(hdr)
     for want in strict-transport-security x-content-type-options x-frame-options; do grep -qi "^$want:" <<<"$h" && P "header $want present" || F "header $want missing"; done
     grep -qi "^server:" <<<"$h" && W "Server header is sent (harmless; hide it with 'header -Server' in Caddy)"

@@ -101,7 +101,8 @@ def password_problem(password: str, email: str, admin: bool = False) -> str | No
             or any(c in low and len(low) - len(c) <= 6 for c in _COMMON)             # password1234!, welcome1xyz
             or (letters and any(c.isalpha() and c in letters and len(letters) - len(c) <= 2 for c in _COMMON))):
         return "That password is too easy to guess"
-    if len(local) >= 4 and local in low:
+    squashed, local_squashed = re.sub(r"[^a-z0-9]", "", low), re.sub(r"[^a-z0-9]", "", local)   # new.person == newperson
+    if len(local_squashed) >= 4 and local_squashed in squashed:
         return "Do not include your email name in the password"
     return None
 
@@ -192,6 +193,27 @@ def read_session(token: str | None) -> dict | None:
         return None
 
 
+ENROL_MINUTES = 10
+
+
+def issue_enrol_token(user: User) -> str:
+    """Short-lived proof that the password was just verified, good only for enrolling 2FA (it is NOT a session)."""
+    now = int(time.time())
+    return jwt.encode({"sub": str(user.id), "sv": user.session_version, "iat": now, "exp": now + ENROL_MINUTES * 60,
+                       "iss": ISSUER, "purpose": "2fa-enrol"}, _subkey(b"2fa-enrol-jwt"), algorithm="HS256")
+
+
+def read_enrol_token(token: str | None) -> dict | None:
+    if not token:
+        return None
+    try:
+        claims = jwt.decode(token, _subkey(b"2fa-enrol-jwt"), algorithms=["HS256"], issuer=ISSUER,
+                            options={"require": ["exp", "iat", "sub", "sv", "purpose"]})
+    except jwt.PyJWTError:
+        return None
+    return claims if claims.get("purpose") == "2fa-enrol" else None
+
+
 def set_session_cookie(response: Response, user: User) -> None:
     token, ttl = issue_session(user)
     response.set_cookie(COOKIE_NAME, token, max_age=ttl, httponly=True, secure=settings.cookie_secure,
@@ -262,6 +284,21 @@ def current_admin(user: User = Depends(current_user)) -> User:
     return user
 
 
+SIGNUPS_PER_IP_PER_HOUR = 5
+SIGNUPS_GLOBAL_PER_HOUR = 200
+
+
+def signup_throttle_reason(db: Session, ip: str) -> str | None:
+    since = utcnow() - timedelta(hours=1)
+    mine = db.scalar(select(func.count(AuthEvent.id)).where(AuthEvent.event == "signup", AuthEvent.ip == ip, AuthEvent.created_at >= since)) or 0
+    if mine >= SIGNUPS_PER_IP_PER_HOUR:
+        return "Too many accounts created from this address. Try again in an hour."
+    total = db.scalar(select(func.count(AuthEvent.id)).where(AuthEvent.event == "signup", AuthEvent.created_at >= since)) or 0
+    if total >= SIGNUPS_GLOBAL_PER_HOUR:
+        return "Sign-ups are very busy right now. Try again in a little while."
+    return None
+
+
 # ---------- public rate limit ----------
 class RateLimiter:
     """Sliding-window counter per key, in memory (one API process). Enough to stop casual scraping; real abuse
@@ -289,19 +326,15 @@ class RateLimiter:
 _public_limiter = RateLimiter()
 
 
-def public_guard(request: Request, user: User | None = Depends(session_user)) -> None:
-    """Dependency for the public job endpoints: optional login requirement + per-IP rate limit."""
-    if settings.jobs_require_login and user is None:
-        raise HTTPException(401, "Sign in to view jobs")
+def rate_limit_guard(request: Request) -> None:
+    """Per-IP limit for endpoints anyone can call."""
     limit = settings.public_rate_limit_per_min
     if limit and not _public_limiter.allow(client_ip(request), limit):
         raise HTTPException(429, "Too many requests. Slow down.", headers={"Retry-After": "60"})
 
 
-def new_setup_code() -> str:
-    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"        # no 0/O/1/I
-    return "-".join("".join(secrets.choice(alphabet) for _ in range(5)) for _ in range(5))
-
-
-def hash_setup_code(code: str) -> str:
-    return hashlib.sha256(re.sub(r"[\s-]", "", code or "").upper().encode()).hexdigest()
+def public_guard(request: Request, user: User | None = Depends(session_user)) -> None:
+    """Dependency for the job endpoints: login requirement (default on) + per-IP rate limit."""
+    if settings.jobs_require_login and user is None:
+        raise HTTPException(401, "Sign in to view jobs")
+    rate_limit_guard(request)

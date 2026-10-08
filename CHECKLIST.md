@@ -56,12 +56,12 @@ The approach: Google is already indexing Twitter/X, Reddit, LinkedIn posts, rand
 
 ## Phase 3 — Frontend MVP (job list only, no payments yet)
 
-- [ ] Next.js app, clean landing page explaining what Clientfinder does
-- [ ] Signup / login / forgot-password flows wired to Resend
-- [ ] **Living job list** inside the account (not a spreadsheet — the user's own request update): sortable, filterable table of jobs with click-through links
-- [ ] Filters: pay range (slider), job type (contract/FT/social-post/hourly), platform, posted-within (24h/7d/30d/all), location, keyword search
-- [ ] Each row: clickable `Source URL` button that opens the original job post or social media post
-- [ ] Mobile responsive
+- [x] Landing page explaining what Clientfinder does (plain HTML/JS served by the API, strict CSP; home, sign in, app. Next.js not needed for this)
+- [ ] Signup / login / forgot-password flows wired to Resend  _(signup + login built and tested; forgot-password and email verification still need Resend)_
+- [x] **Living job list** inside the account (`/app`): sortable, filterable cards with click-through links
+- [x] Filters: pay (min + period), job type, platform, topics, remote, posted-within, keyword search  _(location filter not built)_
+- [x] Each job: "Open post" button to the original post (new tab, noopener/nofollow)
+- [x] Mobile responsive (filter drawer; checked at 390px, no horizontal overflow)
 - [ ] CSV export button (keep the spreadsheet option as a fallback)
 - [ ] Saved searches → user's dashboard shows "new jobs matching your filter since last visit"
 

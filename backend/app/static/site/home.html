@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clientfinder.ai: find clients the moment they post</title>
+  <meta name="description" content="Every hiring post for copywriters, email marketers, funnel builders and creative strategists in one searchable database. Filter instantly, or run your own search.">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="topbar">
+      <a class="brand" href="/">clientfinder<b>.ai</b></a>
+      <span class="grow"></span>
+      <nav>
+        <a class="navlink" href="#how">How it works</a>
+        <a class="navlink" href="#faq">FAQ</a>
+        <a class="btn sm" href="/login">Sign in</a>
+        <a class="btn sm primary" href="/login#signup">Create account</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <div>
+        <span class="pill"><span class="dot" id="live-dot"></span><span id="live-text">Checking the feed…</span></span>
+        <h1>Find clients<br><span class="grad">the moment they post.</span></h1>
+        <p class="lede">Every hiring post for copywriters, email marketers, funnel builders and creative strategists, collected into one database you can search and filter instantly. Need something specific? Run your own search and choose exactly what to look for.</p>
+        <div class="cta">
+          <a class="btn primary lg" href="/login#signup">Create free account</a>
+          <a class="btn lg" href="/login">Sign in</a>
+        </div>
+        <p class="fine">Browsing the database is free with an account. No card needed to sign up.</p>
+      </div>
+
+      <div class="window" aria-label="Preview of the latest jobs">
+        <div class="chrome"><i></i><i></i><i></i><span>Latest in the database</span></div>
+        <div id="preview"><div class="prow"><div class="skel h44"></div></div></div>
+        <div class="lock"><span id="lock-ico"></span><span>Company, full post and the apply link unlock when you sign in.</span></div>
+      </div>
+    </section>
+
+    <div class="stats" id="stats"></div>
+
+    <section class="block" id="modes">
+      <h2 class="title">Two ways to find work</h2>
+      <p class="sub">Browse what we have already collected, or point the search at exactly what you want and add it to the database for everyone.</p>
+      <div class="two">
+        <div class="card mode">
+          <span class="badge free">Included with your account</span>
+          <h3>Search our database</h3>
+          <p>Everything we collect lands in one place. Filter it as much as you like; it costs nothing no matter how many searches you run.</p>
+          <ul>
+            <li>Filter by pay, job type, remote, platform and skill</li>
+            <li>Sort by newest or by pay</li>
+            <li>Open the original post in one click</li>
+            <li>New posts are added through the day</li>
+          </ul>
+        </div>
+        <div class="card mode">
+          <span class="badge paid" id="mode-badge">Pay per search</span>
+          <h3>Run your own search</h3>
+          <p>Type the role, tool or niche you want, pick a time window and where to look. We search the web, read each post, and save the jobs to the database.</p>
+          <ul>
+            <li id="price-line">Billed from credits, at cost plus a small margin</li>
+            <li>Repeat a search from the last few hours and it is free</li>
+            <li>Results are saved, so the database keeps growing</li>
+            <li>You are only charged when a search actually runs</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="block" id="how">
+      <h2 class="title">From post to pitch in three steps</h2>
+      <div class="steps">
+        <div class="card step"><div class="num">1</div><h3>Create an account</h3><p>Email and password. You are in the database in under a minute.</p></div>
+        <div class="card step"><div class="num">2</div><h3>Filter or search</h3><p>Narrow the database, or run a custom search for the exact role you sell.</p></div>
+        <div class="card step"><div class="num">3</div><h3>Open the post and pitch</h3><p>Go straight to the original post and reach out while it is fresh.</p></div>
+      </div>
+    </section>
+
+    <section class="block" id="sources">
+      <h2 class="title">Where the jobs come from</h2>
+      <p class="sub">Public job feeds and public web search. We do not scrape behind logins or contact anyone for you.</p>
+      <div class="chips" id="source-chips"></div>
+    </section>
+
+    <section class="block" id="faq">
+      <h2 class="title">Questions</h2>
+      <details class="faq"><summary>Does browsing cost anything?</summary><p>No. Searching and filtering our database is included with a free account. Only live searches you run yourself use credits.</p></details>
+      <details class="faq"><summary>How are credits priced?</summary><p>A live search costs what it costs us to run (the web search plus reading the posts) plus a small margin. You see the exact price before you run it, and nothing is charged if a search fails.</p></details>
+      <details class="faq"><summary>How fresh are the jobs?</summary><p>Public feeds are checked several times a day. The home page shows when the database last updated successfully.</p></details>
+      <details class="faq"><summary>Does Clientfinder contact the people posting?</summary><p>No. We link you to the original post. You decide who to contact and what to say.</p></details>
+      <details class="faq"><summary>Is my account private?</summary><p>Your searches and credits are only visible to you. Jobs found by any search are added to the shared database.</p></details>
+    </section>
+
+    <div class="band">
+      <h2>Stop hunting. Start pitching.</h2>
+      <p class="muted mb22">Create your free account and open the database.</p>
+      <a class="btn primary lg" href="/login#signup">Create free account</a>
+    </div>
+
+    <footer class="foot">
+      <div>Built by <a href="https://emailsandsms.com">Christian Davis</a> · Emails &amp; SMS LLC</div>
+      <div><a href="mailto:christian@emailsandsms.com">Contact</a></div>
+    </footer>
+  </div>
+  <script src="/assets/common.js"></script>
+  <script src="/assets/home.js"></script>
+</body>
+</html>
