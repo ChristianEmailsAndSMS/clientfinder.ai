@@ -11,10 +11,10 @@
   const PERIOD = { hour: "hr", year: "yr", project: "project" };
   // These tags only repeat what the type / remote / pay badges and filters already say, so we do not show them as topics.
   const ATTR_TAGS = new Set(["remote", "contract", "full-time", "has-pay"]);
-  const ROLES = [["copywriting", "Copywriting", "hiring copywriter"], ["email-marketing", "Email marketing", "hiring email marketer"],
-    ["lifecycle-crm", "Lifecycle / CRM", "hiring lifecycle marketer"], ["funnels-landing-pages", "Funnels & landing pages", "need a funnel builder"],
-    ["creative-strategy", "Creative strategy", "hiring creative strategist"], ["direct-response", "Direct response", "hiring direct response copywriter"],
-    ["sms-marketing", "SMS marketing", "hiring sms marketer"], ["growth-marketing", "Growth marketing", "hiring growth marketer"]];
+  const ROLES = [["copywriting", "Copywriting", "copywriter"], ["email-marketing", "Email marketing", "email marketer"],
+    ["lifecycle-crm", "Lifecycle / CRM", "lifecycle marketer"], ["funnels-landing-pages", "Funnels & landing pages", "funnel builder"],
+    ["creative-strategy", "Creative strategy", "creative strategist"], ["direct-response", "Direct response", "direct response copywriter"],
+    ["sms-marketing", "SMS marketing", "sms marketer"], ["growth-marketing", "Growth marketing", "growth marketer"]];
   const ROLE = Object.fromEntries(ROLES.map(([k, l, q]) => [k, { label: l, query: q }]));
   const KIND_HELP = { board: "Real job boards: structured listings with pay and company.", social: "Posts on Reddit, X, LinkedIn: people asking for help, often before a job is formally posted.", web: "Company career pages and other websites." };
 
@@ -226,6 +226,7 @@
       h("div", { class: "actions" },
         safe ? h("a", { class: "btn sm primary", href: j.source_url, target: "_blank", rel: "noopener noreferrer nofollow" }, "Open post ", CF.icon("out", 14)) : null,
         h("button", { class: "btn sm", type: "button", onclick: () => { desc.hidden = !desc.hidden; titleBtn.setAttribute("aria-expanded", String(!desc.hidden)); } }, desc.hidden ? "Details" : "Hide details"),
+        h("button", { class: "btn sm", type: "button", title: "First message, cover letter, resume pitch and reply help for this job", onclick: () => openPitch(j) }, "Pitch help"),
         safe ? h("button", { class: "btn sm icon", type: "button", "aria-label": "Copy link", onclick: () => CF.copy(j.source_url) }, CF.icon("copy", 14)) : null));
   }
 
@@ -246,12 +247,17 @@
     const steps = [
       { title: "What kind of work do you do?", sub: "Pick everything you sell. We will show the jobs and posts that need it.",
         body: () => h("div", { class: "tiles" }, ROLES.map(([k, l]) => tile(l, null, draft.roles.has(k), flip(draft.roles, k)))), ok: () => draft.roles.size > 0, why: "Pick at least one so we know what to look for." },
-      { title: "Where in the world can you work?", sub: "Choose the time zones that suit you. Leave all unselected if anywhere is fine.",
+      { title: "Where do you want your clients to be based?", sub: "Pick the time zones you want to work with. Leave all unselected if clients anywhere are fine.",
         body: () => h("div", {}, h("div", { class: "tiles" }, (facets.regions || []).filter((r) => r.value !== "unspecified" && r.value !== "worldwide").map((r) => tile(r.label, r.offset, draft.regions.has(r.value), flip(draft.regions, r.value)))),
           h("div", { class: "mt16" }, h("div", { class: "hint", text: "On-site or remote?" }), (() => { const wrap = h("div", { class: "seg" }); const paint = () => { for (const b of wrap.children) b.classList.toggle("on", b.dataset.v === draft.remote); };
             for (const [v, l] of [["", "Either"], ["true", "Remote only"], ["false", "On-site"]]) wrap.appendChild(h("button", { type: "button", "data-v": v, text: l, onclick: () => { draft.remote = v; paint(); } })); paint(); return wrap; })())) },
       { title: "Where should we look?", sub: "Job boards list real openings. Social posts are people asking for help, often before a job is formally posted.",
-        body: () => h("div", { class: "tiles" }, (facets.kinds || []).map((k) => tile(k.label, `${num(k.count)} jobs · ${KIND_HELP[k.value]}`, draft.kinds.has(k.value), flip(draft.kinds, k.value)))), ok: () => draft.kinds.size > 0, why: "Pick at least one place to look." },
+        body: () => { const all = (facets.kinds || []).length > 0 && draft.kinds.size === kindsAll.length;
+          const redo = (fn) => () => { fn(); paint(); return true; };
+          return h("div", { class: "tiles" },
+            tile("All of them", "Search job boards, social media and other websites at once", all, () => { if (all) draft.kinds.clear(); else kindsAll.forEach((k) => draft.kinds.add(k)); paint(); return !all; }),
+            (facets.kinds || []).map((k) => tile(k.label, `${num(k.count)} jobs · ${KIND_HELP[k.value]}`, draft.kinds.has(k.value), () => { flip(draft.kinds, k.value)(); paint(); return draft.kinds.has(k.value); }))); },
+        ok: () => draft.kinds.size > 0, why: "Pick at least one place to look." },
     ];
     const root = clear($("modal-root"));
     const body = h("div", { class: "body" }), foot = h("div", { class: "row end mt20" });
@@ -278,7 +284,7 @@
         return;
       }
       const picked = [...draft.roles].map((r) => (ROLE[r] || {}).label || r).join(", ") || "any role";
-      const firstQuery = (ROLE[[...draft.roles][0]] || {}).query || "";
+      const firstQuery = (ROLE[[...draft.roles][0]] || {}).query || "";           // the service name, e.g. "email marketer"
       body.append(h("h3", { class: "wtitle", text: "You are all set" }), h("p", { class: "muted", text: `Looking for: ${picked}.` }),
         h("div", { class: "sresult" }, h("strong", { text: "Want the freshest posts?" }), h("p", { class: "muted", text: "Our database updates through the day. For something brand new, run your own live search: we search the web right now and add what we find. It costs a little credit; browsing is always free." })),
         foot);
@@ -311,7 +317,11 @@
     clear(body).append(
       h("div", { class: "bal grad", text: me.unlimited ? "Unlimited" : money(r.data.balance_usd) }),
       h("p", { class: "muted", text: "Credits pay for searches you run yourself. Browsing and filtering the database is always free." }),
-      h("div", { class: "sresult mt16" }, h("strong", { text: "Adding credits" }),
+      r.data.bundles && r.data.bundles.length ? h("div", { class: "mt16" }, h("strong", { text: "Buy credits" }),
+        h("p", { class: "muted", text: "Pay at checkout with the same email you signed up with. You get credit equal to what you pay, and it never expires." }),
+        h("div", { class: "tiles" }, r.data.bundles.map((b) => h("a", { class: "tile bundle", href: b.url, target: "_blank", rel: "noopener noreferrer" },
+          h("strong", { text: "$" + b.usd }), h("small", { text: b.searches ? `about ${num(b.searches)} searches` : "credit for searches and pitch drafts" }))))) : "",
+      r.data.bundles && r.data.bundles.length ? "" : h("div", { class: "sresult mt16" }, h("strong", { text: "Adding credits" }),
         h("p", { class: "muted", text: r.data.buy_url ? "Pay on the secure checkout page. Credits are added to your account once the payment is confirmed. If they are not there within a day, email christian@emailsandsms.com." : "Card payments are launching soon. Until then, email christian@emailsandsms.com and we will top up your account." }),
         r.data.buy_url && /^https:\/\//.test(r.data.buy_url) ? h("a", { class: "btn primary mt12", href: r.data.buy_url, target: "_blank", rel: "noopener noreferrer", text: "Buy credits" }) : null),
       h("h3", { class: "mt20", text: "History" }),
@@ -320,30 +330,89 @@
           h("td", { class: e.amount_usd < 0 ? "bad" : "good", text: money(e.amount_usd, 4) }), h("td", { text: money(e.balance_after_usd, 4) }))))) : h("p", { class: "muted", text: "No activity yet." }));
   }
 
+  // ---- pitch helper
+  const PITCH_MODES = [["first_message", "First message", "The opening DM or email, two versions"], ["cover_letter", "Cover letter", "Short and specific to this job"],
+    ["resume", "Resume pitch", "Summary and bullets tailored to this job"], ["examples", "What to send", "Work to link and a quick sample to make"],
+    ["reply", "They replied", "Paste or screenshot their reply, get what to say back"]];
+
+  async function openPitch(job) {
+    const [cfgR, profR] = await Promise.all([api("GET", "/assist/config"), api("GET", "/account/profile")]);
+    if (!cfgR.ok) { CF.toast(detail(cfgR), "bad"); return; }
+    const cfg = cfgR.data, prof = profR.ok ? profR.data : { about: "", links: "" };
+    const st = { mode: "first_message", image: null };
+    const about = h("textarea", { class: "input", rows: "5", maxlength: "6000", placeholder: "Paste your resume or write a few lines: what you do, results you have got (numbers help), tools, rates, niches.", "aria-label": "Your background" }); about.value = prof.about;
+    const links = h("input", { class: "input", type: "text", maxlength: "600", placeholder: "Portfolio / website / LinkedIn links", value: prof.links, "aria-label": "Your links" });
+    const saved = h("span", { class: "hint" });
+    const saveBtn = h("button", { class: "btn sm", type: "button", text: "Save background", onclick: async () => { const r = await api("PUT", "/account/profile", { about: about.value, links: links.value }); saved.textContent = r.ok ? "Saved." : detail(r); } });
+    const bg = h("details", { class: "mt12", open: !prof.about },
+      h("summary", { text: prof.about ? "Your background (used in every draft)" : "Start here: tell us about you so the drafts sound like you" }), about, links, h("div", { class: "row mt12" }, saveBtn, saved));
+
+    const thread = h("textarea", { class: "input", rows: "5", maxlength: "5000", placeholder: "Paste what they wrote back (or add a screenshot below).", "aria-label": "Their reply" });
+    const shot = h("input", { type: "file", accept: "image/png,image/jpeg,image/webp", "aria-label": "Screenshot of the conversation" });
+    const shotNote = h("span", { class: "hint" });
+    shot.addEventListener("change", () => {
+      const f = shot.files[0]; st.image = null; shotNote.textContent = "";
+      if (!f) return;
+      if (f.size > 3 * 1024 * 1024) { shotNote.textContent = "That image is over 3 MB. Crop it and try again."; shot.value = ""; return; }
+      const rd = new FileReader();
+      rd.onload = () => { st.image = String(rd.result).split(",")[1] || null; shotNote.textContent = st.image ? "Screenshot attached." : "Could not read that image."; };
+      rd.readAsDataURL(f);
+    });
+    const replyBox = h("div", { class: "mt12", hidden: true }, thread, h("div", { class: "row mt12" }, shot, shotNote));
+    const note = h("input", { class: "input mt12", type: "text", maxlength: "300", placeholder: "Anything else? e.g. keep it shorter, mention my Klaviyo case study", "aria-label": "Extra instruction" });
+    const modeHint = h("p", { class: "hint" });
+    const seg2 = h("div", { class: "chips mt12" });
+    const paint = () => {
+      clear(seg2).append(...PITCH_MODES.map(([k, l]) => h("button", { type: "button", class: "chip" + (st.mode === k ? " on" : ""), text: l, onclick: () => { st.mode = k; paint(); } })));
+      replyBox.hidden = st.mode !== "reply"; modeHint.textContent = (PITCH_MODES.find((m) => m[0] === st.mode) || [])[2] || "";
+    };
+    const out = h("div", { class: "mt16", "aria-live": "polite" });
+    const go = h("button", { class: "btn primary w100 mt16", type: "button", disabled: !cfg.ready, text: cfg.unlimited ? "Write it" : `Write it · about ${money(cfg.price_usd, 3)}` });
+    go.addEventListener("click", async () => {
+      go.disabled = true; clear(out).append(h("span", { class: "spinner" }), " Writing…");
+      const r = await api("POST", "/assist", { mode: st.mode, job_id: job.id, thread: st.mode === "reply" ? thread.value : "", image_b64: st.mode === "reply" ? st.image : null, note: note.value });
+      go.disabled = false;
+      if (!r.ok) { clear(out).append(h("div", { class: "sresult fail", text: detail(r) }), r.status === 402 ? h("button", { class: "btn sm mt12", type: "button", text: "Add credits", onclick: () => openCredits() }) : null); return; }
+      me.balance_usd = r.data.balance_usd; if (!me.unlimited) $("bal").textContent = money(me.balance_usd);
+      clear(out).append(h("div", { class: "draft", text: r.data.text }),
+        h("div", { class: "row mt12" }, h("button", { class: "btn sm", type: "button", text: "Copy", onclick: () => CF.copy(r.data.text) }),
+          h("span", { class: "hint", text: r.data.cost_usd ? `Charged ${money(r.data.cost_usd, 4)}` : "No charge" }),
+          h("span", { class: "grow" }), job.source_url && /^https?:\/\//i.test(job.source_url) ? h("a", { class: "btn sm primary", href: job.source_url, target: "_blank", rel: "noopener noreferrer nofollow" }, "Open the post ", CF.icon("out", 14)) : null),
+        h("p", { class: "hint", text: "Read it, add your real numbers where you see [brackets], and make it sound like you before you send." }));
+    });
+    modal("Pitch help",
+      h("div", { class: "sresult" }, h("strong", { text: job.title }), h("div", { class: "muted", text: [job.company_or_poster, CF.PLATFORM[job.platform] || job.platform].filter(Boolean).join(" · ") })),
+      !cfg.ready ? h("div", { class: "sresult fail mt12", text: cfg.reason }) : null,
+      bg, h("div", { class: "hint mt16", text: "What do you need?" }), seg2, modeHint, replyBox, note, go, out);
+    paint();
+  }
+
   // ---- run a search
-  const PRESETS = ["hiring email copywriter", "need a funnel builder", "looking for a copywriter", "hiring creative strategist", "klaviyo specialist wanted", "landing page designer needed"];
-  const SITE_LABEL = { "twitter.com": "Twitter", "x.com": "X", "reddit.com": "Reddit", "linkedin.com/posts": "LinkedIn posts", "indeed.com": "Indeed", "upwork.com": "Upwork" };
+  const SERVICES = ["email copywriter", "copywriter", "funnel builder", "creative strategist", "klaviyo specialist", "landing page designer"];
+  const WINDOWS = { d: "Past day", w: "Past week", m: "Past month", m3: "Past 3 months", m6: "Past 6 months", m9: "Past 9 months", y: "Past year" };
+  // The customer sells a service; the web search looks for people HIRING for it.
+  const asSearch = (service) => { const t = service.trim(); return /\b(hiring|hire|looking for|need|needs|wanted|seeking)\b/i.test(t) ? t : (t ? "hiring " + t : ""); };
 
   async function openSearch(prefill) {
     const cfg = await api("GET", "/searches/config");
     if (!cfg.ok) { CF.toast(detail(cfg), "bad"); return; }
     const c = cfg.data;
-    const s = { freshness: "w", site: "" };
-    const input = h("input", { class: "input", type: "text", maxlength: "120", placeholder: "e.g. hiring email copywriter klaviyo", value: prefill || "", "aria-label": "What to search for" });
-    const site = h("select", { class: "input", "aria-label": "Where to look" }, h("option", { value: "", text: "Anywhere on the web" }), c.sites.map((x) => h("option", { value: x, text: SITE_LABEL[x] || x })));
-    site.addEventListener("change", () => { s.site = site.value; estimate(); });
-    const windowSeg = seg([["d", "Past day"], ["w", "Past week"], ["m", "Past month"]], () => s.freshness, (v) => { s.freshness = v; estimate(); });
+    const s = { freshness: "m" };
+    const input = h("input", { class: "input", type: "text", maxlength: "100", placeholder: "e.g. email copywriter", value: (prefill || "").replace(/^hiring\s+/i, ""), "aria-label": "The service you sell" });
+    const win = h("select", { class: "input", "aria-label": "How far back to look" }, (c.windows || Object.keys(WINDOWS)).map((v) => h("option", { value: v, text: WINDOWS[v] || v, selected: v === s.freshness })));
+    win.addEventListener("change", () => { s.freshness = win.value; estimate(); });
     const info = h("div", { class: "muted mt12", "aria-live": "polite" });
+    const willSearch = h("div", { class: "hint" });
     const runBtn = h("button", { class: "btn primary w100 mt16", type: "button", disabled: true, text: "Run search" });
     const out = h("div", { id: "search-out" });
     const history = h("div", {});
-    const chips = h("div", { class: "chips mt12" }, PRESETS.map((p) => h("button", { type: "button", class: "chip", text: p, onclick: () => { input.value = p; estimate(); input.focus(); } })));
+    const chips = h("div", { class: "chips mt12" }, SERVICES.map((p) => h("button", { type: "button", class: "chip", text: p, onclick: () => { input.value = p; estimate(); input.focus(); } })));
 
-    modal("Run your own search",
-      h("p", { class: "muted", text: "Tell us what you want. We search the web, read each post and add the jobs to the database." }),
+    modal("Find clients who are hiring",
+      h("p", { class: "muted", text: "Tell us the service you sell. We search the web right now for people looking to hire for it, read each post and add the jobs to the database." }),
       !c.ready ? h("div", { class: "sresult fail mt12", text: c.reason }) : null,
-      h("label", { class: "field" }, "What are you looking for?", input), chips,
-      h("div", { class: "row end mt16" }, h("div", {}, h("div", { class: "hint", text: "Time window" }), windowSeg), h("div", { class: "grow" }, h("div", { class: "hint", text: "Where" }), site)),
+      h("label", { class: "field" }, "What service do you sell?", input), willSearch, chips,
+      h("div", { class: "mt16" }, h("div", { class: "hint", text: "How far back should we look?" }), win),
       info, runBtn, out, history);
     input.focus();
     input.addEventListener("input", debounce(estimate, 350));
@@ -352,23 +421,27 @@
     let quote = null;
     async function estimate() {
       quote = null; runBtn.disabled = true;
-      const q = input.value.trim();
-      if (q.length < 3) { info.textContent = `Type at least 3 characters. You have ${c.left_today} new searches left today.`; runBtn.textContent = "Run search"; return; }
-      const r = await api("POST", "/searches/estimate", { query: q, freshness: s.freshness, site: s.site || null });
-      if (input.value.trim() !== q) return;
+      const q = asSearch(input.value);
+      willSearch.textContent = q ? `We will search for: “${q}”` : "";
+      if (q.length < 3) { info.textContent = `Type the service you sell. You have ${c.left_today} new searches left today.`; runBtn.textContent = "Run search"; return; }
+      const r = await api("POST", "/searches/estimate", { query: q, freshness: s.freshness, site: null });
+      if (asSearch(input.value) !== q) return;
       if (!r.ok) { info.textContent = detail(r); return; }
       quote = r.data;
       if (!quote.ready) { info.textContent = quote.reason; return; }
       if (quote.cached) { info.textContent = `Free: we searched this recently and have ${quote.cached_results} results ready.`; runBtn.textContent = "Show results (free)"; runBtn.disabled = false; return; }
       runBtn.textContent = `Run search · about ${money(quote.price_usd)}`;
       if (quote.unlimited) { info.textContent = `Your account has unlimited searches. ${quote.searches_left_today} new searches left today.`; runBtn.textContent = "Run search"; runBtn.disabled = false; return; }
-      if (!quote.affordable) { info.textContent = `You have ${money(quote.balance_usd)}. This search needs about ${money(quote.price_usd)}. Add credits to run it.`; return; }
+      if (!quote.affordable) {
+        clear(info).append(`You have ${money(quote.balance_usd)}. This search needs about ${money(quote.price_usd)}. `, h("button", { class: "btn sm", type: "button", text: "Add credits", onclick: () => openCredits() }));
+        return;
+      }
       info.textContent = `You have ${money(quote.balance_usd)} in credits. ${quote.searches_left_today} new searches left today.`;
       runBtn.disabled = false;
     }
     runBtn.addEventListener("click", async () => {
-      runBtn.disabled = true; const q = input.value.trim();
-      const r = await api("POST", "/searches", { query: q, freshness: s.freshness, site: s.site || null });
+      runBtn.disabled = true; const q = asSearch(input.value);
+      const r = await api("POST", "/searches", { query: q, freshness: s.freshness, site: null });
       if (!r.ok) { clear(out).append(h("div", { class: "sresult fail", text: detail(r) })); runBtn.disabled = false; return; }
       follow(r.data.id, out, runBtn);
     });

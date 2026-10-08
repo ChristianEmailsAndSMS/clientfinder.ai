@@ -37,7 +37,7 @@ def _refused(e: live_search.SearchRefused) -> JSONResponse:
 @router.get("/config")
 def config(user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
     ready, why = live_search.live_search_ready()
-    return {"ready": ready, "reason": why, "price_usd": live_search.estimated_user_price_usd(), "sites": list(live_search.SITES),
+    return {"ready": ready, "reason": why, "price_usd": live_search.estimated_user_price_usd(), "sites": list(live_search.SITES), "windows": list(live_search.FRESHNESS),
             "cache_hours": settings.search_cache_hours, "daily_limit": live_search.daily_limit(user),
             "left_today": max(0, live_search.daily_limit(user) - live_search._used_today(db, user.id)), "balance_usd": credits.micro_to_usd(user.balance_micro),
             "unlimited": user.unlimited_credits}

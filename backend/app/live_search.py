@@ -32,7 +32,7 @@ log = logging.getLogger(__name__)
 SOURCE_KEY = "usersearch"
 SOURCE_LABEL = "Customer searches"
 SITES = ("twitter.com", "x.com", "reddit.com", "linkedin.com/posts", "indeed.com", "upwork.com")
-FRESHNESS = ("d", "w", "m")
+FRESHNESS = ("d", "w", "m", "m3", "m6", "m9", "y")        # Google date filter: day, week, month, N months, year
 STALE_AFTER = timedelta(minutes=10)
 # input, output tokens of a typical extraction, for estimates only (actual tokens are billed). Haiku 5.5's tokenizer makes ~30% more
 # tokens than 4.5 did, and thinking at low effort adds some output.
@@ -133,7 +133,7 @@ def quote(db: Session, user: User, query: str, freshness: str, site: str | None)
 
 def _check_options(freshness: str, site: str | None) -> tuple[str, str | None]:
     if freshness not in FRESHNESS:
-        raise SearchRefused(422, "Choose a time window: past day, week or month.")
+        raise SearchRefused(422, "Choose a time window, from the past day up to the past year.")
     if site and site not in SITES:
         raise SearchRefused(422, "That site is not supported.")
     return freshness, site or None

@@ -577,3 +577,116 @@ def test_admin_user_list_shows_searches_and_spend_and_can_pull_all_sources(env, 
     monkeypatch.setattr(admin_api, "_run_source", lambda k: (ran.append(k), admin_api._release(k)))
     r = a.post("/admin/sources/run-all", headers=CSRF)
     assert r.status_code == 202 and set(r.json()["started"]) == set(ran) and ran
+
+
+# =============== credit bundles, long time windows, pitch helper ===============
+import base64 as _b64  # noqa: E402
+from app import assist, pricing  # noqa: E402
+
+PNG = _b64.b64encode(b"\x89PNG\r\n\x1a\n" + b"0" * 64).decode()
+
+
+def test_credit_bundles_show_only_configured_https_links_with_search_counts(env, monkeypatch):
+    c = member(env)
+    assert c.get("/account/credits").json()["bundles"] == []
+    monkeypatch.setattr(settings, "whop_checkout_27", "https://whop.com/checkout/plan_27")
+    monkeypatch.setattr(settings, "whop_checkout_47", "http://insecure.example/x")
+    monkeypatch.setattr(settings, "whop_checkout_97", "https://whop.com/checkout/plan_97")
+    b = c.get("/account/credits").json()["bundles"]
+    assert [x["usd"] for x in b] == [27, 97] and all(x["url"].startswith("https://") for x in b)
+    per = live_search.estimated_user_price_usd()
+    assert b[0]["searches"] == int(27 // per) and b[1]["searches"] > b[0]["searches"]
+
+
+@pytest.mark.parametrize("window", ["d", "w", "m", "m3", "m6", "m9", "y"])
+def test_every_time_window_is_accepted_and_passed_to_google(env, live, window):
+    c = member(env, balance_usd=5)
+    assert run(c, f"window {window}", freshness=window).status_code == 202
+    assert live.searches[-1][2] == window
+
+
+def test_unknown_time_window_is_refused(env, live):
+    assert run(member(env, balance_usd=5), "x y z", freshness="m4").status_code == 422
+
+
+@pytest.fixture
+def pitch(env, monkeypatch):
+    rec = type("R", (), {})()
+    rec.calls, rec.usage, rec.text, rec.stop = [], (3000, 900), "Hi Sam, [your result here]. Open to a quick chat?", "end_turn"
+    def fake(messages):
+        rec.calls.append(messages)
+        return rec.text, {"model": settings.assist_model, "input_tokens": rec.usage[0], "output_tokens": rec.usage[1]}, rec.stop
+    monkeypatch.setattr(assist, "_call_model", fake)
+    monkeypatch.setattr(settings, "anthropic_api_key", "test-key")
+    assist._today_counts.clear()
+    with env.scope() as db:
+        rec.job = add_job(db, title="Email Copywriter", company_or_poster="Acme", platform="reddit", description="We need a klaviyo email copywriter.").id
+    return rec
+
+
+def ask(c, mode="first_message", **kw):
+    return c.post("/assist", json={"mode": mode, **kw}, headers=CSRF)
+
+
+def test_pitch_helper_charges_exactly_one_and_a_half_times_the_model_cost(env, pitch):
+    c = member(env, balance_usd=1)
+    start = balance(env, c.uid)
+    r = ask(c, job_id=pitch.job)
+    assert r.status_code == 200 and "Open to a quick chat" in r.json()["text"]
+    our = pricing.cost_micro(settings.assist_model, *pitch.usage)
+    assert start - balance(env, c.uid) == pricing.charge_micro(settings.assist_model, *pitch.usage) and our
+    assert 1.5 * our <= start - balance(env, c.uid) <= 1.5 * our + 5
+    with env.scope() as db:
+        e = db.scalars(select(CreditEntry).where(CreditEntry.user_id == c.uid, CreditEntry.kind == "usage")).one()
+        assert e.meta["our_cost_micro"] == our and e.meta["mode"] == "first_message"
+
+
+def test_pitch_helper_sends_the_background_and_treats_the_post_as_data(env, pitch):
+    c = member(env, balance_usd=1)
+    assert c.put("/account/profile", json={"about": "I grew a DTC brand's email revenue 40%.", "links": "https://me.example"}, headers=CSRF).status_code == 200
+    assert c.get("/account/profile").json()["about"].startswith("I grew")
+    ask(c, "cover_letter", job_id=pitch.job)
+    sent = pitch.calls[-1][0]["content"][-1]["text"]
+    assert "I grew a DTC brand" in sent and "<job_post>" in sent and "klaviyo email copywriter" in sent
+
+
+def test_pitch_helper_needs_credit_login_csrf_and_a_valid_request(env, pitch):
+    assert ask(member(env, balance_usd=0), job_id=pitch.job).status_code == 402 and not pitch.calls
+    assert ask(TestClient(app), job_id=pitch.job).status_code == 401
+    c = member(env, "p2@example.com", balance_usd=1)
+    assert c.post("/assist", json={"mode": "first_message", "job_id": pitch.job}).status_code == 403
+    assert ask(c, "nonsense", job_id=pitch.job).status_code == 422
+    assert ask(c, job_id=999999).status_code == 404
+    assert ask(c).status_code == 422                                                   # no job and no pasted text
+    assert ask(c, "reply", job_id=pitch.job).status_code == 422                        # reply help needs their reply
+    assert not pitch.calls
+
+
+def test_screenshots_must_be_real_small_images(env, pitch):
+    c = member(env, balance_usd=1)
+    assert ask(c, "reply", job_id=pitch.job, image_b64=PNG).status_code == 200
+    img = pitch.calls[-1][0]["content"][0]
+    assert img["type"] == "image" and img["source"]["media_type"] == "image/png"
+    assert ask(c, "reply", job_id=pitch.job, image_b64=_b64.b64encode(b"<html>not an image</html>").decode()).status_code == 422
+    assert ask(c, "reply", job_id=pitch.job, image_b64="!!!not base64!!!").status_code == 422
+    big = _b64.b64encode(b"\x89PNG\r\n\x1a\n" + b"0" * (3 * 1024 * 1024 + 10)).decode()
+    assert ask(c, "reply", job_id=pitch.job, image_b64=big).status_code == 413
+
+
+def test_a_failed_or_refused_draft_costs_nothing_and_unlimited_accounts_pay_nothing(env, pitch, monkeypatch):
+    c = member(env, balance_usd=1); start = balance(env, c.uid)
+    pitch.stop, pitch.text = "refusal", ""
+    assert ask(c, job_id=pitch.job).status_code == 422 and balance(env, c.uid) == start
+    monkeypatch.setattr(assist, "_call_model", lambda m: (_ for _ in ()).throw(RuntimeError("boom")))
+    assert ask(c, job_id=pitch.job).status_code == 502 and balance(env, c.uid) == start
+    u = member(env, "free@example.com", balance_usd=0)
+    admin_client(env).post(f"/admin/users/{u.uid}/limits", json={"unlimited": True}, headers=CSRF)
+    monkeypatch.setattr(assist, "_call_model", lambda m: ("ok text", {"model": settings.assist_model, "input_tokens": 100, "output_tokens": 50}, "end_turn"))
+    r = ask(u, job_id=pitch.job)
+    assert r.status_code == 200 and r.json()["cost_usd"] == 0 and balance(env, u.uid) == 0
+
+
+def test_pitch_helper_has_a_daily_cap(env, pitch, monkeypatch):
+    monkeypatch.setattr(settings, "assist_per_day", 2)
+    c = member(env, balance_usd=1)
+    assert [ask(c, job_id=pitch.job).status_code for _ in range(3)] == [200, 200, 429]

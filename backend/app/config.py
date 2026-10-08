@@ -54,6 +54,13 @@ class Settings(BaseSettings):
     # Where customers pay for credits (your Whop checkout page). Shown as a "Buy credits" button. Until the Whop webhook exists,
     # YOU add the credits after you see the payment (dashboard > Customers > Manage, or `admin_cli.py grant`).
     whop_checkout_url: str = ""
+    # One Whop checkout link per credit bundle (create a plan at that exact price in Whop). The customer gets credit equal to what they pay.
+    whop_checkout_27: str = ""
+    whop_checkout_47: str = ""
+    whop_checkout_97: str = ""
+    # Pitch helper (cover letters, first messages, reply help): billed at CREDIT_MARKUP x the model cost.
+    assist_model: str = "claude-haiku-5-5"
+    assist_per_day: int = 60
     # Admin 2FA is ON by default. Setting this to 0 lets the owner sign in with email + password only (weaker: one leaked
     # password = full admin access). Customers never have 2FA either way.
     admin_require_2fa: bool = True

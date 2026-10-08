@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from .api.account import router as account_router
 from .api.admin import router as admin_router
 from .api.webhooks import router as webhooks_router
+from .api.assist import router as assist_router
 from .api.auth import router as auth_router
 from .api.dashboard import router as dashboard_router
 from .config import settings
@@ -52,6 +53,7 @@ app.include_router(auth_router)
 app.include_router(account_router)
 app.include_router(admin_router)
 app.include_router(webhooks_router)
+app.include_router(assist_router)
 
 @app.get("/health")
 def health():

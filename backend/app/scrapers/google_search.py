@@ -85,7 +85,7 @@ def _platform_from_url(url: str) -> str:
 def _serpapi_results(query: str, num: int = 10, freshness: str | None = None) -> list[SearchResult]:
     params = {"q": query, "api_key": settings.serpapi_api_key, "num": num, "hl": "en", "gl": "us"}
     if freshness:
-        params["tbs"] = f"qdr:{freshness}"   # d = past 24h, w = past week, m = past month
+        params["tbs"] = f"qdr:{freshness}"   # d = past 24h, w = past week, m = past month, m3/m6/m9 = past N months, y = past year
     r = _http_get("serpapi", "https://serpapi.com/search.json", params=params, timeout=30)
     data = r.json()
     out: list[SearchResult] = []
