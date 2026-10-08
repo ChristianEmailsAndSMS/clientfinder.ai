@@ -127,7 +127,8 @@ def quote(db: Session, user: User, query: str, freshness: str, site: str | None)
     price = 0 if cached else estimated_user_price_micro()
     return {"query": q, "ready": ready, "reason": why, "cached": bool(cached), "cached_results": cached.results_count if cached else 0,
             "price_usd": credits.micro_to_usd(price), "balance_usd": credits.micro_to_usd(user.balance_micro),
-            "affordable": user.balance_micro >= price, "searches_left_today": max(0, settings.user_searches_per_day - _used_today(db, user.id))}
+            "affordable": user.unlimited_credits or user.balance_micro >= price, "unlimited": user.unlimited_credits,
+            "searches_left_today": max(0, daily_limit(user) - _used_today(db, user.id))}
 
 
 def _check_options(freshness: str, site: str | None) -> tuple[str, str | None]:
@@ -136,6 +137,10 @@ def _check_options(freshness: str, site: str | None) -> tuple[str, str | None]:
     if site and site not in SITES:
         raise SearchRefused(422, "That site is not supported.")
     return freshness, site or None
+
+
+def daily_limit(user: User) -> int:
+    return user.daily_search_limit if user.daily_search_limit else settings.user_searches_per_day
 
 
 def _used_today(db: Session, user_id: int) -> int:
@@ -164,8 +169,8 @@ def start_search(db: Session, user: User, query: str, freshness: str, site: str 
             db.add(UserSearchJob(search_id=s.id, job_id=jid))
         return s
 
-    if _used_today(db, user.id) >= settings.user_searches_per_day:
-        raise SearchRefused(429, f"Daily limit of {settings.user_searches_per_day} new searches reached. Repeat searches from the last "
+    if _used_today(db, user.id) >= daily_limit(user):
+        raise SearchRefused(429, f"Daily limit of {daily_limit(user)} new searches reached. Repeat searches from the last "
                                  f"{settings.search_cache_hours} hours are still free.")
     if db.scalar(select(func.count(UserSearch.id)).where(UserSearch.user_id == user.id, UserSearch.status.in_(("queued", "running")))):
         raise SearchRefused(409, "You already have a search running. Wait for it to finish.")
@@ -174,7 +179,7 @@ def start_search(db: Session, user: User, query: str, freshness: str, site: str 
     if query_plan.searches_used_this_month(db) >= settings.serpapi_monthly_budget:
         raise SearchRefused(503, "Custom search is paused for this month. Browsing the database still works.")
     need = estimated_user_price_micro()
-    if user.balance_micro < need:
+    if not user.unlimited_credits and user.balance_micro < need:
         raise SearchRefused(402, "Not enough credit for a search.", needed_usd=credits.micro_to_usd(need),
                             balance_usd=credits.micro_to_usd(user.balance_micro))
 
@@ -220,6 +225,13 @@ def _finish(search_id: int, user_id: int, text: str, fresh: str, stats: dict) ->
         # The customer pays at least CREDIT_MARKUP x what the search really cost us (the floor is belt and braces: the two parts
         # already round up individually).
         total = max(fee + extraction, math.ceil(our_cost * CREDIT_MARKUP))
+        owner = db.get(User, user_id)
+        if owner is not None and owner.unlimited_credits:             # the owner gave this account free searches: nothing is charged
+            ids = sorted(set(stats.get("job_ids", [])))
+            for jid in ids:
+                db.add(UserSearchJob(search_id=search_id, job_id=jid))
+            s.status, s.results_count, s.new_jobs, s.cost_micro = "done", len(ids), stats.get("added", 0), 0
+            return
         credits.apply(db, user_id, -total, "usage", f"Search: {s.query}"[:200], ref=f"usersearch:{search_id}", allow_negative=True,
                       meta={"search_id": search_id, "fee_micro": fee, "extraction_micro": extraction, "our_cost_micro": our_cost,
                             "charged_micro": total, "tokens_in": tin, "tokens_out": tout, "model": settings.extraction_model})

@@ -41,7 +41,8 @@ def signup(client, email="new.person@example.com", password=PW):
 def test_signup_creates_an_account_and_signs_the_person_in(env):
     r = signup(env.client)
     assert r.status_code == 201
-    assert r.json() == {"id": r.json()["id"], "email": "new.person@example.com", "is_admin": False, "totp_enabled": False, "balance_usd": 0.0}
+    assert r.json() == {"id": r.json()["id"], "email": "new.person@example.com", "is_admin": False, "totp_enabled": False, "balance_usd": 0.0,
+                    "unlimited": False, "onboarded": False, "prefs": {}}
     assert "cf_session" in r.cookies
     assert env.client.get("/auth/me").json()["email"] == "new.person@example.com"
     with env.scope() as db:

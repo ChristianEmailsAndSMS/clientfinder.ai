@@ -50,7 +50,8 @@ class EnrolConfirm(BaseModel):
 
 def _me(user: User) -> dict:
     return {"id": user.id, "email": user.email, "is_admin": user.is_admin and user.email in admin_emails(),
-            "totp_enabled": user.totp_enabled, "balance_usd": credits.micro_to_usd(user.balance_micro)}
+            "totp_enabled": user.totp_enabled, "balance_usd": credits.micro_to_usd(user.balance_micro),
+            "unlimited": user.unlimited_credits, "onboarded": user.onboarded_at is not None, "prefs": user.prefs or {}}
 
 
 @router.get("/status")

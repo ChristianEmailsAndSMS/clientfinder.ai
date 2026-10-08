@@ -28,6 +28,10 @@ class User(Base):
     balance_micro: Mapped[int] = mapped_column(BigInteger, default=0)     # credits in micro-USD (1e-6 USD)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    onboarded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    prefs: Mapped[dict | None] = mapped_column(JSON, nullable=True)            # what they look for: roles, regions, kinds, remote
+    unlimited_credits: Mapped[bool] = mapped_column(Boolean, default=False)    # owner-granted: searches cost this user nothing
+    daily_search_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)   # owner override of the per-day new-search cap
 
 
 class CreditEntry(Base):

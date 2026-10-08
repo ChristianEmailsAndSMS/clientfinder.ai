@@ -453,3 +453,127 @@ def test_admin_overview_reports_the_real_margin_on_customer_searches(env, live):
     o = admin_client.get("/admin/overview").json()["customer_searches_30d"]
     assert o["count"] == 2 and o["charged_usd"] > o["our_cost_usd"] > 0
     assert 1.5 <= o["margin_x"] <= 1.51                                        # exactly the markup, plus rounding only
+
+
+# =============== discovery: platform groups, location / time zones, onboarding ===============
+from app import geo, platforms  # noqa: E402
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("Austin, TX", "americas_west"), ("New York, NY", "americas_east"), ("London, UK", "europe_west"), ("Remote - Worldwide", "worldwide"),
+    ("Bangalore, India", "south_asia"), ("Sydney", "oceania"), ("Manila, Philippines", "asia_pacific"), ("Dubai, UAE", "europe_east_mea"),
+    ("United States", "americas_west americas_east"), ("Remote (US or Europe)", "americas_west americas_east europe_west"),
+    ("Anywhere (EU preferred)", "worldwide europe_west"), ("Remote", None), ("", None), (None, None),
+])
+def test_location_text_maps_to_time_zone_bands(text, expected):
+    assert geo.classify(text) == expected
+
+
+def test_platforms_are_split_into_job_boards_and_social_media():
+    assert [platforms.kind_of(p) for p in ("indeed", "remoteok", "reddit", "twitter", "linkedin", "web", "somethingnew")] == \
+        ["board", "board", "social", "social", "social", "web", "web"]
+
+
+@pytest.fixture
+def where(env):
+    with env.scope() as db:
+        add_job(db, title="Copywriter A", platform="indeed", location="Berlin, Germany", remote=False)
+        add_job(db, title="Email Marketer B", platform="reddit", location="Remote - Worldwide", remote=True)
+        add_job(db, title="Funnel Builder C", platform="remoteok", location="Austin, TX", remote=True)
+        add_job(db, title="Copywriter D", platform="twitter", location=None, remote=True)
+    return member(env)
+
+
+def found(c, qs):
+    return sorted(j["title"] for j in c.get("/jobs?" + qs).json())
+
+
+def test_region_is_filled_in_when_a_job_is_saved(where, env):
+    with env.scope() as db:
+        got = dict(db.execute(select(Job.title, Job.region)).all())
+    assert got["Copywriter A"] == "europe_west" and got["Email Marketer B"] == "worldwide" and got["Funnel Builder C"] == "americas_west" and got["Copywriter D"] is None
+
+
+def test_filter_by_kind_region_and_location(where):
+    assert found(where, "kind=board") == ["Copywriter A", "Funnel Builder C"]
+    assert found(where, "kind=social") == ["Copywriter D", "Email Marketer B"]
+    assert found(where, "region=europe_west") == ["Copywriter A", "Email Marketer B"]                       # plus worldwide
+    assert found(where, "region=europe_west&include_worldwide=false") == ["Copywriter A"]
+    assert found(where, "region=unspecified") == ["Copywriter D"]
+    assert found(where, "region=americas_west&kind=board") == ["Funnel Builder C"]
+    assert found(where, "location=berlin") == ["Copywriter A"]
+    assert found(where, "location=%25") == []                                                               # wildcard is literal
+    assert found(where, "region=made_up") == []
+
+
+def test_filter_by_any_tag_and_facets_list_groups_and_zones(where):
+    assert found(where, "any_tag=copywriting&any_tag=email-marketing") == ["Copywriter A", "Copywriter D", "Email Marketer B"]
+    f = where.get("/jobs/facets").json()
+    assert {k["value"]: k["count"] for k in f["kinds"]} == {"board": 2, "social": 2}
+    assert {p["value"]: p["kind"] for p in f["platforms"]}["reddit"] == "social"
+    zones = {r["value"]: r["count"] for r in f["regions"]}
+    assert zones["europe_west"] == 1 and zones["worldwide"] == 1 and zones["unspecified"] == 1
+
+
+def test_onboarding_saves_clean_prefs_once_and_returns_them_on_me(env):
+    c = member(env)
+    me = c.get("/auth/me").json()
+    assert me["onboarded"] is False and me["prefs"] == {}
+    r = c.put("/account/prefs", json={"roles": ["copywriting", "copywriting", "<script>"], "regions": ["europe_west", "mars"], "kinds": ["board", "x"], "remote": "true"}, headers=CSRF)
+    assert r.status_code == 200
+    me = c.get("/auth/me").json()
+    assert me["onboarded"] is True and me["prefs"] == {"roles": ["copywriting"], "regions": ["europe_west"], "kinds": ["board"], "remote": "true"}
+    assert TestClient(app).put("/account/prefs", json={}, headers=CSRF).status_code == 401
+    assert c.put("/account/prefs", json={}).status_code == 403                                                # needs the CSRF header
+
+
+def admin_client(env):
+    with env.scope() as db:
+        _, secret = authkit.make_user(db, "christian@emailsandsms.com", admin=True)
+    a = TestClient(app)
+    assert authkit.login(env, a, "christian@emailsandsms.com", secret=secret).status_code == 200
+    return a
+
+
+def test_unlimited_account_searches_without_a_balance_and_is_never_charged(env, live):
+    c = member(env, balance_usd=0)
+    assert run(c).status_code == 402                                                                          # normal account: no credit, no search
+    a = admin_client(env)
+    assert a.post(f"/admin/users/{c.uid}/limits", json={"unlimited": True}, headers=CSRF).json()["unlimited"] is True
+    assert c.get("/auth/me").json()["unlimited"] is True
+    q = c.post("/searches/estimate", json={"query": "hiring copywriter", "freshness": "w"}, headers=CSRF).json()
+    assert q["affordable"] and q["unlimited"]
+    r = run(c, "unlimited run")
+    assert r.status_code == 202
+    s = c.get(f"/searches/{r.json()['id']}").json()
+    assert s["status"] == "done" and s["results"] == 3 and s["cost_usd"] == 0
+    assert balance(env, c.uid) == 0
+    with env.scope() as db:
+        assert db.scalar(select(func.count()).select_from(CreditEntry).where(CreditEntry.user_id == c.uid, CreditEntry.kind == "usage")) == 0
+    assert a.post(f"/admin/users/{c.uid}/limits", json={"unlimited": False}, headers=CSRF).json()["unlimited"] is False
+    assert run(c, "after turning it off").status_code == 402
+
+
+def test_owner_can_raise_or_reset_a_users_daily_search_limit(env, live, monkeypatch):
+    monkeypatch.setattr(settings, "user_searches_per_day", 1)
+    c = member(env, balance_usd=5)
+    assert run(c, "one").status_code == 202 and run(c, "two").status_code == 429
+    a = admin_client(env)
+    assert a.post(f"/admin/users/{c.uid}/limits", json={"daily_search_limit": 5}, headers=CSRF).json()["daily_search_limit"] == 5
+    assert c.get("/searches/config").json()["daily_limit"] == 5
+    assert run(c, "three").status_code == 202
+    assert a.post(f"/admin/users/{c.uid}/limits", json={"daily_search_limit": 0}, headers=CSRF).json()["daily_search_limit"] is None
+    assert a.post(f"/admin/users/{c.uid}/limits", json={"daily_search_limit": 5000}, headers=CSRF).status_code == 422
+    assert member(env, "other@example.com").post(f"/admin/users/{c.uid}/limits", json={"unlimited": True}, headers=CSRF).status_code in (401, 403)
+
+
+def test_admin_user_list_shows_searches_and_spend_and_can_pull_all_sources(env, live, monkeypatch):
+    c = member(env, balance_usd=5); run(c, "spend something")
+    a = admin_client(env)
+    row = next(u for u in a.get("/admin/users").json() if u["id"] == c.uid)
+    assert row["searches"] == 1 and row["spent_usd"] > 0 and row["unlimited"] is False
+    from app.api import admin as admin_api
+    ran = []
+    monkeypatch.setattr(admin_api, "_run_source", lambda k: (ran.append(k), admin_api._release(k)))
+    r = a.post("/admin/sources/run-all", headers=CSRF)
+    assert r.status_code == 202 and set(r.json()["started"]) == set(ran) and ran

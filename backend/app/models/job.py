@@ -68,6 +68,7 @@ class Job(Base):
     experience_level: Mapped[str | None] = mapped_column(String(32), nullable=True)
     location: Mapped[str | None] = mapped_column(String(128), nullable=True)
     remote: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    region: Mapped[str | None] = mapped_column(String(100), nullable=True)   # space-separated app/geo.py band keys, from the location text
     skills: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
 
     # Dates
@@ -126,3 +127,15 @@ class FailedUrl(Base):
     status: Mapped[str] = mapped_column(String(12), default="pending")   # pending | resolved | dead
     first_failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     last_failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+from sqlalchemy import event  # noqa: E402
+
+
+@event.listens_for(Job, "before_insert")
+@event.listens_for(Job, "before_update")
+def _fill_region(mapper, connection, job):
+    """Every scraper creates Jobs its own way; this keeps `region` in step with `location` for all of them."""
+    if job.location and not job.region:
+        from .. import geo
+        job.region = geo.classify(job.location)

@@ -18,6 +18,7 @@ class JobOut(BaseModel):
     experience_level: str | None = None
     location: str | None = None
     remote: bool | None = None
+    region: str | None = None
     skills: list[str] | None = None
     posted_at: datetime | None = None
     first_seen_at: datetime

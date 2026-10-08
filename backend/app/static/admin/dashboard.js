@@ -120,6 +120,13 @@
         flash(x.ok ? `Started ${s.key}. Refresh in a minute.` : detail(x), !x.ok);
         setTimeout(renderSources, 1500);
       } }, s.running ? "Running…" : "Run now"))));
+    box.appendChild(h("div", { class: "row" },
+      h("button", { onclick: async () => {
+        const x = await guarded("POST", "/admin/sources/run-all");
+        flash(x.ok ? `Pulling ${x.data.started.length} sources now (job boards and feeds, no search credits). Refresh in a minute.` : detail(x), !x.ok);
+        setTimeout(renderSources, 2000);
+      } }, "Pull all free sources now"),
+      h("p", { class: "muted" }, "Runs every job board and feed at once. Google sources are skipped because each costs a search; use Run now on those one at a time.")));
     box.appendChild(table(["Source", "Type", "Jobs", "Last status", "Last run", "Runs (24h)", ""], rows));
   }
 
@@ -152,8 +159,10 @@
       search, h("button", { type: "submit" }, "Search")));
     const r = await guarded("GET", "/admin/users?limit=100" + (query ? "&q=" + encodeURIComponent(query) : ""));
     if (!r.ok) { box.appendChild(h("p", { class: "error" }, detail(r))); return; }
-    box.appendChild(table(["ID", "Email", "Balance", "Status", "Last sign-in", ""], r.data.map((u) => h("tr", {},
-      h("td", {}, u.id), h("td", {}, u.email + (u.is_admin ? " (admin)" : "")), h("td", {}, usd(u.balance_usd)),
+    box.appendChild(table(["ID", "Email", "Balance", "Searches", "Spent", "Status", "Last sign-in", ""], r.data.map((u) => h("tr", {},
+      h("td", {}, u.id), h("td", {}, u.email + (u.is_admin ? " (admin)" : "")),
+      h("td", {}, u.unlimited ? h("span", { class: "good" }, "Unlimited") : usd(u.balance_usd)),
+      h("td", {}, u.searches), h("td", {}, usd(u.spent_usd)),
       h("td", {}, u.is_active ? (u.locked ? h("span", { class: "warn" }, "locked") : "active") : h("span", { class: "bad" }, "suspended")),
       h("td", {}, when(u.last_login_at)),
       h("td", {}, h("button", { class: "small", onclick: () => manageUser(u.id) }, "Manage"))))));
@@ -168,7 +177,14 @@
     const kind = h("select", { name: "kind" }, h("option", { value: "grant" }, "Add credit"), h("option", { value: "revoke" }, "Remove credit"), h("option", { value: "refund" }, "Refund"));
     const reason = h("input", { name: "reason", placeholder: "Why (required, kept in the audit log)", required: true, minlength: 3 });
     const act = async (path, body, msg) => { const x = await guarded("POST", path, body); flash(x.ok ? msg : detail(x), !x.ok); if (x.ok) manageUser(id); };
-    panel.appendChild(h("h2", {}, `${u.email}: balance ${usd(u.balance_usd)}`));
+    panel.appendChild(h("h2", {}, `${u.email}: ${u.unlimited ? "unlimited credits" : "balance " + usd(u.balance_usd)}`));
+    const limit = h("input", { name: "limit", inputmode: "numeric", placeholder: "default", value: u.daily_search_limit || "", style: "width:90px" });
+    panel.appendChild(h("div", { class: "row" },
+      h("button", { onclick: () => act(`/admin/users/${id}/limits`, { unlimited: !u.unlimited }, u.unlimited ? "Unlimited credits turned off." : "Unlimited credits turned on: this person's searches are free."), class: u.unlimited ? "ghost" : "" },
+        u.unlimited ? "Turn off unlimited credits" : "Give unlimited credits"),
+      h("form", { class: "row", onsubmit: (e) => { e.preventDefault(); act(`/admin/users/${id}/limits`, { daily_search_limit: Number(limit.value || 0) }, "Daily search limit saved."); } },
+        h("label", {}, "New searches per day (blank = site default)", limit), h("button", { type: "submit", class: "ghost" }, "Save limit"))));
+    if (u.prefs && (u.prefs.roles || []).length) panel.appendChild(h("p", { class: "muted" }, "Looking for: " + u.prefs.roles.join(", ") + (u.prefs.regions && u.prefs.regions.length ? " · regions: " + u.prefs.regions.join(", ") : "")));
     panel.appendChild(h("form", { class: "row", onsubmit: (e) => { e.preventDefault(); act(`/admin/users/${id}/credits`, { amount_usd: amount.value, kind: kind.value, reason: reason.value }, "Credit updated."); } },
       h("label", {}, "Amount (USD)", amount), h("label", {}, "Action", kind), h("label", {}, "Reason", reason), h("button", { type: "submit" }, "Apply")));
     panel.appendChild(h("div", { class: "row" },

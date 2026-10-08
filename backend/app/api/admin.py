@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..db import get_db
 from .. import credits, whop
-from ..models import AuthEvent, CreditEntry, FailedUrl, Job, PaymentEvent, ScrapeRun, SearchQuery, Source, User
+from ..models import AuthEvent, CreditEntry, FailedUrl, Job, PaymentEvent, ScrapeRun, SearchQuery, Source, User, UserSearch
 from ..security import aware, csrf_guard, current_admin, log_event
 from ..scrapers import pipeline, query_plan
 from ..scrapers.registry import DURABLE
@@ -103,6 +103,28 @@ def run_source_now(key: str, background: BackgroundTasks) -> dict:
         raise HTTPException(409, f"{key} is already running")
     background.add_task(_run_source, key)
     return {"started": key, "note": "a Google source spends one search credit"} if key not in DURABLE else {"started": key}
+
+
+@router.post("/sources/run-all", status_code=202)
+def run_all_sources(background: BackgroundTasks) -> dict:
+    """Pull every free source now (job boards and feeds). Google sources are skipped: they cost a search credit each."""
+    started = [k for k in DURABLE if _claim(k)]
+    for k in started:
+        background.add_task(_run_source, k)
+    return {"started": started, "skipped_running": [k for k in DURABLE if k not in started]}
+
+
+@router.post("/regions/rebuild")
+def rebuild_regions(db: Session = Depends(get_db)) -> dict:
+    """Recompute every job's time-zone band from its location text (after the matching rules improve)."""
+    from .. import geo
+    n = 0
+    for job in db.scalars(select(Job).where(Job.location.is_not(None))).all():
+        r = geo.classify(job.location)
+        if r != job.region:
+            job.region, n = r, n + 1
+    db.commit()
+    return {"changed": n}
 
 
 @router.get("/scrape-runs")
@@ -211,6 +233,8 @@ def overview(db: Session = Depends(get_db)) -> dict:
 def _user_row(u: User) -> dict:
     return {"id": u.id, "email": u.email, "is_admin": u.is_admin, "is_active": u.is_active,
             "balance_usd": credits.micro_to_usd(u.balance_micro), "created_at": _iso(u.created_at),
+            "unlimited": u.unlimited_credits, "daily_search_limit": u.daily_search_limit, "onboarded": u.onboarded_at is not None,
+            "prefs": u.prefs or {},
             "last_login_at": _iso(u.last_login_at), "locked": bool(u.locked_until and aware(u.locked_until) > datetime.now(timezone.utc))}
 
 
@@ -226,7 +250,11 @@ def list_users(q: str | None = Query(None, max_length=100), limit: int = Query(1
     stmt = select(User).order_by(User.id.desc()).limit(limit)
     if q:
         stmt = stmt.where(User.email.ilike(f"%{q.strip().lower()}%"))
-    return [_user_row(u) for u in db.scalars(stmt).all()]
+    users = db.scalars(stmt).all()
+    stats = {uid: (n, spent) for uid, n, spent in db.execute(
+        select(UserSearch.user_id, func.count(UserSearch.id), func.coalesce(func.sum(UserSearch.cost_micro), 0))
+        .where(UserSearch.user_id.in_([u.id for u in users]), UserSearch.status == "done", UserSearch.cached.is_(False)).group_by(UserSearch.user_id))}
+    return [{**_user_row(u), "searches": stats.get(u.id, (0, 0))[0], "spent_usd": credits.micro_to_usd(int(stats.get(u.id, (0, 0))[1]))} for u in users]
 
 
 @router.get("/users/{user_id}/ledger")
@@ -265,6 +293,26 @@ def adjust_credits(user_id: int, body: CreditAdjust, request: Request, admin: Us
     log_event(db, "credit_" + body.kind, request, user=admin, detail=f"user {u.id} {delta / credits.MICRO:+.6f} USD: {body.reason}")
     db.commit()
     return {"user": _user_row(u), "entry_id": entry.id}
+
+
+class LimitsBody(BaseModel):
+    unlimited: bool | None = None
+    daily_search_limit: int | None = Field(None, ge=0, le=1000, description="new searches per 24h; 0 puts the user back on the site default")
+
+
+@router.post("/users/{user_id}/limits")
+def set_limits(user_id: int, body: LimitsBody, request: Request, admin: User = Depends(current_admin), db: Session = Depends(get_db)) -> dict:
+    u = _get_user(db, user_id)
+    changes = []
+    if body.unlimited is not None:
+        u.unlimited_credits = body.unlimited
+        changes.append(f"unlimited={body.unlimited}")
+    if body.daily_search_limit is not None:
+        u.daily_search_limit = body.daily_search_limit or None
+        changes.append(f"daily_limit={body.daily_search_limit or 'default'}")
+    log_event(db, "user_limits", request, user=admin, detail=f"user {u.id}: {', '.join(changes) or 'no change'}")
+    db.commit()
+    return _user_row(u)
 
 
 class ActiveBody(BaseModel):

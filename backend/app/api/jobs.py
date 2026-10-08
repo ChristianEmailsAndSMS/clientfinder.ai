@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from .. import geo, platforms
 from ..db import get_db
 from ..models import Job, JobTag
 from ..schemas import JobOut
@@ -51,6 +52,11 @@ def list_jobs(
     has_pay: bool | None = None,
     remote: bool | None = None,
     tag: list[str] | None = Query(None, description="repeatable; a job must have ALL given tags"),
+    any_tag: list[str] | None = Query(None, description="repeatable; a job must have AT LEAST ONE of these tags"),
+    kind: list[str] | None = Query(None, description="repeatable: board | social | web"),
+    region: list[str] | None = Query(None, description="repeatable time-zone bands (see /jobs/facets); 'unspecified' = no place stated"),
+    include_worldwide: bool = Query(True, description="with region: also show jobs that say worldwide / anywhere"),
+    location: str | None = Query(None, max_length=60, description="text in the job's location, e.g. a city or country"),
     posted_within_days: int | None = Query(None, ge=1, le=365),
     sort: str = Query("newest", pattern="^(newest|oldest|pay_high|pay_low)$"),
     limit: int = Query(30, ge=1, le=100),
@@ -65,6 +71,18 @@ def list_jobs(
         conds.append(Job.platform.in_(platform))
     if type:
         conds.append(Job.type.in_(type))
+    if kind:
+        known = [p for (p,) in db.execute(select(Job.platform).distinct())]
+        allowed = [p for k in kind if k in platforms.KIND_LABEL for p in platforms.platforms_of(k, known)]
+        conds.append(Job.platform.in_(allowed or [""]))
+    if region:
+        wanted = [r for r in region if r in geo.REGION_KEYS]
+        if include_worldwide and wanted and wanted != ["unspecified"]:
+            wanted.append("worldwide")
+        parts = [Job.region.is_(None) if r == "unspecified" else Job.region.like(f"%{r}%") for r in dict.fromkeys(wanted)]
+        conds.append(or_(*parts) if parts else Job.id < 0)
+    if location and location.strip():
+        conds.append(Job.location.ilike(_like(location.strip()), escape="\\"))
     if pay_period:
         conds.append(Job.pay_period == pay_period)
     if min_pay is not None:
@@ -78,6 +96,8 @@ def list_jobs(
     if posted_within_days:
         cutoff = datetime.now(timezone.utc) - timedelta(days=posted_within_days)
         conds.append(or_(Job.posted_at >= cutoff, (Job.posted_at.is_(None)) & (Job.first_seen_at >= cutoff)))
+    if any_tag:
+        conds.append(Job.id.in_(select(JobTag.job_id).where(JobTag.tag.in_([t.lower() for t in any_tag]))))
     for t in tag or []:
         conds.append(Job.id.in_(select(JobTag.job_id).where(JobTag.tag == t.lower())))
 
@@ -93,9 +113,25 @@ def facets(db: Session = Depends(get_db)) -> dict:
     def counts(col):
         return [{"value": v, "count": c} for v, c in db.execute(
             select(col, func.count(Job.id)).where(real, col.is_not(None)).group_by(col).order_by(func.count(Job.id).desc())).all()]
+    plats = counts(Job.platform)
+    for p in plats:
+        p["kind"] = platforms.kind_of(p["value"])
+    kinds: dict[str, int] = {}
+    for p in plats:
+        kinds[p["kind"]] = kinds.get(p["kind"], 0) + p["count"]
+    region_counts: dict[str, int] = {}
+    unspecified = 0
+    for r, c in db.execute(select(Job.region, func.count(Job.id)).where(real).group_by(Job.region)).all():
+        if not r:
+            unspecified += c
+        for k in geo.split(r):
+            region_counts[k] = region_counts.get(k, 0) + c
     return {
         "total": db.scalar(select(func.count(Job.id)).where(real)) or 0,
-        "platforms": counts(Job.platform),
+        "platforms": plats,
+        "kinds": [{"value": k, "label": platforms.KIND_LABEL[k], "count": kinds.get(k, 0)} for k in ("board", "social", "web") if kinds.get(k)],
+        "regions": [{"value": k, "label": lbl, "offset": off, "count": region_counts.get(k, 0)} for k, (lbl, off) in geo.BANDS.items()]
+                   + [{"value": "unspecified", "label": "Location not stated", "offset": "", "count": unspecified}],
         "types": counts(Job.type),
         "pay_periods": counts(Job.pay_period),
         "tags": [{"value": t, "count": c} for t, c in tag_counts(db)],
