@@ -48,6 +48,13 @@
     else if (location.hash === "#signin") { tab("in", focus); if (onHome && focus) $("auth-panel").scrollIntoView({ behavior: "smooth", block: "center" }); }
   }
   window.addEventListener("hashchange", () => fromHash(true));
+  // A link to the hash the page is already on fires no hashchange (the tabs set the hash themselves), so handle clicks directly.
+  document.querySelectorAll('a[href="#signin"], a[href="#signup"]').forEach((a) => a.addEventListener("click", (e) => {
+    e.preventDefault();
+    const hash = a.getAttribute("href");
+    setHash(hash);
+    fromHash(true);
+  }));
   if (onHome) { tab(location.hash === "#signin" ? "in" : "up", false); }      // visitors land on "Create account"
   else { tab(location.hash === "#signup" ? "up" : "in", true); }               // /login lands on "Sign in"
 

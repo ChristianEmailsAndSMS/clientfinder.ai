@@ -122,3 +122,8 @@ def test_post_login_redirect_helper_blocks_open_redirects():
     got = dict(json.loads(out.stdout))
     for k, want in cases.items():
         assert got["null" if k is None else k] == want, (k, got["null" if k is None else k], want)
+
+
+def test_nav_links_to_the_account_panel_are_wired_by_click_not_only_by_hashchange():
+    js = (Path(__file__).resolve().parent.parent / "app/static/site/login.js").read_text()
+    assert 'a[href="#signin"]' in js and "preventDefault" in js
