@@ -19,7 +19,11 @@ class Settings(BaseSettings):
     extraction_model: str = "claude-haiku-4-5-20251001"
 
     # Scheduler cadence (app/scheduler.py)
-    google_search_interval_minutes: int = 60
+    google_search_interval_minutes: int = 60     # how often the scheduler checks for due queries
+    google_query_cycle_hours: int = 12           # each query in the plan re-runs this often
+    google_max_queries_per_tick: int = 6         # cap per scheduler tick (spreads load, bounds a backlog)
+    serpapi_monthly_budget: int = 4500           # hard stop. SerpAPI free tier is ~100/mo: set 100 until you upgrade
+    playwright_fallback: bool = True
     durable_sources_interval_hours: int = 6
 
     jwt_secret: str = "change-me-dev-only"

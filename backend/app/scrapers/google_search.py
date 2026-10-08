@@ -56,15 +56,13 @@ def _platform_from_url(url: str) -> str:
     return "web"
 
 
-def _serpapi_results(query: str, num: int = 20) -> list[SearchResult]:
+def _serpapi_results(query: str, num: int = 10, freshness: str | None = None) -> list[SearchResult]:
+    params = {"q": query, "api_key": settings.serpapi_api_key, "num": num, "hl": "en", "gl": "us"}
+    if freshness:
+        params["tbs"] = f"qdr:{freshness}"   # d = past 24h, w = past week, m = past month
     r = httpx.get(
         "https://serpapi.com/search.json",
-        params={
-            "q": query,
-            "api_key": settings.serpapi_api_key,
-            "num": num,
-            "hl": "en",
-        },
+        params=params,
         timeout=30,
     )
     r.raise_for_status()
@@ -84,11 +82,11 @@ def _serpapi_results(query: str, num: int = 20) -> list[SearchResult]:
     return out
 
 
-def _serper_results(query: str, num: int = 20) -> list[SearchResult]:
+def _serper_results(query: str, num: int = 10, freshness: str | None = None) -> list[SearchResult]:
     r = httpx.post(
         "https://google.serper.dev/search",
         headers={"X-API-KEY": settings.serper_api_key, "Content-Type": "application/json"},
-        json={"q": query, "num": num, "gl": "us", "hl": "en"},
+        json={"q": query, "num": num, "gl": "us", "hl": "en", **({"tbs": f"qdr:{freshness}"} if freshness else {})},
         timeout=30,
     )
     r.raise_for_status()
@@ -108,13 +106,13 @@ def _serper_results(query: str, num: int = 20) -> list[SearchResult]:
     return out
 
 
-def search(query: str, num: int = 20) -> list[SearchResult]:
+def search(query: str, num: int = 10, freshness: str | None = None) -> list[SearchResult]:
     if settings.dev_fixtures:
         return _fixture_results(query)
     if settings.google_search_provider == "serper" and settings.serper_api_key:
-        return _serper_results(query, num=num)
+        return _serper_results(query, num=num, freshness=freshness)
     if settings.serpapi_api_key:
-        return _serpapi_results(query, num=num)
+        return _serpapi_results(query, num=num, freshness=freshness)
     # No key configured. Never fall back to fixtures here: they are fake and would end up in the live DB.
     log.warning("no search API key configured; skipping %r (set DEV_FIXTURES=1 for fake local data)", query)
     return []

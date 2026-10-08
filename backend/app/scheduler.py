@@ -15,7 +15,7 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 
 from .config import settings
 from .scrapers import ashby, greenhouse, lever, problogger, remoteok, remotive, weworkremotely
-from .scrapers.pipeline import run_pipeline_for_queries
+from .scrapers.query_plan import run_due_queries
 
 log = logging.getLogger("scheduler")
 
@@ -35,7 +35,7 @@ def run_durable_source(name: str, module) -> None:
 
 def run_google_layer() -> None:
     try:
-        for s in run_pipeline_for_queries():
+        for s in run_due_queries():
             log.info("google: %s", s)
     except Exception:
         log.exception("google layer failed")

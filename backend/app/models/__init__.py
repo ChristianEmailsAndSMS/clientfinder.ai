@@ -1,1 +1,1 @@
-from .job import Job, Source, ScrapeRun  # noqa: F401
+from .job import Job, Source, ScrapeRun, SearchQuery  # noqa: F401

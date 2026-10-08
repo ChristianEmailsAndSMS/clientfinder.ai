@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, Integer, DateTime, Text, Boolean, ForeignKey, UniqueConstraint, JSON, Float
+from sqlalchemy import String, Integer, DateTime, Text, Boolean, ForeignKey, UniqueConstraint, Index, JSON, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from ..db import Base
 
@@ -80,3 +80,19 @@ class Job(Base):
     is_real_job: Mapped[bool] = mapped_column(Boolean, default=True)
     extraction_model: Mapped[str | None] = mapped_column(String(64), nullable=True)
     extra: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
+class SearchQuery(Base):
+    """One executed (or failed) Google-layer search. Drives scheduling ("what is due"), the monthly
+    search budget, and per-query yield stats."""
+    __tablename__ = "search_queries"
+    __table_args__ = (Index("ix_search_queries_key_ran", "query_key", "ran_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    query_key: Mapped[str] = mapped_column(String(256))        # full query string incl. site: scope
+    provider: Mapped[str] = mapped_column(String(16))          # serpapi | serper
+    freshness: Mapped[str | None] = mapped_column(String(4), nullable=True)   # d | w | m
+    ran_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    results: Mapped[int] = mapped_column(Integer, default=0)
+    new_jobs: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
