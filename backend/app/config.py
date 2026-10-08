@@ -6,7 +6,8 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://clientfinder:dev_only_change_me@localhost:5433/clientfinder"
 
-    dev_fixtures: bool = True
+    # Fixtures are fake data. Off unless a dev explicitly sets DEV_FIXTURES=1 in .env.
+    dev_fixtures: bool = False
 
     serpapi_api_key: str = ""
     serper_api_key: str = ""
@@ -16,6 +17,10 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str = ""
     extraction_model: str = "claude-haiku-4-5-20251001"
+
+    # Scheduler cadence (app/scheduler.py)
+    google_search_interval_minutes: int = 60
+    durable_sources_interval_hours: int = 6
 
     jwt_secret: str = "change-me-dev-only"
     jwt_alg: str = "HS256"

@@ -8,8 +8,18 @@ import json
 import re
 from bs4 import BeautifulSoup
 
+import logging
+
+from pydantic import ValidationError
+
 from ..config import settings
 from ..schemas import ExtractedJob, SearchResult
+
+log = logging.getLogger(__name__)
+
+
+class ExtractionError(Exception):
+    """The page could not be turned into a job. Callers skip the row; they must not store a guess."""
 
 EXTRACTION_PROMPT = """You are a job-posting extractor. Read the HTML/text below and return STRICT JSON with the shape:
 {
@@ -111,30 +121,56 @@ def _heuristic_mock(result: SearchResult, page_text: str) -> ExtractedJob:
     )
 
 
-def _claude_extract(result: SearchResult, page_html: str) -> ExtractedJob:
+def _call_model(prompt: str) -> tuple[str, dict]:
+    """One Claude call. Returns (text, usage). Split out so tests can stub it."""
     import anthropic
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-    page_text = _html_to_text(page_html)
-    prompt = EXTRACTION_PROMPT.format(source_hint=result.platform, page_text=page_text)
     resp = client.messages.create(
         model=settings.extraction_model,
         max_tokens=1024,
         messages=[{"role": "user", "content": prompt}],
     )
-    text = resp.content[0].text.strip()
+    usage = {
+        "model": settings.extraction_model,
+        "input_tokens": resp.usage.input_tokens,
+        "output_tokens": resp.usage.output_tokens,
+    }
+    return resp.content[0].text, usage
+
+
+def _claude_extract(result: SearchResult, page_html: str) -> ExtractedJob:
+    page_text = _html_to_text(page_html)
+    if not page_text:
+        raise ExtractionError("page has no text")
+    # Not str.format(): the prompt contains literal JSON braces.
+    prompt = EXTRACTION_PROMPT.replace("{source_hint}", result.platform).replace("{page_text}", page_text)
+    try:
+        text, usage = _call_model(prompt)
+    except Exception as e:
+        raise ExtractionError(f"model call failed: {e}") from e
+    log.info("extract %s tokens_in=%s tokens_out=%s", result.url, usage["input_tokens"], usage["output_tokens"])
+    text = text.strip()
     # Trim code fences if the model added them
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
-    data = json.loads(text)
-    data.setdefault("apply_url", result.url)
-    return ExtractedJob(**data)
+    try:
+        data = json.loads(text)
+        if not isinstance(data, dict):
+            raise TypeError(f"expected a JSON object, got {type(data).__name__}")
+        data.setdefault("apply_url", result.url)
+        job = ExtractedJob(**data)
+    except (json.JSONDecodeError, TypeError, ValidationError) as e:
+        raise ExtractionError(f"unparseable model output: {e}") from e
+    if job.is_real_job and not job.title.strip():
+        raise ExtractionError("real job without a title")
+    job.usage = usage
+    return job
 
 
 def extract(result: SearchResult, page_html: str) -> ExtractedJob:
-    if settings.dev_fixtures or not settings.anthropic_api_key:
+    """Dev mode: deterministic mock. Live mode: Claude, or ExtractionError (never a guess)."""
+    if settings.dev_fixtures:
         return _heuristic_mock(result, page_html)
-    try:
-        return _claude_extract(result, page_html)
-    except Exception:
-        # Degrade to heuristic rather than losing the row.
-        return _heuristic_mock(result, page_html)
+    if not settings.anthropic_api_key:
+        raise ExtractionError("ANTHROPIC_API_KEY not set")
+    return _claude_extract(result, page_html)

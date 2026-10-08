@@ -16,6 +16,7 @@ from ..schemas import SearchResult, ExtractedJob
 from ..dedup import dedupe_hash
 from ..config import settings
 from . import google_search, page_fetcher, llm_extractor
+from .llm_extractor import ExtractionError
 
 log = logging.getLogger(__name__)
 
@@ -75,6 +76,7 @@ def _upsert_job(db: Session, source: Source, result: SearchResult, extracted: Ex
         source_key=source.key,
         is_real_job=extracted.is_real_job,
         extraction_model=(settings.extraction_model if not settings.dev_fixtures else "heuristic-mock"),
+        extra={"usage": extracted.usage} if extracted.usage else None,
     )
     sp = db.begin_nested()
     try:
@@ -89,7 +91,11 @@ def _upsert_job(db: Session, source: Source, result: SearchResult, extracted: Ex
 
 def run_pipeline_for_query(query: str, num: int = 20) -> dict:
     """Execute the full pipeline for one search query. Returns a stats dict."""
-    stats = {"query": query, "search_hits": 0, "extracted": 0, "added": 0, "updated": 0, "errors": 0}
+    stats = {"query": query, "search_hits": 0, "extracted": 0, "added": 0, "updated": 0, "errors": 0, "skipped": 0}
+    if not settings.dev_fixtures and not settings.anthropic_api_key:
+        log.error("ANTHROPIC_API_KEY not set; skipping %r rather than storing unextracted rows", query)
+        stats["error"] = "ANTHROPIC_API_KEY not set"
+        return stats
     results = google_search.search(query, num=num)
     stats["search_hits"] = len(results)
     if not results:
@@ -114,6 +120,9 @@ def run_pipeline_for_query(query: str, num: int = 20) -> dict:
                 stats["extracted"] += 1
                 stats["added"] += int(added)
                 stats["updated"] += int(updated)
+            except ExtractionError as e:
+                log.warning("skipping %s: %s", result.url, e)
+                stats["skipped"] += 1
             except Exception as e:
                 log.exception("pipeline row failed: %s", e)
                 stats["errors"] += 1
@@ -129,4 +138,11 @@ def run_pipeline_for_query(query: str, num: int = 20) -> dict:
 
 def run_pipeline_for_queries(queries: Iterable[str] | None = None, num: int = 20) -> list[dict]:
     queries = list(queries) if queries else list(google_search.DEFAULT_QUERIES)
-    return [run_pipeline_for_query(q, num=num) for q in queries]
+    out = []
+    for q in queries:
+        try:
+            out.append(run_pipeline_for_query(q, num=num))
+        except Exception as e:  # one bad query (HTTP error, quota) must not stop the rest
+            log.exception("query %r failed", q)
+            out.append({"query": q, "error": str(e)})
+    return out

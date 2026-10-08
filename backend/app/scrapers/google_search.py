@@ -3,6 +3,7 @@
 Real mode: hits SerpAPI (or Serper.dev if configured).
 Dev mode (DEV_FIXTURES=1): reads a local JSON fixture — lets you iterate without an API key."""
 import json
+import logging
 from pathlib import Path
 from typing import Iterable
 
@@ -10,6 +11,8 @@ import httpx
 
 from ..config import settings
 from ..schemas import SearchResult
+
+log = logging.getLogger(__name__)
 
 FIXTURE_DIR = Path(__file__).resolve().parent.parent.parent / "fixtures"
 
@@ -112,8 +115,9 @@ def search(query: str, num: int = 20) -> list[SearchResult]:
         return _serper_results(query, num=num)
     if settings.serpapi_api_key:
         return _serpapi_results(query, num=num)
-    # No key configured — fall back to fixture so dev flow still runs.
-    return _fixture_results(query)
+    # No key configured. Never fall back to fixtures here: they are fake and would end up in the live DB.
+    log.warning("no search API key configured; skipping %r (set DEV_FIXTURES=1 for fake local data)", query)
+    return []
 
 
 # Default queries we rotate through on scheduled runs.

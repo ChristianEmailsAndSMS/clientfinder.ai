@@ -47,6 +47,7 @@ class ExtractedJob(BaseModel):
     posted_at: datetime | None = None
     raw_snippet: str | None = None
     description: str | None = None
+    usage: dict | None = None      # {"model", "input_tokens", "output_tokens"}; set by the Claude extractor
 
 
 class SearchResult(BaseModel):

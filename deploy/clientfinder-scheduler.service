@@ -1,0 +1,17 @@
+# Install: cp deploy/clientfinder-scheduler.service /etc/systemd/system/ && systemctl daemon-reload
+#          systemctl enable --now clientfinder-scheduler
+# Mirrors clientfinder-api.service; compare with `systemctl cat clientfinder-api` and match User/paths.
+[Unit]
+Description=Clientfinder.ai scheduler (durable sources + Google layer)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/clientfinder.ai/backend
+ExecStart=/root/clientfinder.ai/backend/.venv/bin/python -m app.scheduler
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
