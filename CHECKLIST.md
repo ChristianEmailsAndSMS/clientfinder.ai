@@ -76,12 +76,14 @@ The approach: Google is already indexing Twitter/X, Reddit, LinkedIn posts, rand
 ## Phase 5 — Whop payment + credit system
 
 - [ ] Whop account configured, Clientfinder.ai product set up
-- [ ] Credits = **2× Claude API cost** (bumped from 1.5× to also cover SerpAPI + Firecrawl + proxy costs). Metering:
+- [ ] Credits = **1.5× Claude API cost** (`CREDIT_MARKUP` in `backend/app/pricing.py`, the single source of truth). Metering:
   - On every Claude API call, read `response.usage.input_tokens` and `output_tokens`
-  - Convert to cost via live pricing table (store per-model prices in a config file, auto-check Anthropic pricing docs weekly)
-  - Multiply by 2.0, debit user's credit balance
+  - Convert to cost via the price table in `app/pricing.py` (verify prices against Anthropic's pricing page; recheck on each model change)
+  - `charge_usd()` multiplies by 1.5 and rounds UP; an unpriced model must be refused, never charged at a guess
+  - Debit atomically (row lock or single `UPDATE ... WHERE balance >= x`) so concurrent requests cannot overdraw a balance
+  - Charge for failed/unparseable calls too: we still paid Anthropic for the tokens
   - If balance insufficient → block the operation + prompt to buy more
-  - Also debit a small flat fee per SerpAPI/Firecrawl call that gets attributed to a user search
+- [ ] **Margin math (1.5× = 50% of cost per call).** Scraping (SerpAPI + extraction, roughly $35–$45/month at full speed, unmeasured) is a *shared fixed* cost that does not scale with users. Credit margin covers it only if users' raw Claude spend reaches about 2× that figure per month (~$70–$90). Whop/processor fees also come out of the margin; confirm their rate. Re-run `scripts/cost_report.py` monthly. If margin falls short, options: a small platform/subscription fee, or a higher markup. Scraping features stay free for all users.
 - [ ] Credit purchase flow via Whop checkout
 - [ ] Webhook from Whop → increment credits on successful payment
 - [ ] Transaction log table (every debit, every top-up) — audit trail

@@ -15,3 +15,15 @@ def cost_usd(model: str | None, input_tokens: int, output_tokens: int) -> float 
         return None
     p_in, p_out = PRICES[model]
     return (input_tokens * p_in + output_tokens * p_out) / 1_000_000
+
+
+# What a user is charged = our Claude API cost x this. Phase 5 reads it; change it here only.
+CREDIT_MARKUP = 1.5
+
+
+def charge_usd(model: str | None, input_tokens: int, output_tokens: int) -> float | None:
+    """User-facing price of one call, rounded UP to 1/100 of a cent so rounding never loses margin.
+    None when the model is unpriced: callers must refuse to run an unpriced model for a paying user."""
+    import math
+    cost = cost_usd(model, input_tokens, output_tokens)
+    return None if cost is None else math.ceil(cost * CREDIT_MARKUP * 10_000) / 10_000

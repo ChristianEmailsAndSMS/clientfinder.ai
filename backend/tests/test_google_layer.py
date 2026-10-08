@@ -313,3 +313,12 @@ def test_pricing_known_and_unknown_models():
     assert cost_usd("claude-haiku-4-5-20251001", 1_000_000, 0) == 1.00
     assert cost_usd("claude-haiku-4-5-20251001", 2000, 400) == pytest.approx(0.004)
     assert cost_usd("some-new-model", 100, 100) is None
+
+
+def test_charge_is_cost_times_markup_rounded_up():
+    from app.pricing import CREDIT_MARKUP, charge_usd, cost_usd
+    assert CREDIT_MARKUP == 1.5
+    cost = cost_usd("claude-haiku-4-5-20251001", 2000, 400)          # 0.004
+    assert charge_usd("claude-haiku-4-5-20251001", 2000, 400) == pytest.approx(cost * 1.5)   # 0.006
+    assert charge_usd("claude-haiku-4-5-20251001", 1, 1) >= cost_usd("claude-haiku-4-5-20251001", 1, 1) * 1.5  # never rounds down
+    assert charge_usd("unpriced-model", 10, 10) is None
