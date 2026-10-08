@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     # Where customers pay for credits (your Whop checkout page). Shown as a "Buy credits" button. Until the Whop webhook exists,
     # YOU add the credits after you see the payment (dashboard > Customers > Manage, or `admin_cli.py grant`).
     whop_checkout_url: str = ""
+    # Signing secret from Whop's webhook settings. Without it the webhook endpoint refuses everything.
+    whop_webhook_secret: str = ""
+    whop_amount_unit: str = "dollars"          # "dollars" or "cents": how Whop's payment amount field is expressed
+    whop_max_topup_usd: float = 500.0          # a single payment above this is held for review instead of auto-credited
     # The job feed needs a signed-in account (otherwise anyone could read or scrape the whole product for free).
     # The home page shows only a small, redacted preview. Set JOBS_REQUIRE_LOGIN=0 only for local development.
     jobs_require_login: bool = True

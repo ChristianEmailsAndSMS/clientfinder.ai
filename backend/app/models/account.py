@@ -103,3 +103,21 @@ class UserSearchJob(Base):
 
     search_id: Mapped[int] = mapped_column(ForeignKey("user_searches.id", ondelete="CASCADE"), primary_key=True)
     job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), primary_key=True)
+
+
+class PaymentEvent(Base):
+    """Every payment webhook we accept, so nothing is lost and the owner can resolve anything that could not be matched."""
+    __tablename__ = "payment_events"
+    __table_args__ = (UniqueConstraint("provider", "event_id", name="uq_payment_events_event"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    provider: Mapped[str] = mapped_column(String(16), default="whop")
+    event_id: Mapped[str] = mapped_column(String(128))                    # the webhook-id header: retries carry the same one
+    event_type: Mapped[str] = mapped_column(String(64), default="")
+    status: Mapped[str] = mapped_column(String(12))                       # credited | ignored | unmatched | review
+    note: Mapped[str] = mapped_column(String(300), default="")
+    email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    amount_micro: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)

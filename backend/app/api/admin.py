@@ -16,8 +16,8 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..db import get_db
-from .. import credits
-from ..models import AuthEvent, CreditEntry, FailedUrl, Job, ScrapeRun, SearchQuery, Source, User
+from .. import credits, whop
+from ..models import AuthEvent, CreditEntry, FailedUrl, Job, PaymentEvent, ScrapeRun, SearchQuery, Source, User
 from ..security import aware, csrf_guard, current_admin, log_event
 from ..scrapers import pipeline, query_plan
 from ..scrapers.registry import DURABLE
@@ -310,3 +310,32 @@ def security_events(limit: int = Query(100, ge=1, le=500), event: str | None = Q
         q = q.where(AuthEvent.event == event)
     return [{"at": _iso(e.created_at), "event": e.event, "email": e.email, "ip": e.ip, "detail": e.detail,
              "user_agent": (e.user_agent or "")[:80]} for e in db.scalars(q).all()]
+
+
+# ---------- payments ----------
+class ResolveBody(BaseModel):
+    user_id: int
+
+
+@router.get("/payments")
+def payments(status: str | None = None, limit: int = Query(50, ge=1, le=200), db: Session = Depends(get_db)) -> list[dict]:
+    q = select(PaymentEvent).order_by(PaymentEvent.id.desc()).limit(limit)
+    if status:
+        q = q.where(PaymentEvent.status == status)
+    return [{"id": e.id, "created_at": e.created_at, "type": e.event_type, "status": e.status, "note": e.note, "email": e.email,
+             "amount_usd": credits.micro_to_usd(e.amount_micro) if e.amount_micro else None, "user_id": e.user_id}
+            for e in db.scalars(q)]
+
+
+@router.post("/payments/{event_id}/credit")
+def credit_payment(event_id: int, body: ResolveBody, request: Request, admin: User = Depends(current_admin), db: Session = Depends(get_db)) -> dict:
+    ev = db.get(PaymentEvent, event_id)
+    if not ev or not db.get(User, body.user_id):
+        raise HTTPException(404, "No such payment or user")
+    try:
+        whop.resolve(db, ev, body.user_id, admin.id)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    log_event(db, "payment_resolved", request, user=admin, detail=f"event {ev.id} -> user {body.user_id}")
+    db.commit()
+    return {"ok": True}
