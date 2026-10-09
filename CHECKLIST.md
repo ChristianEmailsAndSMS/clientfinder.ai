@@ -163,3 +163,16 @@ The approach: Google is already indexing Twitter/X, Reddit, LinkedIn posts, rand
 **Week 7+ (Phase 7):** Add Twitter/X, Reddit, public Discord. This is where it gets really valuable for your users.
 
 **Later (Phase 8–10):** Course content, outreach generator, chat coaching.
+
+---
+
+## Server hardening to do before real customers (owner chose to do these later)
+
+Walk-through for each is in `docs/SECURITY.md` section 4. Run `bash deploy/security_audit.sh` afterwards.
+
+- [ ] **SSH key-only login** (two red FAILs in the audit). Owner uses the hosting browser console; do this before sharing the server password with anyone.
+- [ ] **Run the API and scheduler as a non-root user.**
+- [ ] **Least-privilege database login** (`deploy/db_least_privilege.sql`).
+- [ ] **Encrypted off-server backups** (today they live on the same server).
+- [ ] Copy the new `request_body` block from `deploy/Caddyfile.security.snippet` into `/etc/caddy/Caddyfile` (screenshots in the pitch helper need the 6 MB allowance on `/assist`).
+- [ ] Turn admin 2FA back on (`ADMIN_REQUIRE_2FA=1`).
