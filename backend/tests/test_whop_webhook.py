@@ -180,6 +180,8 @@ def whop_on(env, monkeypatch):
         return FakeResp(200, {"id": "ch_1", "purchase_url": "https://whop.com/checkout/ch_1"})
     monkeypatch.setattr(whop_api, "_post", fake_post)
     whop_api._last = sent
+    from app.api import account as acct
+    acct._checkout_hits.clear(); acct._checkout_links.clear()                                          # per-process state: do not leak between tests
     return sent
 
 
@@ -215,7 +217,11 @@ def test_checkout_failures_are_explained_and_never_leak_the_key(env, whop_on, mo
     c = buyer(env)
     monkeypatch.setattr(whop_api, "_post", lambda p: FakeResp(401, text='{"error":"bad key whop_SECRET_KEY_123456789 lacks plan:create"}'))
     r = c.post("/account/checkout", json={"usd": 27}, headers=authkit.CSRF)
-    assert r.status_code == 502 and "401" in r.json()["detail"] and "SECRET_KEY_123456789" not in r.json()["detail"]
+    assert r.status_code == 502 and r.json()["detail"] == whop_api.PUBLIC_MESSAGE                        # customers never see Whop's reason
+    assert "401" not in r.json()["detail"] and "SECRET_KEY" not in r.text and "scope" not in r.text
+    with pytest.raises(whop_api.WhopApiError) as e:                                                    # the operator still gets it, minus the key
+        whop_api.create_checkout(1, "a@b.c", 27)
+    assert "401" in str(e.value) and "SECRET_KEY_123456789" not in str(e.value)
     monkeypatch.setattr(whop_api, "_post", lambda p: FakeResp(200, {"id": "x"}))
     assert c.post("/account/checkout", json={"usd": 27}, headers=authkit.CSRF).status_code == 502
     monkeypatch.setattr(whop_api, "_post", lambda p: FakeResp(200, {"purchase_url": "http://not-https.example"}))
@@ -229,7 +235,10 @@ def test_checkout_is_off_without_keys_and_rate_limited_per_account(env, monkeypa
     monkeypatch.setattr(whop_api, "_post", lambda p: FakeResp(200, {"purchase_url": "https://whop.com/c/1"}))
     from app.api import account as acct
     acct._checkout_hits.clear()
-    codes = [c.post("/account/checkout", json={"usd": 27}, headers=authkit.CSRF).status_code for _ in range(14)]
+    codes = []
+    for _ in range(14):
+        acct._checkout_links.clear()                                                                   # force a real creation each time
+        codes.append(c.post("/account/checkout", json={"usd": 27}, headers=authkit.CSRF).status_code)
     assert codes[:12] == [200] * 12 and codes[12:] == [429, 429]
 
 
@@ -252,3 +261,35 @@ def test_a_forged_or_unknown_account_id_never_credits_anyone(env):
     user(env); c = TestClient(app)
     payload = {"type": "payment.succeeded", "data": {"currency": "usd", "total": 20, "metadata": {"cf_user_id": "99999"}}}
     assert post(c, payload).json()["status"] == "unmatched" and bal(env) == 0
+
+
+def test_repeat_clicks_reuse_the_same_checkout_link_instead_of_making_a_new_plan_each_time(env, whop_on):
+    c = buyer(env)
+    from app.api import account as acct
+    acct._checkout_links.clear()
+    urls = {c.post("/account/checkout", json={"usd": 27}, headers=authkit.CSRF).json()["url"] for _ in range(5)}
+    assert len(urls) == 1 and len(whop_on) == 1
+    c.post("/account/checkout", json={"usd": 47}, headers=authkit.CSRF)
+    assert len(whop_on) == 2                                                                           # a different bundle is a different link
+
+
+def test_refunds_and_disputes_are_held_for_the_owner_and_counted_on_the_dashboard(env):
+    user(env); c = TestClient(app)
+    for i, t in enumerate(("payment.refunded", "dispute.created", "refund_created")):
+        r = post(c, {"type": t, "data": {"user": {"email": "buyer@example.com"}, "currency": "usd", "total": 20}}, msg_id=f"evt_r{i}")
+        assert r.json()["status"] == "review"
+    assert bal(env) == 0                                                                               # nothing is credited or revoked automatically
+    from authkit import login, make_user
+    with env.scope() as db:
+        _, secret = make_user(db, "christian@emailsandsms.com", admin=True)
+    a = TestClient(app); login(env, a, "christian@emailsandsms.com", secret=secret)
+    assert a.get("/admin/overview").json()["payments_waiting"] == 3
+
+
+def test_oversized_request_bodies_are_refused_before_they_are_read(env):
+    c = TestClient(app)
+    big = b"x" * 1_200_000
+    assert c.post("/auth/login", content=big, headers={**authkit.CSRF, "content-type": "application/json"}).status_code == 413
+    assert c.post("/webhooks/whop", content=big).status_code == 413
+    ok = c.post("/auth/login", content=b"{}", headers={**authkit.CSRF, "content-type": "application/json"})
+    assert ok.status_code != 413

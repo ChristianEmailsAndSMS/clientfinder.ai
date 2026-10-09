@@ -371,7 +371,8 @@
       rd.onload = () => { st.image = String(rd.result).split(",")[1] || null; shotNote.textContent = st.image ? "Screenshot attached." : "Could not read that image."; };
       rd.readAsDataURL(f);
     });
-    const replyBox = h("div", { class: "mt12", hidden: true }, thread, h("div", { class: "row mt12" }, shot, shotNote));
+    const replyBox = h("div", { class: "mt12", hidden: true }, thread, h("div", { class: "row mt12" }, shot, shotNote),
+      h("p", { class: "hint", text: "Your text and screenshot are sent to our AI writer to read. We do not keep the screenshot. Crop out anything private first." }));
     const note = h("input", { class: "input mt12", type: "text", maxlength: "300", placeholder: "Anything else? e.g. keep it shorter, mention my Klaviyo case study", "aria-label": "Extra instruction" });
     const modeHint = h("p", { class: "hint" });
     const seg2 = h("div", { class: "chips mt12" });

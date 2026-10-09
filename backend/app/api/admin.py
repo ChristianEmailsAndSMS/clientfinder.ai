@@ -207,6 +207,7 @@ def overview(db: Session = Depends(get_db)) -> dict:
     failing = [x["key"] for x in srcs if x["last_run"] and x["last_run"]["status"] == "failed" and not x["key"].startswith("google:")]
     stale = [x["key"] for x in srcs if not x["key"].startswith("google:")
              and (not x["last_run"] or (now - datetime.fromisoformat(x["last_run"]["at"])) > timedelta(hours=30))]
+    payments_waiting = db.scalar(select(func.count(PaymentEvent.id)).where(PaymentEvent.status.in_(("review", "unmatched")))) or 0
     users = db.scalar(select(func.count(User.id)).where(User.is_admin.is_(False))) or 0
     liability = db.scalar(select(func.coalesce(func.sum(User.balance_micro), 0)).where(User.is_admin.is_(False))) or 0
     used = query_plan.searches_used_this_month(db)
@@ -217,6 +218,7 @@ def overview(db: Session = Depends(get_db)) -> dict:
             charged += meta.get("charged_micro", 0)
             ours += meta["our_cost_micro"]
     return {
+        "payments_waiting": payments_waiting,
         "customer_searches_30d": {"count": n, "charged_usd": credits.micro_to_usd(charged), "our_cost_usd": credits.micro_to_usd(ours),
                                   "margin_x": round(charged / ours, 3) if ours else None},
         "jobs": {"total": total_jobs, "new_24h": new_24h},

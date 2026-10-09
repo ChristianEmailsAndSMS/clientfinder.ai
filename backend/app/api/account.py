@@ -1,4 +1,6 @@
 """What a signed-in customer can see about their own credits."""
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -11,8 +13,9 @@ from ..db import get_db
 from ..models import CreditEntry, User
 from ..tagging import CATEGORY_RULES
 from .. import geo, platforms
-from ..security import csrf_guard, current_user, utcnow
+from ..security import csrf_guard, current_user, rate_limit_guard, utcnow
 
+log = logging.getLogger(__name__)
 router = APIRouter(prefix="/account", tags=["account"])
 
 
@@ -80,9 +83,11 @@ class CheckoutBody(BaseModel):
 
 
 _checkout_hits: dict[int, list[float]] = {}
+_checkout_links: dict[tuple[int, int], tuple[float, str]] = {}          # (user, bundle) -> (when, url): reuse instead of making a new Whop plan per click
+LINK_REUSE_SECONDS = 20 * 60
 
 
-@router.post("/checkout")
+@router.post("/checkout", dependencies=[Depends(rate_limit_guard)])
 def checkout(body: CheckoutBody, request: Request, user: User = Depends(current_user)) -> dict:
     """A fresh Whop checkout link for one bundle, tagged with this account so the payment finds its way back."""
     import time
@@ -92,11 +97,17 @@ def checkout(body: CheckoutBody, request: Request, user: User = Depends(current_
     if body.usd not in whop_api.BUNDLES:
         raise HTTPException(422, "Choose one of the listed amounts.")
     now = time.time()
+    cached = _checkout_links.get((user.id, body.usd))
+    if cached and cached[0] > now - LINK_REUSE_SECONDS:
+        return {"url": cached[1]}
     hits = [t for t in _checkout_hits.get(user.id, []) if t > now - 3600]
     if len(hits) >= 12:
         raise HTTPException(429, "Too many checkout attempts. Try again in a while.")
     _checkout_hits[user.id] = hits + [now]
     try:
-        return {"url": whop_api.create_checkout(user.id, user.email, body.usd)}
+        url = whop_api.create_checkout(user.id, user.email, body.usd)
     except whop_api.WhopApiError as e:
-        raise HTTPException(502, str(e))
+        log.warning("checkout failed for user %s: %s", user.id, e)           # the reason goes to the log, not to the customer
+        raise HTTPException(502, whop_api.PUBLIC_MESSAGE)
+    _checkout_links[(user.id, body.usd)] = (now, url)
+    return {"url": url}

@@ -101,6 +101,7 @@
     if (o.sources.failing.length) problems.push("Failing sources: " + o.sources.failing.join(", "));
     if (o.sources.stale.length) problems.push("No recent run: " + o.sources.stale.join(", "));
     if (o.backups.status !== "ok") problems.push("Backups are " + o.backups.status);
+    if (o.payments_waiting) problems.push(`${o.payments_waiting} payment${o.payments_waiting === 1 ? "" : "s"} need a decision (unmatched, refunded or disputed). See /admin/payments.`);
     box.appendChild(h("h2", {}, "Needs attention"));
     box.appendChild(problems.length ? h("ul", {}, problems.map((p) => h("li", { class: "bad" }, p))) : h("p", { class: "good" }, "Nothing flagged."));
   }

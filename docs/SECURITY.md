@@ -181,3 +181,28 @@ why). Correct it with an adjustment; never edit the table by hand (the app role 
 | A customer reads other accounts | Every `/searches` and `/account` call is scoped to the signed-in user; admin-only data stays behind the 2FA admin check |
 | Open redirect after sign-in | `next=` accepts only same-site relative paths (tested) |
 | Stored XSS from scraped text | The interface never uses `innerHTML`; every value is inserted as text; strict CSP (no inline script/style). Enforced by tests that scan all scripts |
+
+## 9. Review of the later features (onboarding, pitch helper, Whop checkout and webhook, per-user limits)
+
+**Checked and fine:** every new write endpoint needs a signed-in account and the CSRF header; admin endpoints sit behind the admin dependency; filters
+are parameterised (region and kind values are checked against fixed lists, `location` escapes LIKE wildcards); the screenshot is decoded, size-limited
+and identified by its real file signature, never by the name the browser gives it; job posts, pasted conversations and screenshots go to the model as
+data with an instruction to ignore anything inside them, and the answer is shown as plain text only; the Whop webhook verifies the signature and a
+5-minute timestamp window, dedupes by event id, and credits the account id our own server put in the checkout (a buyer cannot forge it); Whop's error
+text is stripped of the API key; unlimited accounts still obey the daily caps.
+
+**Fixed in this review:**
+1. The proxy's 1 MB body limit would have rejected screenshots. It is now 6 MB for `/assist` only (Caddy snippet) and the API enforces the same caps itself.
+2. Customers no longer see Whop's raw error (it named which API permission was missing). They get a generic message; the detail goes to the log and to `scripts/whop_check.py`.
+3. Repeated clicks on a bundle reuse the same checkout link for 20 minutes instead of creating a new Whop plan each time; the endpoint also has the per-IP rate limit.
+4. One pitch draft at a time per customer, so parallel requests cannot slip past the balance check.
+5. Refund, dispute and chargeback events are held for the owner and counted under "Needs attention" on the dashboard. Nothing is revoked automatically.
+6. The audit script now flags duplicate settings in `.env` (it caught two `WHOP_WEBHOOK_SECRET` lines) and a Whop key without a webhook secret.
+
+**Known and accepted:**
+- **Admin 2FA is off** (owner's choice). One leaked or guessed admin password is full access. Use a long unique password, keep the lockout, and turn `ADMIN_REQUIRE_2FA=1` back on when ready.
+- **Chargebacks:** if a customer buys credit, spends it, then disputes the payment, the credit is gone. The dashboard now tells you; you decide.
+- **Counters live in memory** (pitch helper daily cap, checkout link limits). A restart resets them. The caps protect cost, not accounts, so this is acceptable on one server.
+- **Payment amount:** we credit the amount Whop reports as paid. If Whop's field includes tax the customer gets slightly more than the base price. Check the first real payment in `/admin/payments`.
+- **Screenshots** are sent to Anthropic's API to be read and are not stored by us. They may contain other people's private details; the UI says so.
+- **Not verified against the live services:** Whop's payload field names, Google's 3/6/9-month date filter.

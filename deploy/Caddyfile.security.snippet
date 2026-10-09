@@ -22,8 +22,13 @@
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
 		-Server
 	}
-	# Nothing here legitimately needs a large upload; this stops request-body floods.
-	request_body {
+	# Nothing legitimately needs a large upload except the pitch helper's screenshot (about 4 MB as base64).
+	@not_assist not path /assist
+	request_body @not_assist {
 		max_size 1MB
+	}
+	@assist path /assist
+	request_body @assist {
+		max_size 6MB
 	}
 }

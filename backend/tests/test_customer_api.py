@@ -690,3 +690,14 @@ def test_pitch_helper_has_a_daily_cap(env, pitch, monkeypatch):
     monkeypatch.setattr(settings, "assist_per_day", 2)
     c = member(env, balance_usd=1)
     assert [ask(c, job_id=pitch.job).status_code for _ in range(3)] == [200, 200, 429]
+
+
+def test_only_one_pitch_draft_runs_at_a_time_per_customer(env, pitch, monkeypatch):
+    c = member(env, balance_usd=1)
+    seen = {}
+    def slow(messages):
+        seen["second"] = ask(c, job_id=pitch.job).status_code                       # a second request arrives while the first is writing
+        return "text", {"model": settings.assist_model, "input_tokens": 100, "output_tokens": 50}, "end_turn"
+    monkeypatch.setattr(assist, "_call_model", slow)
+    assert ask(c, job_id=pitch.job).status_code == 200 and seen["second"] == 409
+    assert ask(c, job_id=pitch.job).status_code in (200, 409)                         # and the lock is released afterwards

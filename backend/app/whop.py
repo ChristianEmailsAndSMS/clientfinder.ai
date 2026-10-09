@@ -130,6 +130,12 @@ def process(db: Session, event_id: str, body: dict) -> PaymentEvent:
             ev.status, ev.note = "unmatched", "no account matches this payment (no account id or email we recognise)"
         else:
             ev.status, ev.user_id = "credited", user.id
+    elif any(w in etype for w in ("refund", "dispute", "chargeback")):
+        ev.status = "review"                                   # money went back: the owner decides whether to take credit back
+        ev.note = "refund or dispute: check this customer's balance and revoke credit if needed"
+        ev.email = extract_email(data)
+        amount, _ = extract_amount_micro(data)
+        ev.amount_micro = amount
     elif etype:
         ev.note = "not a payment event we credit"
     else:

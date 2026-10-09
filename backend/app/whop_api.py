@@ -19,7 +19,10 @@ BUNDLES = (27, 47, 97)
 
 
 class WhopApiError(Exception):
-    pass
+    """`str(e)` is the detail for logs and scripts/whop_check.py. Customers only ever see PUBLIC_MESSAGE."""
+
+
+PUBLIC_MESSAGE = "Checkout is temporarily unavailable. Try again in a few minutes, or email christian@emailsandsms.com."
 
 
 def configured() -> bool:

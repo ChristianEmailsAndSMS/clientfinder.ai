@@ -1,3 +1,4 @@
+from fastapi.responses import JSONResponse
 from fastapi import FastAPI, Request
 from .api.account import router as account_router
 from .api.admin import router as admin_router
@@ -32,6 +33,19 @@ _BASE_HEADERS = {
 # Every page loads only its own files (no inline script or style, no third-party code).
 _PAGE_CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
               "connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
+
+
+MAX_BODY_DEFAULT = 1_000_000
+MAX_BODY_ASSIST = 6_000_000                 # a screenshot as base64
+
+
+@app.middleware("http")
+async def body_limit(request: Request, call_next):
+    cl = request.headers.get("content-length")
+    limit = MAX_BODY_ASSIST if request.url.path == "/assist" else MAX_BODY_DEFAULT
+    if cl and cl.isdigit() and int(cl) > limit:
+        return JSONResponse(status_code=413, content={"detail": "Request too large"})
+    return await call_next(request)
 
 
 @app.middleware("http")
