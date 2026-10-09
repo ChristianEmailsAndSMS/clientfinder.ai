@@ -127,3 +127,15 @@ def test_post_login_redirect_helper_blocks_open_redirects():
 def test_nav_links_to_the_account_panel_are_wired_by_click_not_only_by_hashchange():
     js = (Path(__file__).resolve().parent.parent / "app/static/site/login.js").read_text()
     assert 'a[href="#signin"]' in js and "preventDefault" in js
+
+
+def test_logo_and_icons_are_served_and_every_page_uses_them(env):
+    for name in ("logo.png", "logo-icon.png", "favicon.png", "apple-touch-icon.png", "og.png"):
+        r = env.client.get(f"/assets/{name}")
+        assert r.status_code == 200 and r.headers["content-type"] == "image/png" and r.content[:8] == b"\x89PNG\r\n\x1a\n", name
+    assert env.client.get("/assets/logo.svg").status_code == 404
+    for path in ("/", "/login"):
+        html = env.client.get(path).text
+        assert '/assets/favicon.png' in html and '/assets/logo.png' in html and 'og:image' in html
+    admin = env.client.get("/admin")
+    assert admin.status_code == 200 and "/assets/logo.png" in admin.text and "/assets/favicon.png" in admin.text

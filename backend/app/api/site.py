@@ -10,7 +10,8 @@ from ..security import session_user
 router = APIRouter(include_in_schema=False)
 _DIR = Path(__file__).resolve().parent.parent / "static" / "site"
 _ASSETS = {"site.css": "text/css", "common.js": "text/javascript", "home.js": "text/javascript",
-           "login.js": "text/javascript", "app.js": "text/javascript"}          # allow-list: no path traversal possible
+           "login.js": "text/javascript", "app.js": "text/javascript",
+           "logo.png": "image/png", "logo-icon.png": "image/png", "favicon.png": "image/png", "apple-touch-icon.png": "image/png", "og.png": "image/png"}          # allow-list: no path traversal possible
 
 
 @router.get("/")
@@ -35,4 +36,4 @@ def app_page(user: User | None = Depends(session_user)):
 def asset(name: str):
     if name not in _ASSETS:
         raise HTTPException(404)
-    return FileResponse(_DIR / name, media_type=_ASSETS[name], headers={"Cache-Control": "public, max-age=300"})
+    return FileResponse(_DIR / name, media_type=_ASSETS[name], headers={"Cache-Control": "public, max-age=" + ("86400" if name.endswith(".png") else "300")})
