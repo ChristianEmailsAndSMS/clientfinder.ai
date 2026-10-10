@@ -30,10 +30,12 @@ def main() -> int:
     if args.query:
         stats = run_pipeline_for_query(args.query, num=args.num)
         print(json.dumps(stats, indent=2))
+        failed = bool(stats.get("errors"))
     else:
         stats = run_pipeline_for_queries(num=args.num)
         print(json.dumps(stats, indent=2))
-    return 0
+        failed = any(row.get("errors") for row in stats)
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

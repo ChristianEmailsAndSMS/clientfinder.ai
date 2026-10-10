@@ -11,32 +11,44 @@ from bs4 import BeautifulSoup
 from ..config import settings
 from ..schemas import ExtractedJob, SearchResult
 
-EXTRACTION_PROMPT = """You are a job-posting extractor. Read the HTML/text below and return STRICT JSON with the shape:
+# Built by concatenation so page text and the JSON example can contain `{` / `}`.
+# str.format() treated those braces as placeholders and raised KeyError before Claude ran.
+_PROMPT_INTRO = """You are a job-posting extractor. Read the HTML/text below and return STRICT JSON with the shape:
 {
-  "is_real_job": bool,          // true if this looks like an actual hiring post (not just a blog about hiring, not spam)
-  "title": str,                 // the role title
-  "company_or_poster": str|null,// company name OR the social handle who posted it
-  "pay_text": str|null,         // raw pay string as written ("$50/hr", "$3K/project", "DOE")
-  "pay_min": float|null,        // numeric lower bound in USD
-  "pay_max": float|null,        // numeric upper bound in USD
-  "pay_period": str|null,       // "hour" | "project" | "year" | null
-  "type": str|null,             // "contract" | "full_time" | "hourly" | "fixed" | "social_post"
-  "experience_level": str|null, // "entry" | "mid" | "senior" | null
+  "is_real_job": bool,
+  "title": str,
+  "company_or_poster": str|null,
+  "pay_text": str|null,
+  "pay_min": float|null,
+  "pay_max": float|null,
+  "pay_period": str|null,
+  "type": str|null,
+  "experience_level": str|null,
   "location": str|null,
   "remote": bool|null,
-  "skills": [str],              // 3-6 skills if detectable
-  "apply_url": str|null,        // best link to apply (DM, email, form)
-  "posted_at": str|null,        // ISO8601 if explicit, else null
-  "raw_snippet": str,           // one-sentence summary (max 200 chars)
-  "description": str|null       // 2-4 sentence summary
+  "skills": [str],
+  "apply_url": str|null,
+  "posted_at": str|null,
+  "raw_snippet": str,
+  "description": str|null
 }
 
-Return JSON ONLY, no prose. Context source: {source_hint}.
+Return JSON ONLY, no prose. Context source: """
 
-PAGE:
----
-{page_text}
----"""
+_PAY_RE = re.compile(
+    r"\$([\d,]+)(?:\s*[-–]\s*\$?([\d,]+))?(?:\s*(k))?(?:\s*(?:/|per)\s*(hr|hour|mo|month|yr|year|project)\b)?",
+    re.IGNORECASE,
+)
+
+
+def build_extraction_prompt(source_hint: str, page_text: str) -> str:
+    return (
+        _PROMPT_INTRO
+        + (source_hint or "web")
+        + ".\n\nPAGE:\n---\n"
+        + page_text
+        + "\n---"
+    )
 
 
 def _html_to_text(html: str, max_chars: int = 12000) -> str:
@@ -48,34 +60,54 @@ def _html_to_text(html: str, max_chars: int = 12000) -> str:
     return text[:max_chars]
 
 
-def _heuristic_mock(result: SearchResult, page_text: str) -> ExtractedJob:
-    """Deterministic fallback — infer whatever we can from title + snippet without an LLM."""
-    title = result.title or "Unknown"
-    snippet = result.snippet or ""
-    combined = f"{title} {snippet}".lower()
+def _page_blob(page_text: str) -> str:
+    text = page_text or ""
+    if "<" in text and ">" in text:
+        text = _html_to_text(text, max_chars=8000)
+    return text
 
-    # Pay inference — look for $X or $X-$Y /hr /year /project
-    pay_text = None
+
+def _parse_pay(combined: str) -> tuple[str | None, float | None, float | None, str | None]:
+    """Return pay_text, pay_min, pay_max, pay_period.
+
+    The unit is only consumed when it is a real period (hr, year, project, ...).
+    A bare slash or the word "per" is not enough, so "$3,000/mo" stays intact
+    and "$800-1,500 per page" does not swallow the word "per".
+    """
+    m = _PAY_RE.search(combined)
+    if not m:
+        return None, None, None, None
+    pay_text = m.group(0)
     pay_min = pay_max = None
     pay_period = None
-    m = re.search(r"\$([\d,]+)(?:\s*[-–]\s*\$?([\d,]+))?\s*(?:/|per\s+)?(hr|hour|yr|year|project|k)?", combined)
-    if m:
-        pay_text = m.group(0)
-        try:
-            pay_min = float(m.group(1).replace(",", ""))
-            if m.group(2):
-                pay_max = float(m.group(2).replace(",", ""))
-            unit = (m.group(3) or "").lower()
-            if "hr" in unit or "hour" in unit: pay_period = "hour"
-            elif "yr" in unit or "year" in unit: pay_period = "year"
-            elif "project" in unit: pay_period = "project"
-            elif unit == "k":
-                # "$80k" convention
-                pay_min *= 1000
-                if pay_max: pay_max *= 1000
-                pay_period = "year"
-        except Exception:
-            pass
+    try:
+        pay_min = float(m.group(1).replace(",", ""))
+        if m.group(2):
+            pay_max = float(m.group(2).replace(",", ""))
+        unit = (m.group(4) or "").lower()
+        if m.group(3):
+            pay_min *= 1000
+            if pay_max:
+                pay_max *= 1000
+            pay_period = "year"
+        if unit in ("hr", "hour"):
+            pay_period = "hour"
+        elif unit in ("yr", "year"):
+            pay_period = "year"
+        elif unit == "project":
+            pay_period = "project"
+    except Exception:
+        return pay_text, None, None, None
+    return pay_text, pay_min, pay_max, pay_period
+
+
+def _heuristic_mock(result: SearchResult, page_text: str) -> ExtractedJob:
+    """Deterministic fallback — infer whatever we can from title, snippet, and page text."""
+    title = result.title or "Unknown"
+    snippet = result.snippet or ""
+    combined = f"{title} {snippet} {_page_blob(page_text)}".lower()
+
+    pay_text, pay_min, pay_max, pay_period = _parse_pay(combined)
 
     # Type inference
     typ = None
@@ -115,7 +147,7 @@ def _claude_extract(result: SearchResult, page_html: str) -> ExtractedJob:
     import anthropic
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     page_text = _html_to_text(page_html)
-    prompt = EXTRACTION_PROMPT.format(source_hint=result.platform, page_text=page_text)
+    prompt = build_extraction_prompt(result.platform, page_text)
     resp = client.messages.create(
         model=settings.extraction_model,
         max_tokens=1024,
@@ -126,6 +158,13 @@ def _claude_extract(result: SearchResult, page_html: str) -> ExtractedJob:
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
     data = json.loads(text)
+    if not isinstance(data, dict):
+        raise ValueError("extractor returned non-object JSON")
+    skills = data.get("skills")
+    if not isinstance(skills, list):
+        data["skills"] = []
+    else:
+        data["skills"] = [str(item) for item in skills if item is not None and not isinstance(item, (dict, list))]
     data.setdefault("apply_url", result.url)
     return ExtractedJob(**data)
 

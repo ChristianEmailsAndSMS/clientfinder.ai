@@ -56,7 +56,7 @@ footer { margin-top: 128px; padding-top: 32px; border-top: 1px solid var(--borde
 <header>
   <div class="brand">clientfinder<span class="dot">.ai</span></div>
   <nav>
-    <a href="/jobs">jobs</a>
+    <a href="/jobs/feed">jobs</a>
     <a href="/docs">api</a>
     <a href="/jobs/stats">stats</a>
   </nav>
@@ -71,7 +71,7 @@ footer { margin-top: 128px; padding-top: 32px; border-top: 1px solid var(--borde
     One living list. Filters by pay, type, platform. Click → pitch → win work.
   </p>
   <div class="cta">
-    <a class="btn btn-primary" href="/jobs">See today's jobs →</a>
+    <a class="btn btn-primary" href="/jobs/feed">See today's jobs →</a>
     <a class="btn btn-ghost" href="/docs">API docs</a>
   </div>
 </section>
@@ -129,7 +129,7 @@ footer { margin-top: 128px; padding-top: 32px; border-top: 1px solid var(--borde
 fetch('/jobs/stats').then(r => r.json()).then(d => {
   document.getElementById('s-total').textContent = (d.total || 0).toLocaleString();
   document.getElementById('s-platforms').textContent = Object.keys(d.by_platform || {}).length;
-  document.getElementById('s-types').textContent = Object.keys(d.by_type || {}).filter(k => k !== 'None').length;
+  document.getElementById('s-types').textContent = Object.keys(d.by_type || {}).filter(k => k && k !== 'null' && k !== 'None').length;
 }).catch(() => {});
 </script>
 
