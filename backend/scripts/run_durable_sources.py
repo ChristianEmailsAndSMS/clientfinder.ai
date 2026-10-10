@@ -23,7 +23,8 @@ def main() -> int:
         except Exception as e:
             all_stats.append({"source": mod.__name__, "error": str(e)})
     print(json.dumps(all_stats, indent=2))
-    return 0
+    failed = any(row.get("error") or row.get("errors") for row in all_stats)
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

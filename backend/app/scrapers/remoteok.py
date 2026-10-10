@@ -26,8 +26,21 @@ TARGET_KEYWORDS = (
 
 
 def _matches(obj: dict) -> bool:
-    hay = " ".join(str(obj.get(k, "")) for k in ("position", "tags", "description", "company")).lower()
+    """Match the role, not the body. Descriptions mention email/funnels on unrelated jobs."""
+    tags = obj.get("tags") or []
+    if isinstance(tags, list):
+        tag_text = " ".join(str(t) for t in tags)
+    else:
+        tag_text = str(tags)
+    hay = f"{obj.get('position', '')} {tag_text}".lower()
     return any(kw in hay for kw in TARGET_KEYWORDS)
+
+
+def _skill_tags(raw) -> list[str] | None:
+    if not isinstance(raw, list):
+        return None
+    tags = [str(item) for item in raw if item is not None and not isinstance(item, (dict, list))]
+    return tags or None
 
 
 def fetch_jobs() -> list[dict]:
@@ -93,10 +106,10 @@ def run() -> dict:
                 description=row.get("description"),
                 type="full_time",
                 pay_text=f"${pay_min:,}-${pay_max:,}" if pay_min and pay_max else None,
-                pay_min=pay_min, pay_max=pay_max, pay_period="year",
+                pay_min=pay_min, pay_max=pay_max, pay_period=None,
                 location=row.get("location"),
                 remote=True,
-                skills=row.get("tags") or None,
+                skills=_skill_tags(row.get("tags")),
                 posted_at=posted_at,
                 first_seen_at=now, last_seen_at=now,
                 source_key="remoteok",
@@ -111,7 +124,10 @@ def run() -> dict:
                 stats["added"] += 1
             except IntegrityError:
                 sp.rollback()
-                stats["updated"] += 1
+                raced = db.scalar(select(Job).where(Job.dedupe_hash == h))
+                if raced:
+                    raced.last_seen_at = now
+                    stats["updated"] += 1
 
         run.finished_at = now
         run.status = "ok"

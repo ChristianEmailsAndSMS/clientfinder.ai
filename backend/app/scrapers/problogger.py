@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from urllib.parse import urljoin
 
 import httpx
 from bs4 import BeautifulSoup
@@ -18,27 +19,80 @@ log = logging.getLogger(__name__)
 
 LISTING_URL = "https://problogger.com/jobs/"
 UA = "Mozilla/5.0 (clientfinder.ai)"
+MAX_PAGES = 20
+_SKIP_HREF = ("/post-a-job", "/login", "/dashboard", "/register")
 
 
-def fetch_listings() -> list[dict]:
-    r = httpx.get(LISTING_URL, headers={"User-Agent": UA}, timeout=30, follow_redirects=True)
-    r.raise_for_status()
-    soup = BeautifulSoup(r.text, "html.parser")
+def _abs_url(page_url: str, href: str) -> str:
+    return urljoin(page_url, href)
+
+
+def _is_job_href(href: str) -> bool:
+    lowered = href.lower()
+    if any(skip in lowered for skip in _SKIP_HREF):
+        return False
+    return "/jobs/job/" in lowered or "/job/" in lowered
+
+
+def parse_listing_html(html: str, page_url: str) -> list[dict]:
+    """Pull job rows from a ProBlogger listing page.
+
+    The board is WP Job Board. A generic `article` selector matches the page
+    wrapper and the first link is "Post a Job", so we only keep job permalinks.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    cards = soup.select(".wpjb-grid-row.wpjb-click-area")
+    if not cards:
+        cards = soup.select(".job-listing, .job")
     out = []
-    # ProBlogger's board uses .job-listing or similar containers; be defensive about selectors.
-    for card in soup.select("article, .job, .job-listing"):
-        a = card.find("a", href=True)
-        if not a:
+    for card in cards:
+        link = None
+        for candidate in card.find_all("a", href=True):
+            if _is_job_href(candidate["href"]):
+                link = candidate
+                break
+        if link is None:
             continue
-        title = a.get_text(strip=True)
-        if not title:
+        title = link.get_text(strip=True)
+        if not title or title.lower() in {"post a job", "view", "apply"}:
             continue
         out.append({
-            "url": a["href"],
+            "url": _abs_url(page_url, link["href"]),
             "title": title,
             "snippet": card.get_text(" ", strip=True)[:400],
         })
     return out
+
+
+def fetch_listings() -> list[dict]:
+    out: list[dict] = []
+    seen: set[str] = set()
+    with httpx.Client(headers={"User-Agent": UA}, timeout=30, follow_redirects=True) as client:
+        for page in range(1, MAX_PAGES + 1):
+            url = f"{LISTING_URL}?show_results=1&page={page}"
+            r = client.get(url)
+            r.raise_for_status()
+            rows = parse_listing_html(r.text, str(r.url))
+            if not rows:
+                break
+            new = 0
+            for row in rows:
+                if row["url"] in seen:
+                    continue
+                seen.add(row["url"])
+                out.append(row)
+                new += 1
+            if new == 0:
+                break
+    return out
+
+
+def _touch_existing(db, dedupe: str, now: datetime) -> bool:
+    existing = db.scalar(select(Job).where(Job.dedupe_hash == dedupe))
+    if not existing:
+        return False
+    existing.last_seen_at = now
+    return True
 
 
 def run() -> dict:
@@ -94,7 +148,8 @@ def run() -> dict:
                 stats["added"] += 1
             except IntegrityError:
                 sp.rollback()
-                stats["updated"] += 1
+                if _touch_existing(db, h, now):
+                    stats["updated"] += 1
 
         run.finished_at = now
         run.status = "ok"

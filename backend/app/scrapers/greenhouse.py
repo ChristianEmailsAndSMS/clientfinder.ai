@@ -29,15 +29,27 @@ GREENHOUSE_COMPANIES: tuple[str, ...] = (
     # Add more real board slugs as you find them. Many companies no longer host on Greenhouse directly.
 )
 
+# Phrases, not bare tokens. "lifecycle" and "email" alone matched infra roles
+# such as "Datacenter Server Lifecycle".
 TITLE_KEYWORDS = (
-    "copywriter", "copywriting", "email", "lifecycle", "landing page",
-    "creative strategist", "content marketing", "growth marketing", "crm manager",
+    "copywriter", "copywriting", "email marketing", "email marketer", "email copywriter",
+    "lifecycle marketing", "landing page", "creative strategist",
+    "content marketing", "growth marketing", "crm manager",
 )
 
 
 def _matches_title(title: str) -> bool:
     t = (title or "").lower()
     return any(kw in t for kw in TITLE_KEYWORDS)
+
+
+def _parse_dt(value: str | None) -> datetime | None:
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except Exception:
+        return None
 
 
 def fetch_board(company: str) -> list[dict]:
@@ -90,18 +102,22 @@ def run() -> dict:
                 stats["updated"] += 1
                 continue
 
-            location = (j.get("location") or {}).get("name")
-            posted_at = None
-            if j.get("updated_at"):
-                try: posted_at = datetime.fromisoformat(j["updated_at"].replace("Z", "+00:00"))
-                except Exception: pass
+            loc = j.get("location")
+            if isinstance(loc, dict):
+                location = loc.get("name")
+            elif isinstance(loc, str):
+                location = loc
+            else:
+                location = None
+            posted_at = _parse_dt(j.get("first_published")) or _parse_dt(j.get("updated_at"))
+            company_name = (j.get("company_name") or company or "")[:256] or None
 
             job = Job(
                 dedupe_hash=h,
                 source_url=url,
                 platform="greenhouse",
                 title=title[:512],
-                company_or_poster=company,
+                company_or_poster=company_name,
                 raw_snippet=title[:200],
                 description=(j.get("content") or "")[:4000] or None,
                 type="full_time",
@@ -122,11 +138,19 @@ def run() -> dict:
                 stats["added"] += 1
             except IntegrityError:
                 sp.rollback()
-                stats["updated"] += 1  # someone else inserted this hash since our SELECT
-                log.debug("race: hash %s already present, skipping", h)
+                raced = db.scalar(select(Job).where(Job.dedupe_hash == h))
+                if raced:
+                    raced.last_seen_at = now
+                    stats["updated"] += 1
+                log.debug("race: hash %s already present", h)
 
         run.finished_at = now
-        run.status = "ok" if stats["errors"] == 0 else "failed"
+        if stats["errors"] and stats["fetched"] == 0:
+            run.status = "failed"
+        elif stats["errors"]:
+            run.status = "partial"
+        else:
+            run.status = "ok"
         run.jobs_added = stats["added"]
         run.jobs_updated = stats["updated"]
         if stats["errors"]:

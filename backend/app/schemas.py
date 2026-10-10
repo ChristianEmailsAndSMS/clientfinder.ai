@@ -1,5 +1,11 @@
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+def _string_list(value) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if item is not None and not isinstance(item, (dict, list))]
 
 
 class JobOut(BaseModel):
@@ -25,6 +31,14 @@ class JobOut(BaseModel):
     source_key: str
     is_real_job: bool
 
+    @field_validator("skills", mode="before")
+    @classmethod
+    def _skills_as_list(cls, value):
+        # A single bad JSON value used to 500 the entire GET /jobs response.
+        if value is None:
+            return None
+        return _string_list(value)
+
     class Config:
         from_attributes = True
 
@@ -47,6 +61,11 @@ class ExtractedJob(BaseModel):
     posted_at: datetime | None = None
     raw_snippet: str | None = None
     description: str | None = None
+
+    @field_validator("skills", mode="before")
+    @classmethod
+    def _skills_as_list(cls, value):
+        return _string_list(value)
 
 
 class SearchResult(BaseModel):
