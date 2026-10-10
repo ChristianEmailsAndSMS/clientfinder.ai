@@ -10,6 +10,25 @@ from ..schemas import JobOut
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
+def _like_pattern(text: str) -> str:
+    """Wrap user text for ILIKE. Escape \\, %, and _ so they match literally."""
+    escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+def _group_counts(rows) -> dict[str, int]:
+    """Turn grouped (key, count) rows into a JSON object.
+
+    NULL keys are not valid JSON object keys. Keep the count under "unknown",
+    and add it to an existing "unknown" bucket instead of dropping it.
+    """
+    counts: dict[str, int] = {}
+    for key, count in rows:
+        label = "unknown" if key is None else key
+        counts[label] = counts.get(label, 0) + int(count)
+    return counts
+
+
 @router.get("", response_model=list[JobOut])
 def list_jobs(
     db: Session = Depends(get_db),
@@ -24,16 +43,25 @@ def list_jobs(
 ):
     stmt = select(Job).order_by(Job.first_seen_at.desc())
     if q:
-        like = f"%{q}%"
-        stmt = stmt.where(or_(Job.title.ilike(like), Job.company_or_poster.ilike(like), Job.raw_snippet.ilike(like)))
+        like = _like_pattern(q)
+        stmt = stmt.where(
+            or_(
+                Job.title.ilike(like, escape="\\"),
+                Job.company_or_poster.ilike(like, escape="\\"),
+                Job.raw_snippet.ilike(like, escape="\\"),
+            )
+        )
     if platform:
         stmt = stmt.where(Job.platform == platform)
     if type:
         stmt = stmt.where(Job.type == type)
+    # Missing bound equals the known one. Both NULL stays NULL and fails the comparison.
     if min_pay is not None:
-        stmt = stmt.where(Job.pay_max >= min_pay)
+        effective_max = func.coalesce(Job.pay_max, Job.pay_min)
+        stmt = stmt.where(effective_max >= min_pay)
     if max_pay is not None:
-        stmt = stmt.where(Job.pay_min <= max_pay)
+        effective_min = func.coalesce(Job.pay_min, Job.pay_max)
+        stmt = stmt.where(effective_min <= max_pay)
     if posted_within_days:
         cutoff = datetime.now(timezone.utc) - timedelta(days=posted_within_days)
         stmt = stmt.where(or_(Job.posted_at >= cutoff, Job.first_seen_at >= cutoff))
@@ -45,6 +73,6 @@ def list_jobs(
 @router.get("/stats")
 def job_stats(db: Session = Depends(get_db)) -> dict:
     total = db.scalar(select(func.count(Job.id))) or 0
-    by_platform = dict(db.execute(select(Job.platform, func.count(Job.id)).group_by(Job.platform)).all())
-    by_type = dict(db.execute(select(Job.type, func.count(Job.id)).group_by(Job.type)).all())
+    by_platform = _group_counts(db.execute(select(Job.platform, func.count(Job.id)).group_by(Job.platform)).all())
+    by_type = _group_counts(db.execute(select(Job.type, func.count(Job.id)).group_by(Job.type)).all())
     return {"total": total, "by_platform": by_platform, "by_type": by_type}

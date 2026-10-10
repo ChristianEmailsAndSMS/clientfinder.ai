@@ -1,6 +1,7 @@
 """Claude-powered extractor. One prompt, works on any page HTML.
 
-Dev mode (DEV_FIXTURES=1): a deterministic heuristic mock based on page title + snippet.
+Dev mode (DEV_FIXTURES=1): a deterministic heuristic mock based on the listing
+title, snippet, and fetched page text.
 Lets the pipeline run offline. Real mode calls Anthropic API."""
 from __future__ import annotations
 
@@ -48,34 +49,81 @@ def _html_to_text(html: str, max_chars: int = 12000) -> str:
     return text[:max_chars]
 
 
+# Thousands suffix is a bare "k" glued to the number ("$80k"). It must not swallow
+# the next word ("$5000 keywords"), which is why no whitespace is allowed before it.
+# A "k" on a range ("$120k-$150k", "$120-150k") scales both bounds. "month" is a
+# recognized period in addition to hour, project, and year.
+_RANGE_DASH = "[-\u2013\u2014]"
+_PAY_RE = re.compile(
+    r"\$(?P<min>\d[\d,]*)(?P<min_k>k\b)?"
+    r"(?:\s*" + _RANGE_DASH + r"\s*\$?(?P<max>\d[\d,]*)(?P<max_k>k\b)?)?"
+    r"(?:"
+    r"\s*(?:/|per\s+)(?P<slash>hourly|hours?|hrs?|yearly|years?|yrs?|projects?|monthly|months?|mos?)\b"
+    r"|"
+    r"\s+(?P<word>projects?|yearly|years?|yrs?|hourly|hours?|hrs?|monthly|months?|mos?)\b"
+    r")?",
+    re.IGNORECASE,
+)
+_HOUR_UNITS = {"hour", "hours", "hr", "hrs", "hourly"}
+_YEAR_UNITS = {"year", "years", "yr", "yrs", "yearly"}
+_PROJECT_UNITS = {"project", "projects"}
+_MONTH_UNITS = {"month", "months", "mo", "mos", "monthly"}
+
+
+def _pay_period(unit: str, *, saw_k: bool) -> str | None:
+    key = (unit or "").lower()
+    if key in _HOUR_UNITS:
+        return "hour"
+    if key in _YEAR_UNITS:
+        return "year"
+    if key in _PROJECT_UNITS:
+        return "project"
+    if key in _MONTH_UNITS:
+        return "month"
+    if saw_k:
+        return "year"
+    return None
+
+
+def _parse_pay(text: str) -> tuple[str | None, float | None, float | None, str | None]:
+    """Return pay_text, pay_min, pay_max, pay_period from one blob of text."""
+    if not text:
+        return (None, None, None, None)
+    match = _PAY_RE.search(text.lower())
+    if not match:
+        return (None, None, None, None)
+    try:
+        pay_min = float(match.group("min").replace(",", ""))
+        raw_max = match.group("max")
+        pay_max = float(raw_max.replace(",", "")) if raw_max else None
+    except (TypeError, ValueError):
+        return (None, None, None, None)
+    min_k = bool(match.group("min_k"))
+    max_k = bool(match.group("max_k"))
+    if min_k:
+        pay_min *= 1000
+    if pay_max is not None and max_k:
+        pay_max *= 1000
+        # "$120-150k": the trailing k applies to the shorthand lower bound too.
+        if not min_k and pay_min < 1000:
+            pay_min *= 1000
+    unit = match.group("slash") or match.group("word") or ""
+    return (match.group(0), pay_min, pay_max, _pay_period(unit, saw_k=min_k or max_k))
+
+
 def _heuristic_mock(result: SearchResult, page_text: str) -> ExtractedJob:
-    """Deterministic fallback — infer whatever we can from title + snippet without an LLM."""
+    """Deterministic fallback — infer whatever we can from title, snippet, and page text."""
     title = result.title or "Unknown"
     snippet = result.snippet or ""
-    combined = f"{title} {snippet}".lower()
+    page = _html_to_text(page_text or "")
+    listing = f"{title} {snippet}"
+    # Listing text wins when it already has a pay string so a noisier page
+    # cannot replace it or get added on top of it. Page text is the fallback.
+    combined = f"{listing} {page}".lower()
 
-    # Pay inference — look for $X or $X-$Y /hr /year /project
-    pay_text = None
-    pay_min = pay_max = None
-    pay_period = None
-    m = re.search(r"\$([\d,]+)(?:\s*[-–]\s*\$?([\d,]+))?\s*(?:/|per\s+)?(hr|hour|yr|year|project|k)?", combined)
-    if m:
-        pay_text = m.group(0)
-        try:
-            pay_min = float(m.group(1).replace(",", ""))
-            if m.group(2):
-                pay_max = float(m.group(2).replace(",", ""))
-            unit = (m.group(3) or "").lower()
-            if "hr" in unit or "hour" in unit: pay_period = "hour"
-            elif "yr" in unit or "year" in unit: pay_period = "year"
-            elif "project" in unit: pay_period = "project"
-            elif unit == "k":
-                # "$80k" convention
-                pay_min *= 1000
-                if pay_max: pay_max *= 1000
-                pay_period = "year"
-        except Exception:
-            pass
+    pay_text, pay_min, pay_max, pay_period = _parse_pay(listing)
+    if pay_min is None:
+        pay_text, pay_min, pay_max, pay_period = _parse_pay(page)
 
     # Type inference
     typ = None
