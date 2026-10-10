@@ -2,71 +2,119 @@
 Idempotent — reruns upsert on dedupe_hash."""
 from __future__ import annotations
 
+import hashlib
 import logging
 from datetime import datetime, timezone
 from typing import Iterable
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
 
-from ..db import session_scope
-from ..models import Job, Source, ScrapeRun
-from ..schemas import SearchResult, ExtractedJob
-from ..dedup import dedupe_hash
 from ..config import settings
-from . import google_search, page_fetcher, llm_extractor
+from ..db import add_ignoring_conflict, session_scope
+from ..dedup import dedupe_hash
+from ..models import Job, ScrapeRun, Source
+from ..schemas import ExtractedJob, SearchResult
+from . import google_search, llm_extractor, page_fetcher
 
 log = logging.getLogger(__name__)
+
+_LIMITS = {
+    "title": 512,
+    "company_or_poster": 256,
+    "pay_text": 128,
+    "type": 32,
+    "pay_period": 16,
+    "experience_level": 32,
+    "location": 128,
+    "platform": 64,
+    "extraction_model": 64,
+}
+
+_FILL = (
+    "title", "company_or_poster", "pay_text", "pay_min", "pay_max", "pay_period",
+    "type", "experience_level", "location", "remote", "description",
+    "posted_at", "raw_snippet",
+)
+
+
+def _clip(value, field: str):
+    if value is None or not isinstance(value, str):
+        return value
+    limit = _LIMITS.get(field)
+    return value[:limit] if limit else value
+
+
+def source_key_for_query(query: str) -> str:
+    """Fit Source.key / Job.source_key, both VARCHAR(64)."""
+    slug = query.lower().strip().replace(" ", "_").strip('"')
+    raw = f"google:{slug}"
+    if len(raw) <= 64:
+        return raw
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:8]
+    return f"{raw[:55]}_{digest}"
 
 
 def _get_or_create_source(db: Session, key: str, kind: str, display_name: str) -> Source:
     s = db.scalar(select(Source).where(Source.key == key))
     if s:
         return s
-    s = Source(key=key, kind=kind, display_name=display_name, enabled=True, config={})
+    s = Source(key=key, kind=kind, display_name=display_name[:128], enabled=True, config={})
     db.add(s)
     db.flush()
     return s
 
 
+def _fill_existing(existing: Job, extracted: ExtractedJob, now: datetime) -> None:
+    existing.last_seen_at = now
+    for field in _FILL:
+        incoming = getattr(extracted, field, None)
+        if incoming is None:
+            continue
+        if getattr(existing, field) not in (None, ""):
+            continue
+        setattr(existing, field, _clip(incoming, field))
+    if extracted.skills and not existing.skills:
+        existing.skills = list(extracted.skills)
+
+
 def _upsert_job(db: Session, source: Source, result: SearchResult, extracted: ExtractedJob,
                 seen_in_batch: set[str]) -> tuple[bool, bool]:
-    """Returns (added, updated)."""
-    url = extracted.apply_url or result.url
+    """Returns (added, updated).
+
+    Identity is the search result URL. An apply link (mailto, form, DM) is not
+    the posting, and hashing it collapses unrelated jobs onto one row.
+    """
+    url = result.url
     h = dedupe_hash(url=url, title=extracted.title, company=extracted.company_or_poster)
+    now = datetime.now(timezone.utc)
     if h in seen_in_batch:
+        existing = db.scalar(select(Job).where(Job.dedupe_hash == h))
+        if existing:
+            _fill_existing(existing, extracted, now)
+            return (False, True)
         return (False, False)
     seen_in_batch.add(h)
     existing = db.scalar(select(Job).where(Job.dedupe_hash == h))
-    now = datetime.now(timezone.utc)
     if existing:
-        existing.last_seen_at = now
-        # Fill in anything we didn't have before
-        for field in ("company_or_poster", "pay_text", "pay_min", "pay_max", "pay_period",
-                      "type", "experience_level", "location", "remote", "description"):
-            v = getattr(extracted, field)
-            if v is not None and getattr(existing, field) in (None, ""):
-                setattr(existing, field, v)
-        if extracted.skills and not existing.skills:
-            existing.skills = extracted.skills
+        _fill_existing(existing, extracted, now)
         return (False, True)
 
     job = Job(
         dedupe_hash=h,
         source_url=url,
-        platform=result.platform,
-        title=extracted.title or result.title,
-        company_or_poster=extracted.company_or_poster,
+        platform=_clip(result.platform, "platform") or "web",
+        title=_clip(extracted.title or result.title or "Unknown", "title"),
+        company_or_poster=_clip(extracted.company_or_poster, "company_or_poster"),
         raw_snippet=extracted.raw_snippet or result.snippet,
         description=extracted.description,
-        type=extracted.type,
-        pay_text=extracted.pay_text,
+        type=_clip(extracted.type, "type"),
+        pay_text=_clip(extracted.pay_text, "pay_text"),
         pay_min=extracted.pay_min,
         pay_max=extracted.pay_max,
-        pay_period=extracted.pay_period,
-        experience_level=extracted.experience_level,
-        location=extracted.location,
+        pay_period=_clip(extracted.pay_period, "pay_period"),
+        experience_level=_clip(extracted.experience_level, "experience_level"),
+        location=_clip(extracted.location, "location"),
         remote=extracted.remote,
         skills=extracted.skills or None,
         posted_at=extracted.posted_at,
@@ -74,17 +122,18 @@ def _upsert_job(db: Session, source: Source, result: SearchResult, extracted: Ex
         last_seen_at=now,
         source_key=source.key,
         is_real_job=extracted.is_real_job,
-        extraction_model=(settings.extraction_model if not settings.dev_fixtures else "heuristic-mock"),
+        extraction_model=_clip(
+            settings.extraction_model if not settings.dev_fixtures else "heuristic-mock",
+            "extraction_model",
+        ),
     )
-    sp = db.begin_nested()
-    try:
-        db.add(job)
-        db.flush()
-        sp.commit()
+    if add_ignoring_conflict(db, job):
         return (True, False)
-    except IntegrityError:
-        sp.rollback()
+    existing = db.scalar(select(Job).where(Job.dedupe_hash == h))
+    if existing:
+        _fill_existing(existing, extracted, now)
         return (False, True)
+    return (False, False)
 
 
 def run_pipeline_for_query(query: str, num: int = 20) -> dict:
@@ -96,7 +145,7 @@ def run_pipeline_for_query(query: str, num: int = 20) -> dict:
         log.warning("no search results for %r (DEV_FIXTURES=%s)", query, settings.dev_fixtures)
         return stats
 
-    source_key = f"google:{query.lower().strip().replace(' ', '_').strip(chr(34))}"
+    source_key = source_key_for_query(query)
     with session_scope() as db:
         source = _get_or_create_source(db, source_key, "google_search", f"Google: {query}")
         run = ScrapeRun(source_id=source.id, status="running")

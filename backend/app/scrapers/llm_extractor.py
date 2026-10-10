@@ -5,11 +5,16 @@ Lets the pipeline run offline. Real mode calls Anthropic API."""
 from __future__ import annotations
 
 import json
+import logging
 import re
+from datetime import datetime
+
 from bs4 import BeautifulSoup
 
 from ..config import settings
 from ..schemas import ExtractedJob, SearchResult
+
+log = logging.getLogger(__name__)
 
 EXTRACTION_PROMPT = """You are a job-posting extractor. Read the HTML/text below and return STRICT JSON with the shape:
 {
@@ -38,6 +43,35 @@ PAGE:
 {page_text}
 ---"""
 
+# k/m/b only count when glued to the number ("$120k", not "$50 kitchen").
+_PAY_RE = re.compile(
+    r"\$\s*([\d,]+(?:\.\d+)?)\s*([kmb])?"
+    r"(?:\s*[-–—]\s*\$?\s*([\d,]+(?:\.\d+)?)\s*([kmb])?)?"
+    r"(?:\s*(?:/|per)\s*|\s+)?"
+    r"(hr|hrs|hour|hours|yr|year|years|mo|month|months|project|page|fixed)?\b",
+    re.IGNORECASE,
+)
+_MULT = {"k": 1_000, "m": 1_000_000, "b": 1_000_000_000}
+_PERIOD = {
+    "hr": "hour", "hrs": "hour", "hour": "hour", "hours": "hour",
+    "yr": "year", "year": "year", "years": "year",
+    "mo": "month", "month": "month", "months": "month",
+    "project": "project", "page": "project", "fixed": "project",
+}
+
+
+def build_extraction_prompt(source_hint: str, page_text: str) -> str:
+    """Substitute the two placeholders without str.format.
+
+    The example JSON uses braces, and page text can too. format() raises KeyError
+    on those and the live Claude path never runs.
+    """
+    return (
+        EXTRACTION_PROMPT
+        .replace("{source_hint}", source_hint)
+        .replace("{page_text}", page_text)
+    )
+
 
 def _html_to_text(html: str, max_chars: int = 12000) -> str:
     soup = BeautifulSoup(html, "html.parser")
@@ -48,46 +82,61 @@ def _html_to_text(html: str, max_chars: int = 12000) -> str:
     return text[:max_chars]
 
 
+def _money(raw: str, suffix: str | None) -> float:
+    n = float(raw.replace(",", ""))
+    if suffix:
+        n *= _MULT[suffix.lower()]
+    return n
+
+
+def infer_pay(text: str) -> tuple[str | None, float | None, float | None, str | None]:
+    """Return pay_text, pay_min, pay_max, pay_period from a title + snippet."""
+    matches = list(_PAY_RE.finditer(text or ""))
+    if not matches:
+        return None, None, None, None
+
+    def rank(m: re.Match) -> tuple[int, int]:
+        # A match that names a unit beats an earlier bare dollar amount.
+        return (1 if m.group(5) else 0, -m.start())
+
+    m = max(matches, key=rank)
+    try:
+        pay_min = _money(m.group(1), m.group(2))
+        pay_max = _money(m.group(3), m.group(4)) if m.group(3) else None
+    except Exception:
+        return None, None, None, None
+
+    lo_suf = (m.group(2) or "").lower()
+    hi_suf = (m.group(4) or "").lower()
+    # "$120-150k" applies the suffix to both sides.
+    if pay_max is not None:
+        if hi_suf and not lo_suf and pay_min < 1000:
+            pay_min *= _MULT[hi_suf]
+        elif lo_suf and not hi_suf and pay_max < 1000:
+            pay_max *= _MULT[lo_suf]
+
+    unit = (m.group(5) or "").lower()
+    period = _PERIOD.get(unit)
+    if period is None and (lo_suf in _MULT or hi_suf in _MULT):
+        period = "year"
+    return m.group(0).strip(), pay_min, pay_max, period
+
+
 def _heuristic_mock(result: SearchResult, page_text: str) -> ExtractedJob:
     """Deterministic fallback — infer whatever we can from title + snippet without an LLM."""
     title = result.title or "Unknown"
     snippet = result.snippet or ""
     combined = f"{title} {snippet}".lower()
+    pay_text, pay_min, pay_max, pay_period = infer_pay(combined)
 
-    # Pay inference — look for $X or $X-$Y /hr /year /project
-    pay_text = None
-    pay_min = pay_max = None
-    pay_period = None
-    m = re.search(r"\$([\d,]+)(?:\s*[-–]\s*\$?([\d,]+))?\s*(?:/|per\s+)?(hr|hour|yr|year|project|k)?", combined)
-    if m:
-        pay_text = m.group(0)
-        try:
-            pay_min = float(m.group(1).replace(",", ""))
-            if m.group(2):
-                pay_max = float(m.group(2).replace(",", ""))
-            unit = (m.group(3) or "").lower()
-            if "hr" in unit or "hour" in unit: pay_period = "hour"
-            elif "yr" in unit or "year" in unit: pay_period = "year"
-            elif "project" in unit: pay_period = "project"
-            elif unit == "k":
-                # "$80k" convention
-                pay_min *= 1000
-                if pay_max: pay_max *= 1000
-                pay_period = "year"
-        except Exception:
-            pass
-
-    # Type inference
     typ = None
     if "contract" in combined: typ = "contract"
     elif "full-time" in combined or "full time" in combined: typ = "full_time"
     elif "hourly" in combined or pay_period == "hour": typ = "hourly"
     elif result.platform in ("twitter", "reddit", "linkedin"): typ = "social_post"
 
-    # Remote
     remote = True if "remote" in combined else None
 
-    # Skills — just pattern-match a few
     skills = []
     for kw in ("copywriting", "email", "funnel", "landing page", "shopify", "klaviyo",
               "activecampaign", "mailchimp", "sms", "cro", "seo", "paid ads"):
@@ -111,23 +160,48 @@ def _heuristic_mock(result: SearchResult, page_text: str) -> ExtractedJob:
     )
 
 
+def parse_model_payload(text: str, fallback_url: str) -> ExtractedJob:
+    """Pull the JSON object out of a model response and coerce the loose fields."""
+    raw = (text or "").strip()
+    fenced = re.search(r"```(?:json)?\s*(.*?)```", raw, flags=re.IGNORECASE | re.DOTALL)
+    if fenced:
+        raw = fenced.group(1).strip()
+    start, end = raw.find("{"), raw.rfind("}")
+    if start < 0 or end < start:
+        raise ValueError("extractor returned no JSON object")
+    data = json.loads(raw[start:end + 1])
+    if not isinstance(data, dict):
+        raise ValueError("extractor JSON was not an object")
+
+    if "is_real_job" not in data:
+        data["is_real_job"] = False
+    skills = data.get("skills") or []
+    if not isinstance(skills, list):
+        skills = []
+    data["skills"] = [str(item) for item in skills if item]
+    posted = data.get("posted_at")
+    if isinstance(posted, str):
+        try:
+            datetime.fromisoformat(posted.replace("Z", "+00:00"))
+        except ValueError:
+            data["posted_at"] = None
+    if not data.get("apply_url"):
+        data["apply_url"] = fallback_url
+    return ExtractedJob(**data)
+
+
 def _claude_extract(result: SearchResult, page_html: str) -> ExtractedJob:
     import anthropic
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     page_text = _html_to_text(page_html)
-    prompt = EXTRACTION_PROMPT.format(source_hint=result.platform, page_text=page_text)
+    prompt = build_extraction_prompt(result.platform, page_text)
     resp = client.messages.create(
         model=settings.extraction_model,
         max_tokens=1024,
         messages=[{"role": "user", "content": prompt}],
     )
     text = resp.content[0].text.strip()
-    # Trim code fences if the model added them
-    if text.startswith("```"):
-        text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
-    data = json.loads(text)
-    data.setdefault("apply_url", result.url)
-    return ExtractedJob(**data)
+    return parse_model_payload(text, result.url)
 
 
 def extract(result: SearchResult, page_html: str) -> ExtractedJob:
@@ -136,5 +210,5 @@ def extract(result: SearchResult, page_html: str) -> ExtractedJob:
     try:
         return _claude_extract(result, page_html)
     except Exception:
-        # Degrade to heuristic rather than losing the row.
-        return _heuristic_mock(result, page_html)
+        log.exception("claude extract failed for %s", result.url)
+        raise
