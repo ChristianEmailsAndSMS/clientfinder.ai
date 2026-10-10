@@ -129,7 +129,7 @@ footer { margin-top: 128px; padding-top: 32px; border-top: 1px solid var(--borde
 fetch('/jobs/stats').then(r => r.json()).then(d => {
   document.getElementById('s-total').textContent = (d.total || 0).toLocaleString();
   document.getElementById('s-platforms').textContent = Object.keys(d.by_platform || {}).length;
-  document.getElementById('s-types').textContent = Object.keys(d.by_type || {}).filter(k => k !== 'None').length;
+  document.getElementById('s-types').textContent = Object.keys(d.by_type || {}).filter(k => k && k !== 'None' && k !== 'null').length;
 }).catch(() => {});
 </script>
 

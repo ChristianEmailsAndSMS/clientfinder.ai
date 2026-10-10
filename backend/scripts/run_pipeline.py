@@ -28,12 +28,12 @@ def main() -> int:
     args = ap.parse_args()
 
     if args.query:
-        stats = run_pipeline_for_query(args.query, num=args.num)
-        print(json.dumps(stats, indent=2))
+        stats = [run_pipeline_for_query(args.query, num=args.num)]
     else:
         stats = run_pipeline_for_queries(num=args.num)
-        print(json.dumps(stats, indent=2))
-    return 0
+    print(json.dumps(stats[0] if args.query else stats, indent=2))
+    failed = any(row.get("error") or row.get("errors") for row in stats)
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
