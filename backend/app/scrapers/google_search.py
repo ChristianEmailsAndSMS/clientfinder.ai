@@ -5,6 +5,7 @@ Dev mode (DEV_FIXTURES=1): reads a local JSON fixture — lets you iterate witho
 import json
 from pathlib import Path
 from typing import Iterable
+from urllib.parse import urlparse
 
 import httpx
 
@@ -38,18 +39,26 @@ def _fixture_results(query: str) -> list[SearchResult]:
     return []
 
 
+_HOST_PLATFORMS = (
+    ("twitter.com", "twitter"),
+    ("x.com", "twitter"),
+    ("reddit.com", "reddit"),
+    ("linkedin.com", "linkedin"),
+    ("upwork.com", "upwork"),
+    ("indeed.com", "indeed"),
+    ("problogger.com", "problogger"),
+    ("mediabistro.com", "mediabistro"),
+    ("greenhouse.io", "greenhouse"),
+    ("lever.co", "lever"),
+    ("ashbyhq.com", "ashby"),
+)
+
+
 def _platform_from_url(url: str) -> str:
-    u = url.lower()
-    if "twitter.com" in u or "x.com" in u: return "twitter"
-    if "reddit.com" in u: return "reddit"
-    if "linkedin.com" in u: return "linkedin"
-    if "upwork.com" in u: return "upwork"
-    if "indeed.com" in u: return "indeed"
-    if "problogger.com" in u: return "problogger"
-    if "mediabistro.com" in u: return "mediabistro"
-    if "greenhouse.io" in u: return "greenhouse"
-    if "lever.co" in u: return "lever"
-    if "ashbyhq.com" in u: return "ashby"
+    host = (urlparse(url).hostname or "").lower().removeprefix("www.")
+    for domain, name in _HOST_PLATFORMS:
+        if host == domain or host.endswith("." + domain):
+            return name
     return "web"
 
 
@@ -107,13 +116,13 @@ def _serper_results(query: str, num: int = 20) -> list[SearchResult]:
 
 def search(query: str, num: int = 20) -> list[SearchResult]:
     if settings.dev_fixtures:
-        return _fixture_results(query)
+        return _fixture_results(query)[:num]
     if settings.google_search_provider == "serper" and settings.serper_api_key:
         return _serper_results(query, num=num)
     if settings.serpapi_api_key:
         return _serpapi_results(query, num=num)
     # No key configured — fall back to fixture so dev flow still runs.
-    return _fixture_results(query)
+    return _fixture_results(query)[:num]
 
 
 # Default queries we rotate through on scheduled runs.

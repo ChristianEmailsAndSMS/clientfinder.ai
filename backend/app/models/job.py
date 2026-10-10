@@ -53,7 +53,7 @@ class Job(Base):
     # Core identity / dedupe
     dedupe_hash: Mapped[str] = mapped_column(String(64), index=True)
     source_url: Mapped[str] = mapped_column(Text)                       # the link user clicks
-    platform: Mapped[str] = mapped_column(String(64), index=True)       # twitter | reddit | upwork | problogger | greenhouse | ...
+    platform: Mapped[str] = mapped_column(String(64))                    # twitter | reddit | upwork | problogger | greenhouse | ...
 
     # Content
     title: Mapped[str] = mapped_column(String(512))
