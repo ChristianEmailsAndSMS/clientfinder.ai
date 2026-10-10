@@ -4,7 +4,7 @@ SaaS that finds marketing / copywriting / email / funnel-builder jobs across the
 
 ## Status
 
-Early scaffold — Phase 1 (data pipeline MVP) in progress. See [CHECKLIST.md](CHECKLIST.md) for the full build plan.
+Live at https://clientfinder.ai (FastAPI app on a VPS). For how it runs, how changes get deployed and the rules for contributors (human or AI), read [AGENTS.md](AGENTS.md). Build plan and open items: [CHECKLIST.md](CHECKLIST.md).
 
 ## Approach
 
