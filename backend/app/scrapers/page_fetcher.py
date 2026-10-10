@@ -7,6 +7,8 @@ In DEV_FIXTURES mode we don't actually fetch — we read the SerpAPI fixture's s
 can run offline. Real page fetch kicks in when DEV_FIXTURES=0."""
 from __future__ import annotations
 
+import html
+
 import httpx
 
 from ..config import settings
@@ -69,11 +71,14 @@ def fetch_for_result(result: SearchResult) -> str:
     """In dev-fixture mode we synthesize a minimal page from the snippet.
     This lets the whole pipeline run offline. Real mode calls fetch()."""
     if settings.dev_fixtures:
+        title = html.escape(result.title or "", quote=True)
+        snippet = html.escape(result.snippet or "", quote=True)
+        url = html.escape(result.url or "", quote=True)
         return (
             f"<!doctype html><html><body>"
-            f"<h1>{result.title}</h1>"
-            f"<p>{result.snippet}</p>"
-            f"<a href='{result.url}'>Apply</a>"
+            f"<h1>{title}</h1>"
+            f"<p>{snippet}</p>"
+            f"<a href='{url}'>Apply</a>"
             f"</body></html>"
         )
     return fetch(result.url)

@@ -53,7 +53,9 @@ class Job(Base):
     # Core identity / dedupe
     dedupe_hash: Mapped[str] = mapped_column(String(64), index=True)
     source_url: Mapped[str] = mapped_column(Text)                       # the link user clicks
-    platform: Mapped[str] = mapped_column(String(64), index=True)       # twitter | reddit | upwork | problogger | greenhouse | ...
+    # Indexed via ix_jobs_platform in __table_args__. index=True here would
+    # emit a second index with the same name and break create_all.
+    platform: Mapped[str] = mapped_column(String(64))                   # twitter | reddit | upwork | problogger | greenhouse | ...
 
     # Content
     title: Mapped[str] = mapped_column(String(512))

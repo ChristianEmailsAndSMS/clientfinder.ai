@@ -2,6 +2,7 @@
 Idempotent — reruns upsert on dedupe_hash."""
 from __future__ import annotations
 
+import hashlib
 import logging
 from datetime import datetime, timezone
 from typing import Iterable
@@ -18,6 +19,38 @@ from ..config import settings
 from . import google_search, page_fetcher, llm_extractor
 
 log = logging.getLogger(__name__)
+
+# Source.key and Job.source_key are String(64).
+_SOURCE_KEY_MAX = 64
+_SOURCE_KEY_PREFIX = "google:"
+_SOURCE_KEY_HASH_LEN = 12
+_DISPLAY_NAME_MAX = 128
+
+
+def source_key_for_query(query: str) -> str:
+    """Stable source key, always at most 64 characters.
+
+    Short queries keep ``google:`` plus the query lowercased, spaces replaced
+    with underscores, and surrounding double quotes removed. If that key would
+    exceed 64 characters, the readable slug is truncated and ``_`` plus the
+    first 12 hex digits of SHA-256 over the normalized query are appended so
+    two different long queries do not share a key.
+    """
+    normalized = query.lower().strip().replace(" ", "_").strip(chr(34))
+    key = f"{_SOURCE_KEY_PREFIX}{normalized}"
+    if len(key) <= _SOURCE_KEY_MAX:
+        return key
+    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:_SOURCE_KEY_HASH_LEN]
+    readable_len = _SOURCE_KEY_MAX - len(_SOURCE_KEY_PREFIX) - 1 - len(digest)
+    return f"{_SOURCE_KEY_PREFIX}{normalized[:readable_len]}_{digest}"
+
+
+def source_display_name(query: str) -> str:
+    """Source.display_name is String(128). A long query must not overflow it."""
+    name = f"Google: {query.strip()}"
+    if len(name) <= _DISPLAY_NAME_MAX:
+        return name
+    return name[: _DISPLAY_NAME_MAX - 3] + "..."
 
 
 def _get_or_create_source(db: Session, key: str, kind: str, display_name: str) -> Source:
@@ -84,6 +117,12 @@ def _upsert_job(db: Session, source: Source, result: SearchResult, extracted: Ex
         return (True, False)
     except IntegrityError:
         sp.rollback()
+        # Insert did not land. The conflicting row (if any) was not touched by
+        # this statement, so refresh last_seen_at only when we can see it.
+        existing = db.scalar(select(Job).where(Job.dedupe_hash == h))
+        if existing is None:
+            return (False, False)
+        existing.last_seen_at = now
         return (False, True)
 
 
@@ -96,9 +135,9 @@ def run_pipeline_for_query(query: str, num: int = 20) -> dict:
         log.warning("no search results for %r (DEV_FIXTURES=%s)", query, settings.dev_fixtures)
         return stats
 
-    source_key = f"google:{query.lower().strip().replace(' ', '_').strip(chr(34))}"
+    source_key = source_key_for_query(query)
     with session_scope() as db:
-        source = _get_or_create_source(db, source_key, "google_search", f"Google: {query}")
+        source = _get_or_create_source(db, source_key, "google_search", source_display_name(query))
         run = ScrapeRun(source_id=source.id, status="running")
         db.add(run)
         db.flush()
