@@ -7,10 +7,15 @@ In DEV_FIXTURES mode we don't actually fetch — we read the SerpAPI fixture's s
 can run offline. Real page fetch kicks in when DEV_FIXTURES=0."""
 from __future__ import annotations
 
+import html
+import logging
+
 import httpx
 
 from ..config import settings
 from ..schemas import SearchResult
+
+log = logging.getLogger(__name__)
 
 UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -65,15 +70,26 @@ def fetch(url: str, *, mode: str = "simple") -> str:
     return fetch_simple(url)
 
 
+def _snippet_page(result: SearchResult) -> str:
+    title = html.escape(result.title or "")
+    snippet = html.escape(result.snippet or "")
+    url = html.escape(result.url or "", quote=True)
+    return (
+        "<!doctype html><html><body>"
+        f"<h1>{title}</h1>"
+        f"<p>{snippet}</p>"
+        f"<a href='{url}'>Apply</a>"
+        "</body></html>"
+    )
+
+
 def fetch_for_result(result: SearchResult) -> str:
     """In dev-fixture mode we synthesize a minimal page from the snippet.
     This lets the whole pipeline run offline. Real mode calls fetch()."""
     if settings.dev_fixtures:
-        return (
-            f"<!doctype html><html><body>"
-            f"<h1>{result.title}</h1>"
-            f"<p>{result.snippet}</p>"
-            f"<a href='{result.url}'>Apply</a>"
-            f"</body></html>"
-        )
-    return fetch(result.url)
+        return _snippet_page(result)
+    try:
+        return fetch(result.url)
+    except Exception:
+        log.warning("page fetch failed for %s; extracting from the search snippet", result.url, exc_info=True)
+        return _snippet_page(result)

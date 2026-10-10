@@ -53,7 +53,7 @@ class Job(Base):
     # Core identity / dedupe
     dedupe_hash: Mapped[str] = mapped_column(String(64), index=True)
     source_url: Mapped[str] = mapped_column(Text)                       # the link user clicks
-    platform: Mapped[str] = mapped_column(String(64), index=True)       # twitter | reddit | upwork | problogger | greenhouse | ...
+    platform: Mapped[str] = mapped_column(String(64))                   # twitter | reddit | upwork | problogger | greenhouse | ...
 
     # Content
     title: Mapped[str] = mapped_column(String(512))
@@ -66,7 +66,7 @@ class Job(Base):
     pay_text: Mapped[str | None] = mapped_column(String(128), nullable=True)
     pay_min: Mapped[float | None] = mapped_column(Float, nullable=True)
     pay_max: Mapped[float | None] = mapped_column(Float, nullable=True)
-    pay_period: Mapped[str | None] = mapped_column(String(16), nullable=True)  # hour | project | year
+    pay_period: Mapped[str | None] = mapped_column(String(16), nullable=True)  # hour | week | month | project | year
     experience_level: Mapped[str | None] = mapped_column(String(32), nullable=True)
     location: Mapped[str | None] = mapped_column(String(128), nullable=True)
     remote: Mapped[bool | None] = mapped_column(Boolean, nullable=True)

@@ -37,7 +37,7 @@ class ExtractedJob(BaseModel):
     pay_text: str | None = None
     pay_min: float | None = None
     pay_max: float | None = None
-    pay_period: str | None = None  # hour | project | year
+    pay_period: str | None = None  # hour | week | month | project | year
     type: str | None = None        # contract | full_time | hourly | fixed | social_post
     experience_level: str | None = None
     location: str | None = None
@@ -47,6 +47,7 @@ class ExtractedJob(BaseModel):
     posted_at: datetime | None = None
     raw_snippet: str | None = None
     description: str | None = None
+    extraction_model: str | None = None
 
 
 class SearchResult(BaseModel):

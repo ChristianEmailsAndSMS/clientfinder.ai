@@ -17,13 +17,14 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 
 def main() -> int:
     all_stats = []
-    for mod in (remoteok, problogger, greenhouse):
+    for name, mod in (("remoteok", remoteok), ("problogger", problogger), ("greenhouse", greenhouse)):
         try:
             all_stats.append(mod.run())
         except Exception as e:
-            all_stats.append({"source": mod.__name__, "error": str(e)})
+            all_stats.append({"source": name, "error": str(e)})
     print(json.dumps(all_stats, indent=2))
-    return 0
+    failed = any(row.get("error") for row in all_stats)
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
