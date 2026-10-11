@@ -134,6 +134,13 @@ _FUNNEL_PRODUCT_PAGE = re.compile(
     r"|\bfunnel builder at your fingertips\b",
     re.I,
 )
+# "Find freelance funnel builder jobs" is a signup for people offering services.
+# "We're hiring a freelance funnel builder" stays.
+_FREELANCE_DIRECTORY = re.compile(
+    r"^\s*find freelance\b.{0,80}\bjobs\b"
+    r"|\blooking for clients as a freelance\b",
+    re.I,
+)
 # "I have 4+ years" under a #hiring tag is someone selling themselves. "We're hiring" plus that line is still a job.
 _FIRST_PERSON_YEARS = re.compile(r"\bi have \d+\+?\s*years\b", re.I)
 # "Hi, I'm a copywriter" is the same ad. "Hi, I'm a founder and we're hiring" is not, and neither is
@@ -234,6 +241,8 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
             and "funnel builder" not in title.lower()):
         return True
     if _FUNNEL_PRODUCT_PAGE.search(blob) and not _HIRING_SOMEONE.search(blob):
+        return True
+    if _FREELANCE_DIRECTORY.search(blob):
         return True
     # On Reddit the role often appears only in the related-posts snippet of a different thread.
     # LinkedIn titles are the author's name, so this check stays on reddit.com.

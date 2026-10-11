@@ -687,6 +687,15 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We're hiring a funnel builder",
         "You'll have a funnel builder at your fingertips and a designer on the team.",
         query='hiring "funnel builder"')
+    assert pipeline.not_a_hiring_post(
+        "Find freelance funnel builder jobs",
+        "Looking for clients as a freelance funnel builder? Sign up and offer your services.",
+        query='hiring "funnel builder"',
+        url="https://befreelancr.com/en/find-freelance-jobs/funnel-builder")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a freelance funnel builder",
+        "Looking for a freelance funnel builder to join the team.",
+        query='hiring "funnel builder"')
     assert not pipeline.not_a_hiring_post(
         "NoDesk",
         "Perspective - #1 Mobile Funnel Builder.",
