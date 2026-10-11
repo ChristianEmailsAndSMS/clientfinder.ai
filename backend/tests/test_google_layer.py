@@ -527,6 +527,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "I've been trying for several months already to get a creative strategist.",
         url="https://www.reddit.com/r/advertising/comments/abc/where_can_i_find/")
     assert pipeline.not_a_hiring_post(
+        "Hire a Creative Strategist for Your DTC Brand",
+        "We help DTC and e-commerce founders hire creative strategists who scale paid social.",
+        url="https://www.constanthire.com/creative-strategist-recruitment-agency")
+    assert not pipeline.not_a_hiring_post(
+        "Senior Creative Strategist Job | Lilo Social Careers",
+        "Lilo Social is seeking a Senior Creative Strategist. We help founders grow. You'll hire no one on day one.",
+        url="https://lilosocial.com/careers/senior-creative-strategist/")
+    assert pipeline.not_a_hiring_post(
         "Creative Strategist freelancers - Hire",
         "Write down these goals clearly. This will help the creative strategist understand the brief.")
     assert not pipeline.not_a_hiring_post(

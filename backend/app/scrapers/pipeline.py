@@ -109,6 +109,8 @@ _HIRING_SOMEONE = re.compile(
 )
 # "is anyone hiring" is a person looking for work, often for a friend. "We're hiring" in the same post is an opening.
 _JOB_SEEKER = re.compile(r"\bis anyone hiring\b", re.I)
+# An agency selling "we help founders hire a creative strategist" is not an opening.
+_RECRUITER_PITCH = re.compile(r"\bwe help\b.{0,80}\b(?:founders|brands|companies)\s+hire\b", re.I)
 # "Cost to build a funnel? I checked Fiverr already" is a price question, not an opening.
 _PRICE_QUESTION = re.compile(r"^\s*cost to build\b|\bi checked fiverr\b", re.I)
 # Remote OK says this when the listing is dead. "Please do not apply unless..." on a live post stays.
@@ -163,6 +165,8 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
         return True
     # Quora is people asking where to hire, not an employer posting an opening.
     if "quora.com" in (url or "").lower():
+        return True
+    if "recruitment-agency" in (url or "").lower() or _RECRUITER_PITCH.search(blob):
         return True
     # LinkedIn's how-to-hire guides are sample descriptions, not openings.
     if "how-to-hire-guide" in (url or "").lower() or _JOB_TEMPLATE.search(title):
