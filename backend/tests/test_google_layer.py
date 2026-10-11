@@ -591,6 +591,15 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We are hiring a copywriter. Search for the best copywriter jobs is how candidates find us.",
         url="https://builtin.com/job/copywriter/senior-copywriter")
     assert pipeline.not_a_hiring_post(
+        "9 Best Recruiting Landing Page and Hiring Event Tools ...",
+        "A recruiting landing page is a standalone, single-purpose page built for one campaign.",
+        query='hiring "landing page"',
+        url="https://www.joveo.com/blog/recruiting-landing-page-builders/")
+    assert not pipeline.not_a_hiring_post(
+        "Landing page builder",
+        "We are hiring someone to build landing pages. We compared 9 best tools first.",
+        query='hiring "landing page"')
+    assert pipeline.not_a_hiring_post(
         "Hire a GoHighLevel Funnel Builder Expert: Easy Guide",
         "A GoHighLevel funnel builder expert helps design and structure your sales process.")
     assert pipeline.not_a_hiring_post(
