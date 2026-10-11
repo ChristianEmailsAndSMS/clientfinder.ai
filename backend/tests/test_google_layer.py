@@ -361,6 +361,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Funnel Builder",
         "We are looking for a highly strategic Funnel Builder to join our marketing team. 9000+ brands use the tool.")
     assert pipeline.not_a_hiring_post(
+        "$20-$72/hr Funnel Jobs (NOW HIRING) Oct 2026",
+        "Overview We're looking for a high-level funnel builder who understands both conversion and design.",
+        url="https://www.ziprecruiter.com/Jobs/Funnel")
+    assert not pipeline.not_a_hiring_post(
+        "Funnel Builder",
+        "We are looking for a high-level funnel builder. Jobs (now hiring) are listed on our site.",
+        url="https://www.multiplymii.com/job-description/funnel-builder")
+    assert pipeline.not_a_hiring_post(
         "Recruitment Landing Page Templates for High Conversions",
         "Lunar is an AI landing page generator that turns your brief into a complete page.")
     assert pipeline.not_a_hiring_post(

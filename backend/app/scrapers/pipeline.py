@@ -36,6 +36,8 @@ _JOBS_INDEX_TITLE = re.compile(r"\bremote-first\b.{0,40}\bjobs\s*$", re.I)
 _BROWSE_JOBS = re.compile(r"\bbrowse\b.{0,40}\bjobs\b", re.I)
 # "9000+ Copywriter jobs in United States" is a search-results page, not one opening.
 _JOB_COUNT_INDEX = re.compile(r"^\s*\d[\d,]*\+?\s+.{0,80}\bjobs\b", re.I)
+# "$20-$72/hr Funnel Jobs (NOW HIRING)" is the same kind of list. Title only.
+_AGGREGATOR_TITLE = re.compile(r"\bjobs\s*\(\s*now hiring\s*\)", re.I)
 # Title only. A real post can mention a template in the description.
 _JOB_TEMPLATE = re.compile(r"\bjob description template\b", re.I)
 # A "hiring landing page" search returns templates, galleries, stock files, and docs. Not openings.
@@ -140,6 +142,7 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
         return True
     if (_SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _DIRECTORY_TITLE.search(title)
             or _JOBS_INDEX_TITLE.search(title) or _JOB_COUNT_INDEX.search(title)
+            or _AGGREGATOR_TITLE.search(title)
             or _DIRECTORY.search(blob) or _BROWSE_JOBS.search(blob)
             or _ADVICE.search(blob) or _ADVICE_TITLE.search(title) or _PRICE_QUESTION.search(blob)
             or _CLOSED_JOB.search(blob) or _NOT_A_JOB_PAGE.search(blob)):
