@@ -318,6 +318,15 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
     assert pipeline.not_a_hiring_post("How to become a creative strategist as a copywriter", "More brands are hiring creative strategists")
     assert pipeline.not_a_hiring_post("Here's how to get hired as a copywriter at storyarb.", "Our acceptance rate is less than 0.5%.")
     assert pipeline.not_a_hiring_post(
+        "How can I get hired in Agora as a financial copywriter?",
+        "Their programs are offered periodically and totally depends on what division needs copywriters.")
+    assert pipeline.not_a_hiring_post(
+        "Seeking Advice: Funnel Design vs. Funnel Builder – What's the Best Approach",
+        "Hi everyone, I'm in the early stages of building my business.")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "How can I get hired? Send a portfolio. Seeking advice from the team is part of week one.")
+    assert pipeline.not_a_hiring_post(
         "Hiring a creative strategist? - Melissa Jaalaid's Post",
         "I just did this for a client. They needed someone to pump out 30-40+ creatives weekly.")
     assert not pipeline.not_a_hiring_post(
