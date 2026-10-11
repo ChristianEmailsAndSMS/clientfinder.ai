@@ -615,6 +615,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We're hiring a copywriter for a brand campaign.",
         url="https://example.com/jobs/copywriter-wanted")
     assert pipeline.not_a_hiring_post(
+        "Shienna Marie Javier - HR Manager at Imperium",
+        "HR Manager at Imperium. Lipa, Calabarzon, Philippines.",
+        url="https://ph.linkedin.com/in/shienna-marie-javier-0250b3381")
+    assert not pipeline.not_a_hiring_post(
+        "Landing Page Builder",
+        "We are hiring a landing page builder. See the hiring manager's LinkedIn profile.",
+        url="https://www.linkedin.com/jobs/view/landing-page-builder-at-personalize-pro-4430425557")
+    assert pipeline.not_a_hiring_post(
         "Email Marketer Job Description Template",
         "As an email marketer, you will develop, implement and optimise email marketing strategies for our company.",
         url="https://business.linkedin.com/hire/resources/how-to-hire-guides/email-marketer-job-description")

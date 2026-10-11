@@ -266,6 +266,9 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
         return True
     if "adsoftheworld.com" in low_url or _AD_ARCHIVE.search(blob):
         return True
+    # A LinkedIn profile is a person, not an opening. Job pages are /jobs/view.
+    if "linkedin.com/in/" in low_url or "linkedin.com/pub/" in low_url:
+        return True
     if "recruitment-agency" in (url or "").lower() or _RECRUITER_PITCH.search(blob):
         return True
     if _RECRUITMENT_AGENCY_TITLE.search(title) and _HIRE_IN_TITLE.search(title):
