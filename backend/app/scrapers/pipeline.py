@@ -61,7 +61,23 @@ _HIRING_SOMEONE = re.compile(
 )
 
 
-def not_a_hiring_post(title: str, snippet: str = "", query: str = "") -> bool:
+_ROLE_STOPWORDS = frozenset({
+    "hiring", "hire", "jobs", "job", "remote", "the", "and", "for", "with", "from", "a", "an",
+})
+
+
+def _role_needles(query: str) -> list[str]:
+    """Role words from the Google query, without the site: scope or the word hiring."""
+    text = re.sub(r"site:\S+", " ", query or "", flags=re.I)
+    phrases = [p.strip().lower() for p in re.findall(r'"([^"]+)"', text)]
+    phrases = [p for p in phrases if p and p not in {"hiring", "hire"}]
+    if phrases:
+        return phrases
+    bare = re.sub(r'"', " ", text).lower()
+    return [w for w in re.findall(r"[a-z0-9']+", bare) if w not in _ROLE_STOPWORDS and len(w) >= 4]
+
+
+def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str = "") -> bool:
     """True when the search result is commentary, a person advertising themselves, or a careers index."""
     title = title or ""
     blob = f"{title}\n{snippet or ''}"
@@ -72,6 +88,12 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "") -> bool:
     # Title only. A real funnel-builder post can mention working with engineers in the body.
     if re.search(r"funnel builder", query or "", re.I) and _ENGINEERING_ROLE.search(title):
         return True
+    # On Reddit the role often appears only in the related-posts snippet of a different thread.
+    # LinkedIn titles are the author's name, so this check stays on reddit.com.
+    if "reddit.com" in (url or "").lower():
+        needles = _role_needles(query)
+        if needles and not all(needle in title.lower() for needle in needles):
+            return True
     return False
 
 
@@ -194,7 +216,7 @@ def _process(db: Session, source: Source, result: SearchResult, seen: set[str], 
         seen.add(h)
         _resolve_failure(db, result)
         return
-    if not_a_hiring_post(result.title, result.snippet, result.source_query):
+    if not_a_hiring_post(result.title, result.snippet, result.source_query, result.url):
         stats["skipped"] += 1
         _resolve_failure(db, result)
         return

@@ -363,6 +363,36 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
     assert not pipeline.not_a_hiring_post(
         "We're hiring a funnel builder",
         "I have 8 years running this studio and we need a builder")
+    assert pipeline.not_a_hiring_post(
+        "[Hiring] 2D Animation Tutor — $30/hr (Remote)",
+        "[HIRING] Creative Strategist · r/forhire",
+        query='site:reddit.com/r/hiring/comments hiring "creative strategist"',
+        url="https://www.reddit.com/r/hiring/comments/abc/2d_animation_tutor/")
+    assert pipeline.not_a_hiring_post(
+        "[HIRING] Viral Manager : r/hiring",
+        "[HIRING] Creative Strategist",
+        query='hiring "creative strategist"',
+        url="https://www.reddit.com/r/hiring/comments/abc/viral_manager/")
+    assert pipeline.not_a_hiring_post(
+        "[HIRING] TikTok Content Poster – Remote Side Job",
+        "Create and post 5 TikTok carousel posts per day",
+        query="site:reddit.com/r/hiring/comments hiring copywriter",
+        url="https://www.reddit.com/r/hiring/comments/abc/tiktok/")
+    assert not pipeline.not_a_hiring_post(
+        "[HIRING] Creative Strategist (Fully Remote)",
+        "full-time",
+        query='site:reddit.com/r/forhire/comments hiring "creative strategist"',
+        url="https://www.reddit.com/r/forhire/comments/abc/creative_strategist/")
+    assert not pipeline.not_a_hiring_post(
+        "[Hiring] Copywriter with B2B SaaS Experience",
+        "Website pages and cold emails",
+        query="site:reddit.com/r/forhire/comments hiring copywriter",
+        url="https://www.reddit.com/r/forhire/comments/abc/copywriter/")
+    assert not pipeline.not_a_hiring_post(
+        "Carol Dasaro's Post",
+        "Hi everyone, I'm hiring for a freelance copywriter.",
+        query="hiring copywriter",
+        url="https://www.linkedin.com/posts/carol_activity")
 
 
 # ---------- pipeline ----------
