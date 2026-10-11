@@ -752,6 +752,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "What does a Creative Strategist do?",
         "This page details key information about the Creative Strategist role, salaries, and how to approach recruitment.")
     assert pipeline.not_a_hiring_post(
+        "Q: What does an urgently hiring email copywriter do?",
+        "A: An Urgently Hiring Email Copywriter is a professional responsible for quickly creating compelling email content.",
+        url="https://www.ziprecruiter.com/e/urgently-hiring-email-copywriter-what-does-an-urgently-hiring-email-copywriter-do")
+    assert not pipeline.not_a_hiring_post(
+        "Email Copywriter",
+        "Q: What does an email copywriter do? We are hiring one.",
+        url="https://example.com/jobs/email-copywriter")
+    assert pipeline.not_a_hiring_post(
         "How to get into Creative Strategist Job?",
         "I've been applying to multiple companies via LinkedIn but never get any interview.",
         url="https://www.reddit.com/r/CreativeStrategists/comments/abc/how_to_get_into/")

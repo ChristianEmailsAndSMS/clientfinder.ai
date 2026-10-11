@@ -129,7 +129,7 @@ _ADVICE_TITLE = re.compile(
     r"|^\s*is\b.{0,80}\bstill in demand\b"
     r"|^\s*what to look for when hiring\b"
     r"|\bexamples:\s*what works\b"
-    r"|^\s*what does (?:a|an)\b.{0,60}\bdo\b"
+    r"|^\s*(?:q:\s*)?what does (?:a|an)\b.{0,60}\bdo\b"
     r"|\bfreelancers?\s*-\s*hire\b"
     r"|^\s*hiring an?\b[^?\n]{0,80}\?",
     re.I,
@@ -276,6 +276,9 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
         return True
     # Expertini reprints one opening across city domains, plus a roles index.
     if "expertini.com" in low_url:
+        return True
+    # ZipRecruiter /e/ pages explain a job title. They are not openings.
+    if "ziprecruiter.com/e/" in low_url:
         return True
     if "recruitment-agency" in (url or "").lower() or _RECRUITER_PITCH.search(blob):
         return True
