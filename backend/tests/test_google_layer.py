@@ -764,6 +764,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "How I got a remote job is a story we tell candidates.",
         url="https://example.com/jobs/email-marketer")
     assert pipeline.not_a_hiring_post(
+        "Copywriter Wanted for Tinder and Other Job Listings",
+        "Wanted: Copywriter for tinder. Hourly: Intermediate.",
+        url="https://muffin.wow-womenonwriting.com/2021/07/copywriter-wanted-for-tinder-and-other.html")
+    assert not pipeline.not_a_hiring_post(
+        "Copywriter",
+        "We're hiring a copywriter for Tinder and other job listings are separate.",
+        url="https://example.com/jobs/copywriter-tinder")
+    assert pipeline.not_a_hiring_post(
         "Is being an Email Copywriter still in demand in 2025?",
         "I'm planning to learn more about email copywriting as a beginner in the freelancer world.",
         url="https://www.reddit.com/r/copywriting/comments/1l3zo0n/is_being_an_email_copywriter_still_in_demand_in/")
