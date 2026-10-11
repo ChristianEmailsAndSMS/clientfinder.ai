@@ -710,6 +710,30 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Landing Page Builder",
         "We are hiring a landing page builder. This role was also listed on BeBee.",
         url="https://example.com/jobs/landing-page-builder")
+    assert pipeline.not_a_hiring_post(
+        "Careers @ Builder Funnel | The Remodeler Marketing Agency",
+        "Builder Funnel is a fully remote digital marketing agency that helps builders and remodelers grow.",
+        url="https://www.builderfunnel.com/careers")
+    assert pipeline.not_a_hiring_post(
+        "Builder Funnel | The Marketing Agency for Remodelers",
+        "Builder Funnel isn't a marketing agency. We're a strategic growth partner for remodelers.",
+        url="https://www.builderfunnel.com/")
+    assert pipeline.not_a_hiring_post(
+        "Builder Funnel Careers and Employment",
+        "Find out what works well at Builder Funnel from the people who know best.",
+        url="https://www.indeed.com/cmp/Builder-Funnel")
+    assert pipeline.not_a_hiring_post(
+        "Working at Builder Funnel",
+        "See what employees say it's like to work at Builder Funnel.",
+        url="https://www.glassdoor.com/Overview/Working-at-Builder-Funnel-EI_IE1679924.11,25.htm")
+    assert pipeline.not_a_hiring_post(
+        "Marketing Agency for Remodelers (@builder_funnel)",
+        "We help remodelers and custom builders grow.",
+        url="https://www.instagram.com/builder_funnel/?hl=en")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a funnel builder",
+        "Builder Funnel is hiring a funnel builder for a client brand.",
+        url="https://www.builderfunnel.com/careers/funnel-builder")
     assert not pipeline.not_a_hiring_post(
         "Landing Page Builder",
         "We are hiring a landing page builder. Apply today on Expertini if you prefer.",

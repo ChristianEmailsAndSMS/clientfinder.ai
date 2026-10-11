@@ -316,6 +316,14 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     # BeBee puts several jobs in one result. The title is often a different role.
     if "bebee.com" in low_url:
         return True
+    # Builder Funnel is a remodeler agency. The site and company profiles are not a funnel-builder opening.
+    # A post on their site that is also hiring someone stays.
+    if "builderfunnel.com" in low_url and not _HIRING_SOMEONE.search(blob):
+        return True
+    if ("indeed.com/cmp/builder-funnel" in low_url
+            or "glassdoor.com/overview/working-at-builder-funnel" in low_url
+            or "instagram.com/builder_funnel" in low_url):
+        return True
     # ZipRecruiter /e/ pages explain a job title. They are not openings.
     if "ziprecruiter.com/e/" in low_url:
         return True
