@@ -76,6 +76,11 @@ _JOB_SEEKER = re.compile(r"\bis anyone hiring\b", re.I)
 _PRICE_QUESTION = re.compile(r"^\s*cost to build\b|\bi checked fiverr\b", re.I)
 # Remote OK says this when the listing is dead. "Please do not apply unless..." on a live post stays.
 _CLOSED_JOB = re.compile(r"\bjob post is closed\b|\bposition is probably filled\b|\bno longer accepting applications\b", re.I)
+# These titles are a different job. A title that also names the searched role still stays.
+_OTHER_ROLE_TITLE = re.compile(
+    r"\b(?:account managers?|graphics? designers?|performance marketing specialists?)\b",
+    re.I,
+)
 
 
 _ROLE_STOPWORDS = frozenset({
@@ -113,10 +118,14 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
         return True
     # On Reddit the role often appears only in the related-posts snippet of a different thread.
     # LinkedIn titles are the author's name, so this check stays on reddit.com.
+    # A "Freelance Writer" title can still be a copywriter job, so other roles are an explicit list.
+    needles = _role_needles(query)
     if "reddit.com" in (url or "").lower():
-        needles = _role_needles(query)
         if needles and not all(needle in title.lower() for needle in needles):
             return True
+    if (_OTHER_ROLE_TITLE.search(title) and needles
+            and not all(needle in title.lower() for needle in needles)):
+        return True
     return False
 
 

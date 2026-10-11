@@ -318,6 +318,30 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
     assert not pipeline.not_a_hiring_post(
         "We're hiring a copywriter",
         "Please do not apply unless you have a portfolio of live emails.")
+    assert pipeline.not_a_hiring_post(
+        "Remote Performance Marketing Specialist | E-Commerce",
+        "Think project manager meets creative strategist, all while being knee-deep in data.",
+        query='hiring "creative strategist"')
+    assert pipeline.not_a_hiring_post(
+        "Remote Account Manager at SOCi",
+        "Creative strategist; develop new ways to drive sales.",
+        query='hiring "creative strategist"')
+    assert pipeline.not_a_hiring_post(
+        "Email Graphics Designer at C9 - Philippines Remote",
+        "work with the email copywriter and creative team to conceptualize graphic assets",
+        query='hiring "email copywriter"')
+    assert not pipeline.not_a_hiring_post(
+        "Lead Creative Strategist (Performance Marketing)",
+        "Superside is hiring a Creative Strategist",
+        query='hiring "creative strategist"')
+    assert not pipeline.not_a_hiring_post(
+        "Remote Freelance Writer at ProWriterSites",
+        "our ultimate goal is to bring on a full-time copywriter",
+        query="hiring copywriter")
+    assert not pipeline.not_a_hiring_post(
+        "Email Copywriter, Account Coordinator – Dutch-speaking",
+        "Full Time",
+        query='hiring "email copywriter"')
     assert not pipeline.not_a_hiring_post(
         "We're hiring a copywriter",
         "Send a portfolio. We also post roles on our jobs board.")
