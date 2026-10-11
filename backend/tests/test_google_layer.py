@@ -433,6 +433,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "38 Email copywriter jobs available in Remote. See salaries, compare reviews, easily apply.",
         url="https://www.simplyhired.com/search?q=email+copywriter&l=remote")
     assert pipeline.not_a_hiring_post(
+        "Top Copywriter Jobs in NYC, NY",
+        "Search for the best NYC copywriter jobs from top companies. Jobs updated daily.",
+        url="https://www.builtinnyc.com/jobs/content/search/copywriter")
+    assert not pipeline.not_a_hiring_post(
+        "Copywriter",
+        "We are hiring a copywriter. Search for the best work in your portfolio.",
+        url="https://example.com/jobs/copywriter")
+    assert pipeline.not_a_hiring_post(
         "Remote copywriter jobs in Davidson, NC",
         "Browse 20 Remote Copywriter job openings from Davidson, NC.",
         url="https://www.indeed.com/q-remote-copywriter-l-davidson,-nc-jobs.html")

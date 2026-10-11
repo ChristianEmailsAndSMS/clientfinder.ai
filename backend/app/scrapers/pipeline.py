@@ -51,8 +51,12 @@ _SALARY_JOBS_INDEX = re.compile(
     r"|\bsearch\s+\d[\d,]*\s+.{0,60}\bjobs\b",
     re.I,
 )
-# "Top 38 Email copywriter Jobs in Remote" is a result list even when the host is not in the URL check.
-_TOP_N_JOBS = re.compile(r"^\s*top\s+\d[\d,]*\s+.{0,60}\bjobs\b", re.I)
+# "Top 38 Email copywriter Jobs" and "Top Copywriter Jobs in NYC" are result lists.
+_TOP_N_JOBS = re.compile(
+    r"^\s*top\s+\d[\d,]*\s+.{0,60}\bjobs\b"
+    r"|^\s*top\s+[a-z]+\s+jobs\b",
+    re.I,
+)
 # "Copywriter Jobs in October 2026" and "Copywriting Jobs (October 2026)" are monthly lists.
 _DATED_JOBS_INDEX = re.compile(
     r"\bjobs\s+in\s+(?:january|february|march|april|may|june|july|august|september|"
