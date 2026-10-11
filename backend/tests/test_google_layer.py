@@ -349,6 +349,18 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Remote-First Marketing Jobs",
         "Copywriter; Creative Strategist; Organic Marketing.")
     assert pipeline.not_a_hiring_post(
+        "9000+ Copywriter jobs in United States",
+        "Today's top 9000+ Copywriter jobs in United States. Leverage your professional network, and get hired.")
+    assert pipeline.not_a_hiring_post(
+        "92 Copywriter Jobs in Charleston, South Carolina",
+        "Senior Copywriter. Growth Marketing & Content Manager.")
+    assert pipeline.not_a_hiring_post(
+        "10000+ Funnel Builder jobs in United States",
+        "New Funnel Builder jobs added daily.")
+    assert not pipeline.not_a_hiring_post(
+        "Funnel Builder",
+        "We are looking for a highly strategic Funnel Builder to join our marketing team. 9000+ brands use the tool.")
+    assert pipeline.not_a_hiring_post(
         "Audience & Connections Strategist at Wpromote",
         "Creative Strategist. Rocket Money. Browse Marketing jobs.")
     assert not pipeline.not_a_hiring_post(
