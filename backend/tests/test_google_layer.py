@@ -627,6 +627,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "A recruiting landing page is a standalone, single-purpose page built for one campaign.",
         query='hiring "landing page"',
         url="https://www.joveo.com/blog/recruiting-landing-page-builders/")
+    assert pipeline.not_a_hiring_post(
+        "8 Mistakes DTC Brands Make When Hiring a Creative Strategist",
+        "Over-indexing on beautiful portfolios is one of the most common mistakes hiring creative strategist candidates.",
+        url="https://www.constanthire.com/posts/8-mistakes-dtc-brands-make-when-hiring-a-creative-strategist")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a creative strategist",
+        "8 mistakes DTC brands make when hiring a creative strategist are listed in the brief.",
+        url="https://careers.example.com/creative-strategist")
     assert not pipeline.not_a_hiring_post(
         "Landing page builder",
         "We are hiring someone to build landing pages. We compared 9 best tools first.",
