@@ -312,6 +312,12 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
     assert not pipeline.not_a_hiring_post(
         "We're hiring a funnel builder",
         "Cost to build the pages is covered. Send a Fiverr profile if you have one.")
+    assert pipeline.not_a_hiring_post(
+        "Marketing Copywriter - BIS Safety Software",
+        "This job post is closed and the position is probably filled. Please do not apply.")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "Please do not apply unless you have a portfolio of live emails.")
     assert not pipeline.not_a_hiring_post(
         "We're hiring a copywriter",
         "Send a portfolio. We also post roles on our jobs board.")
