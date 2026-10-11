@@ -154,7 +154,8 @@ _FUNNEL_PRODUCT_PAGE = re.compile(
 # A post that is also hiring someone stays.
 _LANDING_PAGE_TOOL = re.compile(
     r"\bcapture job seeker information\b"
-    r"|\bwithout a designer or developer\b",
+    r"|\bwithout a designer or developer\b"
+    r"|\blanding page setup wizard\b",
     re.I,
 )
 # "Find freelance funnel builder jobs" is a signup for people offering services.
@@ -294,6 +295,9 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
         return True
     # A LinkedIn profile is a person, not an opening. Job pages are /jobs/view.
     if "linkedin.com/in/" in low_url or "linkedin.com/pub/" in low_url:
+        return True
+    # LinkedIn's hiring product explains a landing-page wizard. It is not an opening.
+    if "business.linkedin.com/hire/landing-pages" in low_url:
         return True
     if "moderncopywriter.com/category" in low_url or _ALL_JOB_POSTS.search(title):
         return True

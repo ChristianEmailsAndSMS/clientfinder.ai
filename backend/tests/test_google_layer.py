@@ -541,6 +541,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Landing Pages | Hiring on LinkedIn",
         "Learn how to build a Landing Page and attract talent.")
     assert pipeline.not_a_hiring_post(
+        "Landing Pages | Hiring on LinkedIn",
+        "A more robust hiring strategy. A screenshot of the landing page setup wizard that asks you to gather your content.",
+        url="https://business.linkedin.com/hire/landing-pages")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a landing page builder",
+        "You'll use the landing page setup wizard in the brief.",
+        url="https://example.com/jobs/landing-page-builder")
+    assert pipeline.not_a_hiring_post(
         "Recruitment Landing Page Examples: What Works + Best",
         "Recruitment landing page best practices. Match your ad to your headline.")
     assert not pipeline.not_a_hiring_post(
