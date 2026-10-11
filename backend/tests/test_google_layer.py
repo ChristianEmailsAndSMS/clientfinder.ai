@@ -766,6 +766,15 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "You'll have a funnel builder at your fingertips and a designer on the team.",
         query='hiring "funnel builder"')
     assert pipeline.not_a_hiring_post(
+        "Hiring Funnel Builder | Spearlance",
+        "Create professional job listings with AI-generated descriptions and Google for Jobs schema. Paying $4,000+ Per Hire. Own Your Hiring Pipeline.",
+        query='hiring "funnel builder"',
+        url="https://my.hiringapp.io/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a funnel builder",
+        "You'll add a Google for Jobs schema to the career page and own your hiring pipeline.",
+        query='hiring "funnel builder"')
+    assert pipeline.not_a_hiring_post(
         "Find freelance funnel builder jobs",
         "Looking for clients as a freelance funnel builder? Sign up and offer your services.",
         query='hiring "funnel builder"',

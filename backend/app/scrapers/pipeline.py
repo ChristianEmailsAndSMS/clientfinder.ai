@@ -156,6 +156,12 @@ _FREELANCE_DIRECTORY = re.compile(
 # "We provide copywriting services" on a writer-jobs page is the agency selling work.
 # A post that is also hiring someone stays.
 _COPYWRITING_SERVICES = re.compile(r"\bwe provide copywriting services\b", re.I)
+# Spearlance sells hiring software. "Google for Jobs schema" and "Own Your Hiring Pipeline"
+# are the product, not an opening. A post that is also hiring someone stays.
+_HIRING_SOFTWARE = re.compile(
+    r"\bgoogle for jobs schema\b|\bown your hiring pipeline\b",
+    re.I,
+)
 # "I have 4+ years" under a #hiring tag is someone selling themselves. "We're hiring" plus that line is still a job.
 _FIRST_PERSON_YEARS = re.compile(r"\bi have \d+\+?\s*years\b", re.I)
 # "Hi, I'm a copywriter" is the same ad. "Hi, I'm a founder and we're hiring" is not, and neither is
@@ -273,6 +279,8 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     if _FREELANCE_DIRECTORY.search(blob):
         return True
     if _COPYWRITING_SERVICES.search(blob) and not _HIRING_SOMEONE.search(blob):
+        return True
+    if _HIRING_SOFTWARE.search(blob) and not _HIRING_SOMEONE.search(blob):
         return True
     # On Reddit the role often appears only in the related-posts snippet of a different thread.
     # LinkedIn titles are the author's name, so this check stays on reddit.com.
