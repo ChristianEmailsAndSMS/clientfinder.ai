@@ -619,6 +619,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "I've been applying to multiple companies via LinkedIn but never get any interview.",
         url="https://www.reddit.com/r/CreativeStrategists/comments/abc/how_to_get_into/")
     assert pipeline.not_a_hiring_post(
+        "Is being an Email Copywriter still in demand in 2025?",
+        "I'm planning to learn more about email copywriting as a beginner in the freelancer world.",
+        url="https://www.reddit.com/r/copywriting/comments/1l3zo0n/is_being_an_email_copywriter_still_in_demand_in/")
+    assert not pipeline.not_a_hiring_post(
+        "Email Copywriter",
+        "Email copywriting is still in demand. We are hiring an email copywriter.",
+        url="https://jobs.smartrecruiters.com/InstantEmailCopy/743999692475726-email-copywriter")
+    assert pipeline.not_a_hiring_post(
         "What to look for when hiring a creative strategist?",
         "I run a DTC beauty brand and I've never hired for this before.",
         url="https://www.reddit.com/r/AskMarketing/comments/abc/what_to_look_for/")

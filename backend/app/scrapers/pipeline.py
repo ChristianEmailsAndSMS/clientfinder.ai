@@ -112,6 +112,7 @@ _ADVICE_TITLE = re.compile(
     r"|\bpsa to anyone hiring\b"
     r"|^\s*how to make a\b"
     r"|^\s*how to get into\b"
+    r"|^\s*is\b.{0,80}\bstill in demand\b"
     r"|^\s*what to look for when hiring\b"
     r"|\bexamples:\s*what works\b"
     r"|^\s*what does (?:a|an)\b.{0,60}\bdo\b"
