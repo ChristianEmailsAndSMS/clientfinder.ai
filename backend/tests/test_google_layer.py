@@ -602,6 +602,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Email Marketer Job Description Template",
         "As an email marketer, you will develop, implement and optimise email marketing strategies for our company.",
         url="https://business.linkedin.com/hire/resources/how-to-hire-guides/email-marketer-job-description")
+    assert pipeline.not_a_hiring_post(
+        "Strategy to Hire a Skilled Email Marketer | Equip",
+        "Includes what to look for while hiring an email marketer, skills to test, and sample questions.",
+        url="https://equip.co/resources/how-to-hire-email-marketer-mugie/")
+    assert not pipeline.not_a_hiring_post(
+        "Email Marketer",
+        "Strategy to hire a skilled email marketer is in the brief. We are hiring an email marketer.",
+        url="https://jobs.example.com/email-marketer")
     assert not pipeline.not_a_hiring_post(
         "Funnel Builder",
         "We are looking for a Funnel Builder to join our marketing team. See the job description template in the doc.",

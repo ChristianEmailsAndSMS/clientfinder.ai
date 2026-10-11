@@ -124,6 +124,7 @@ _ADVICE_TITLE = re.compile(
     r"|^\s*how to make a\b"
     r"|^\s*how to get into\b"
     r"|^\s*how i got\b"
+    r"|^\s*strategy to hire\b"
     r"|^\s*is\b.{0,80}\bstill in demand\b"
     r"|^\s*what to look for when hiring\b"
     r"|\bexamples:\s*what works\b"
@@ -262,8 +263,8 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
         return True
     if _RECRUITMENT_AGENCY_TITLE.search(title) and _HIRE_IN_TITLE.search(title):
         return True
-    # LinkedIn's how-to-hire guides are sample descriptions, not openings.
-    if "how-to-hire-guide" in (url or "").lower() or _JOB_TEMPLATE.search(title):
+    # LinkedIn and Equip how-to-hire pages are sample descriptions, not openings.
+    if "how-to-hire" in (url or "").lower() or _JOB_TEMPLATE.search(title):
         return True
     if (_SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _DIRECTORY_TITLE.search(title)
             or _JOBS_INDEX_TITLE.search(title) or _JOB_COUNT_INDEX.search(title)
