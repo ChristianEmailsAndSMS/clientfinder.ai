@@ -57,6 +57,8 @@ _TOP_N_JOBS = re.compile(
     r"|^\s*top\s+[a-z]+\s+jobs\b",
     re.I,
 )
+# "Creative Strategy Jobs – Reduced Hours (2026)" is a category page. A job that offers reduced hours stays.
+_REDUCED_HOURS_INDEX = re.compile(r"\bjobs\b.{0,30}\breduced hours\b", re.I)
 # "Copywriter Jobs in October 2026" and "Copywriting Jobs (October 2026)" are monthly lists.
 _DATED_JOBS_INDEX = re.compile(
     r"\bjobs\s+in\s+(?:january|february|march|april|may|june|july|august|september|"
@@ -213,7 +215,7 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
             or _JOB_COUNT_SUFFIX.search(title) or _DATED_JOBS_INDEX.search(title)
             or _AGGREGATOR_TITLE.search(title) or _SALARY_JOBS_INDEX.search(blob)
             or _OPEN_ROLES_TITLE.search(title) or _JOBS_IN_PLACE.search(title)
-            or _TOP_N_JOBS.search(title)
+            or _TOP_N_JOBS.search(title) or _REDUCED_HOURS_INDEX.search(title)
             or _DIRECTORY.search(blob) or _BROWSE_JOBS.search(blob)
             or _ADVICE.search(blob) or _ADVICE_TITLE.search(title) or _PRICE_QUESTION.search(blob)
             or _CLOSED_JOB.search(blob) or _NOT_A_JOB_PAGE.search(blob)):

@@ -441,6 +441,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We are hiring a copywriter. Search for the best work in your portfolio.",
         url="https://example.com/jobs/copywriter")
     assert pipeline.not_a_hiring_post(
+        "Creative Strategy Jobs – Reduced Hours (2026)",
+        "Hiring companies include Canva, Power Digital, and Suno.",
+        url="https://4dayweek.io/creative-strategy-jobs")
+    assert not pipeline.not_a_hiring_post(
+        "Creative Strategist",
+        "Rocket Money is hiring a Creative Strategist. Reduced hours, four-day week.",
+        url="https://4dayweek.io/job/creative-strategist-rocket-money")
+    assert pipeline.not_a_hiring_post(
         "Remote copywriter jobs in Davidson, NC",
         "Browse 20 Remote Copywriter job openings from Davidson, NC.",
         url="https://www.indeed.com/q-remote-copywriter-l-davidson,-nc-jobs.html")
