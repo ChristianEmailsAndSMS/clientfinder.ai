@@ -393,6 +393,12 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Hi everyone, I'm hiring for a freelance copywriter.",
         query="hiring copywriter",
         url="https://www.linkedin.com/posts/carol_activity")
+    assert pipeline.not_a_hiring_post(
+        '"is anyone hiring for a brand & creative strategist in nyc?',
+        "is anyone hiring for a brand & creative strategist in nyc? my friend with 9+ yoe is looking to move")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a creative strategist",
+        "is anyone hiring? No. We're hiring a creative strategist for the brand team")
 
 
 # ---------- pipeline ----------

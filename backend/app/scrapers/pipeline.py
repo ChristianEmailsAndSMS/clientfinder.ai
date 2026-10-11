@@ -59,6 +59,8 @@ _HIRING_SOMEONE = re.compile(
     r"\b(we(?:'re| are) hiring|we(?:'re| are) looking|looking for (?:a|someone)|now hiring|is hiring)\b",
     re.I,
 )
+# "is anyone hiring" is a person looking for work, often for a friend. "We're hiring" in the same post is an opening.
+_JOB_SEEKER = re.compile(r"\bis anyone hiring\b", re.I)
 
 
 _ROLE_STOPWORDS = frozenset({
@@ -83,7 +85,7 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     blob = f"{title}\n{snippet or ''}"
     if _SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _ADVICE.search(blob) or _ADVICE_TITLE.search(title):
         return True
-    if (_FIRST_PERSON_YEARS.search(blob) or _FIRST_PERSON_INTRO.search(blob)) and not _HIRING_SOMEONE.search(blob):
+    if (_FIRST_PERSON_YEARS.search(blob) or _FIRST_PERSON_INTRO.search(blob) or _JOB_SEEKER.search(blob)) and not _HIRING_SOMEONE.search(blob):
         return True
     # Title only. A real funnel-builder post can mention working with engineers in the body.
     if re.search(r"funnel builder", query or "", re.I) and _ENGINEERING_ROLE.search(title):
