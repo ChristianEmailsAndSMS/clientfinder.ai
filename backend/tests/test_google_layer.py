@@ -368,6 +368,15 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Remote Copywriter Jobs ($69K to $103K)",
         "Search 216 copywriter remote jobs. 26 added this week.",
         url="https://www.remoterocketship.com/jobs/copywriter/")
+    assert pipeline.not_a_hiring_post(
+        "Copywriter Jobs in Miami (492 Open Roles)",
+        "492 Copywriter Jobs in Miami. Digital Copywriter. Junior Copywriter. Lead, Copywriter.")
+    assert pipeline.not_a_hiring_post(
+        "Creative strategist jobs",
+        "Creative Strategist. Reach Digital. Creative Strategist. Ecom Warrior Academy.")
+    assert not pipeline.not_a_hiring_post(
+        "Creative Strategist at Reach Digital",
+        "492 people on the marketing team. Open roles are listed separately.")
     assert not pipeline.not_a_hiring_post(
         "Remote Copywriter at YO IT Consulting",
         "5+ years of professional experience in copywriting. Salary $69K to $103K.",

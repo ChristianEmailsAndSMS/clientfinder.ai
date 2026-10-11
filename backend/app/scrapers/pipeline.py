@@ -44,6 +44,12 @@ _SALARY_JOBS_INDEX = re.compile(
     r"|\bsearch\s+\d[\d,]*\s+.{0,60}\bjobs\b",
     re.I,
 )
+# "Copywriter Jobs in Miami (492 Open Roles)" and a title that is only "Creative strategist jobs".
+_OPEN_ROLES_TITLE = re.compile(
+    r"\(\s*\d[\d,]*\s+open roles\s*\)"
+    r"|^\s*(?:remote\s+)?(?:copywriter|creative strategist|funnel builder|email marketer|email copywriter|landing page)\s+jobs\s*$",
+    re.I,
+)
 # Title only. A real post can mention a template in the description.
 _JOB_TEMPLATE = re.compile(r"\bjob description template\b", re.I)
 # A "hiring landing page" search returns templates, galleries, stock files, and docs. Not openings.
@@ -152,6 +158,7 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     if (_SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _DIRECTORY_TITLE.search(title)
             or _JOBS_INDEX_TITLE.search(title) or _JOB_COUNT_INDEX.search(title)
             or _AGGREGATOR_TITLE.search(title) or _SALARY_JOBS_INDEX.search(blob)
+            or _OPEN_ROLES_TITLE.search(title)
             or _DIRECTORY.search(blob) or _BROWSE_JOBS.search(blob)
             or _ADVICE.search(blob) or _ADVICE_TITLE.search(title) or _PRICE_QUESTION.search(blob)
             or _CLOSED_JOB.search(blob) or _NOT_A_JOB_PAGE.search(blob)):
