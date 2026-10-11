@@ -44,6 +44,12 @@ _ENGINEERING_ROLE = re.compile(
 )
 # "I have 4+ years" under a #hiring tag is someone selling themselves. "We're hiring" plus that line is still a job.
 _FIRST_PERSON_YEARS = re.compile(r"\bi have \d+\+?\s*years\b", re.I)
+# "Hi, I'm a copywriter" is the same ad. "Hi, I'm a founder and we're hiring" is not, and neither is
+# "Hi everyone, I'm hiring" (that line has no "a/an" before a role).
+_FIRST_PERSON_INTRO = re.compile(
+    r"\bhi[,!]?\s+i(?:'m| am)\s+(?:a|an)\s+(?:\w+\s+){0,3}?(?:copywriters?|writers?|freelancers?|marketers?|strategists?|builders?)\b",
+    re.I,
+)
 _HIRING_SOMEONE = re.compile(
     r"\b(we(?:'re| are) hiring|we(?:'re| are) looking|looking for (?:a|someone)|now hiring|is hiring)\b",
     re.I,
@@ -56,7 +62,7 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "") -> bool:
     blob = f"{title}\n{snippet or ''}"
     if _SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _ADVICE.search(blob) or _ADVICE_TITLE.search(title):
         return True
-    if _FIRST_PERSON_YEARS.search(blob) and not _HIRING_SOMEONE.search(blob):
+    if (_FIRST_PERSON_YEARS.search(blob) or _FIRST_PERSON_INTRO.search(blob)) and not _HIRING_SOMEONE.search(blob):
         return True
     # Title only. A real funnel-builder post can mention working with engineers in the body.
     if re.search(r"funnel builder", query or "", re.I) and _ENGINEERING_ROLE.search(title):

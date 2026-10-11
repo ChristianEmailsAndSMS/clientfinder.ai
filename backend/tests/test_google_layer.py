@@ -335,6 +335,21 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
     assert pipeline.not_a_hiring_post(
         "#hiring | Marina Aghbalyan",
         "AI FUNNEL BUILDER I have 4+ years of hands-on experience with GoHighLevel")
+    assert pipeline.not_a_hiring_post(
+        "LinkedIn Ghostwriter | Newsletter & Case Study Writer",
+        "Hi, I'm a copywriter and content writer specializing in helping startups")
+    assert not pipeline.not_a_hiring_post(
+        "Agency post",
+        "Hi, I'm a copywriter and we're hiring a designer to pair with me")
+    assert not pipeline.not_a_hiring_post(
+        "Carol Dasaro's Post",
+        "Hi everyone, I'm hiring for a freelance copywriter. We're looking for someone with 3-7 years")
+    assert not pipeline.not_a_hiring_post(
+        "Founder post",
+        "Hi, I'm a founder and we're hiring a copywriter")
+    assert not pipeline.not_a_hiring_post(
+        "I am a Funnel Builder/Designer & CRM automation specialist",
+        "Now Hiring: Funnel Builder Genius. We're looking for a skilled funnel builder")
     assert not pipeline.not_a_hiring_post(
         "We're hiring a funnel builder",
         "I have 8 years running this studio and we need a builder")
