@@ -1,12 +1,11 @@
 """What the Google layer searches, how often, and within what budget.
 
-Plan = hiring phrases on the open web, plus copywriting / email / creative-strategy terms on
-LinkedIn (posts and individual jobs), X, Facebook, Reddit, and remote job boards. The query shape is
-`site:linkedin.com/posts copywriting jobs`. Board scopes include the path of an individual opening
-(`site:himalayas.app/companies`, `site:tryremotely.com/job/`) so category indexes and salary guides
-are not the search. Each query re-runs every GOOGLE_QUERY_CYCLE_HOURS with a past-24h filter (a
-never-run query backfills a week first). Every search is logged in `search_queries`; that log decides
-what is due and counts the monthly spend, so a restart can never double-spend or blow the budget."""
+Plan = hiring phrases on the open web, hiring language on LinkedIn posts, X, Facebook, and Reddit
+hiring threads, plus copywriting / email / creative-strategy terms on LinkedIn job pages and remote
+boards. Board scopes include the path of an individual opening (`site:himalayas.app/companies`) so
+category indexes are not the search. Each query re-runs every GOOGLE_QUERY_CYCLE_HOURS with a past-24h
+filter (a never-run query backfills a week first). Every search is logged in `search_queries`; that log
+decides what is due and counts the monthly spend, so a restart can never double-spend or blow the budget."""
 from __future__ import annotations
 
 import logging
@@ -34,8 +33,8 @@ OPEN_WEB: tuple[str, ...] = (
     '"hiring funnel builder"',
     '"copywriter wanted"',
 )
-# What a person actually types. site:linkedin.com copywriting jobs returns LinkedIn.
-# /posts and /jobs/view are the individual posts and openings, not the "9,000 jobs" category pages.
+# What a person actually types on a job board. site:himalayas.app/companies copywriter jobs
+# stays on individual openings. "hiring copywriter" was checked live on each board below.
 TERMS: tuple[str, ...] = (
     "copywriting jobs",
     "copywriter jobs",
@@ -46,20 +45,28 @@ TERMS: tuple[str, ...] = (
     "funnel builder jobs",
     "landing page jobs",
 )
-# Social. /posts and /jobs/view are individual LinkedIn posts and openings, not the "9,000 jobs" pages.
-SOCIAL_SCOPES: tuple[str, ...] = (
+# Posts. "creative strategist jobs" on X and Reddit is commentary. Hiring language is the post.
+POST_TERMS: tuple[str, ...] = (
+    '"hiring" copywriter',
+    '"hiring" "email copywriter"',
+    '"hiring" "email marketer"',
+    '"hiring" "creative strategist"',
+    '"hiring" "funnel builder"',
+    '"hiring" "landing page"',
+)
+# /posts are individual LinkedIn posts. Reddit is the hiring subs, not career-advice threads.
+POST_SCOPES: tuple[str, ...] = (
     "linkedin.com/posts",
-    "linkedin.com/jobs/view",
     "x.com",
     "facebook.com",
-    "reddit.com",
+    "reddit.com/r/forhire/comments",
+    "reddit.com/r/hiring/comments",
 )
-# Remote boards checked against live Google results. The path is the individual job, not the
-# category index (so site:himalayas.app/companies, not site:himalayas.app/jobs).
+# Remote boards whose public pages are individual jobs, and LinkedIn's job pages.
+# tryremotely.com and creatorjobboard.com are omitted: site: searches for "hiring copywriter" returned nothing.
 REMOTE_SCOPES: tuple[str, ...] = (
     "dynamitejobs.com/company",
     "himalayas.app/companies",
-    "tryremotely.com/job/",
     "nodesk.co/remote-jobs/",
     "workingnomads.com/job/go",
     "weworkremotely.com/remote-jobs/",
@@ -67,7 +74,6 @@ REMOTE_SCOPES: tuple[str, ...] = (
     "jobs.workable.com/view/",
     "contentjobs.co/jobs/",
     "jobspresso.co/job/",
-    "creatorjobboard.com/jobs/",
     "euremotejobs.com/job/",
     "remote.co/job-details/",
     "remoterocketship.com/company",
@@ -75,7 +81,8 @@ REMOTE_SCOPES: tuple[str, ...] = (
     "remoteok.com/remote-jobs/",
     "remotive.com/remote/jobs/",
 )
-SITE_SCOPES: tuple[str, ...] = SOCIAL_SCOPES + REMOTE_SCOPES
+JOB_SCOPES: tuple[str, ...] = ("linkedin.com/jobs/view",) + REMOTE_SCOPES
+SITE_SCOPES: tuple[str, ...] = POST_SCOPES + JOB_SCOPES
 ERROR_RETRY_AFTER = timedelta(hours=1)
 MAX_BACKOFF = 14    # base cycle x 14 = 7 days at the default 12h: the slowest a dead query ever runs
 BACKOFF_GRACE = 2   # a quiet query is normal; backoff starts after the 3rd consecutive empty run
@@ -93,7 +100,8 @@ class QuerySpec:
 
 def build_plan() -> list[QuerySpec]:
     texts = list(OPEN_WEB)
-    texts += [f"site:{site} {term}" for site in SITE_SCOPES for term in TERMS]
+    texts += [f"site:{site} {term}" for site in POST_SCOPES for term in POST_TERMS]
+    texts += [f"site:{site} {term}" for site in JOB_SCOPES for term in TERMS]
     return [QuerySpec(t, "d") for t in texts]
 
 

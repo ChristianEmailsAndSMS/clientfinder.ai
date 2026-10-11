@@ -86,7 +86,11 @@ def on_site(url: str, site: str) -> bool:
         hosts.add(alt)
     if not any(host == h or host.endswith("." + h) for h in hosts):
         return False
-    if site_path and site_path not in (parsed.path or "").lower().lstrip("/"):
+    path = (parsed.path or "").lower()
+    if site_path and site_path not in path.lstrip("/"):
+        return False
+    # site:x.com also returns profiles and articles. Hiring posts live under /status/.
+    if site_host in {"x.com", "twitter.com"} and "/status/" not in path:
         return False
     return True
 

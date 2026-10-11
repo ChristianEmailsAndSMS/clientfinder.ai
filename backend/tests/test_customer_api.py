@@ -226,7 +226,8 @@ def test_a_search_runs_stores_jobs_and_charges_exactly_what_it_cost(env, live):
     assert ("site:linkedin.com/posts hiring copywriter", settings.user_search_results, "w") in live.searches
     assert ("site:x.com hiring copywriter", settings.user_search_results, "w") in live.searches
     assert ("site:facebook.com hiring copywriter", settings.user_search_results, "w") in live.searches
-    assert ("site:reddit.com hiring copywriter", settings.user_search_results, "w") in live.searches
+    assert ("site:reddit.com/r/forhire/comments hiring copywriter", settings.user_search_results, "w") in live.searches
+    assert ("site:reddit.com/r/hiring/comments hiring copywriter", settings.user_search_results, "w") in live.searches
     assert ("site:dynamitejobs.com/company hiring copywriter", settings.user_search_results, "w") in live.searches
     assert ("site:himalayas.app/companies hiring copywriter", settings.user_search_results, "w") in live.searches
     assert ("site:remotive.com/remote/jobs/ hiring copywriter", settings.user_search_results, "w") in live.searches
@@ -266,10 +267,10 @@ def test_repeating_a_search_is_free_and_served_from_the_database(env, live):
 
 def test_different_options_are_different_searches_and_the_cache_expires(env, live, monkeypatch):
     c = member(env, balance_usd=5)
-    run(c); run(c, freshness="d"); run(c, site="reddit.com")
+    run(c); run(c, freshness="d"); run(c, site="reddit.com/r/forhire/comments")
     n = len(live_search.search_targets("hiring copywriter", None))
     assert live.searches[0][0] == "hiring copywriter" and live.searches[0][2] == "w"
-    assert ("site:reddit.com hiring copywriter", settings.user_search_results, "w") in live.searches
+    assert ("site:reddit.com/r/forhire/comments hiring copywriter", settings.user_search_results, "w") in live.searches
     assert [f for _, _, f in live.searches].count("d") == n
     with env.scope() as db:
         db.query(UserSearch).update({UserSearch.finished_at: utcnow() - timedelta(hours=settings.search_cache_hours + 1)})
