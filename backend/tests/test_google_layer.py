@@ -330,6 +330,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Creative Strategist | City of New York Jobs",
         "The Creative Strategist will develop creative ideas for the agency.",
         url="https://cityjobs.nyc.gov/job/creative-strategist-in-manhattan-jid-32088")
+    assert pipeline.not_a_hiring_post(
+        "Hiring Email Copywriter",
+        "Hiring Email Copywriter. $8-15 AUD / hour. Closed. Posted almost 5 years ago.",
+        url="https://www.freelancer.com/projects/articles/hiring-email-copywriter")
+    assert not pipeline.not_a_hiring_post(
+        "Email Copywriter",
+        "We are hiring an email copywriter. The last hire started 5 years ago.",
+        url="https://example.com/jobs/email-copywriter")
     assert not pipeline.not_a_hiring_post(
         "We're hiring a copywriter",
         "Please do not apply unless you have a portfolio of live emails.")
