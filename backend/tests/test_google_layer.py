@@ -323,6 +323,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Marketing Copywriter - BIS Safety Software",
         "This job post is closed and the position is probably filled. Please do not apply.")
     assert pipeline.not_a_hiring_post(
+        "We are hiring: Creative Director",
+        "We are hiring: Creative Director. This position is now closed.",
+        url="https://theblacksheepagency.com/blog/we-are-hiring-creative-director")
+    assert not pipeline.not_a_hiring_post(
+        "We are hiring: Creative Director",
+        "We are hiring a creative director. The last opening closed last year.",
+        url="https://example.com/jobs/creative-director")
+    assert pipeline.not_a_hiring_post(
         "Creative Strategist | City of New York Jobs",
         "This vacancy has now expired. Minimum Qualifications.",
         url="https://cityjobs.nyc.gov/job/creative-strategist-in-manhattan-jid-32088")

@@ -222,6 +222,7 @@ _PRICE_QUESTION = re.compile(r"^\s*cost to build\b|\bi checked fiverr\b", re.I)
 _CLOSED_JOB = re.compile(
     r"\bjob post is closed\b|\bposition is probably filled\b|\bno longer accepting applications\b"
     r"|\bvacancy has now expired\b"
+    r"|\bthis position is now closed\b"
     r"|\bclosed\.\s*posted\b|\bposted almost \d+\s+years ago\b"
     r"|\barchived post\b|\bnew comments cannot be posted\b",
     re.I,
