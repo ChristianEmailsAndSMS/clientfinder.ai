@@ -374,6 +374,18 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
     assert pipeline.not_a_hiring_post(
         "Creative strategist jobs",
         "Creative Strategist. Reach Digital. Creative Strategist. Ecom Warrior Academy.")
+    assert pipeline.not_a_hiring_post(
+        "Copywriter Jobs in October 2026",
+        "Find a Copywriter job at a fast-growing startup.",
+        url="https://startup.jobs/roles/copywriter")
+    assert pipeline.not_a_hiring_post(
+        "Copywriting Jobs (October 2026)",
+        "313 Copywriting jobs available at Startup Jobs.",
+        url="https://startup.jobs/copywriting-jobs")
+    assert not pipeline.not_a_hiring_post(
+        "Funnel Builder",
+        "We are looking for a Funnel Builder to join in October 2026.",
+        url="https://www.multiplymii.com/job-description/funnel-builder")
     assert not pipeline.not_a_hiring_post(
         "Creative Strategist at Reach Digital",
         "492 people on the marketing team. Open roles are listed separately.")

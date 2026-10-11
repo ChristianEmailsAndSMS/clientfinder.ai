@@ -46,6 +46,14 @@ _SALARY_JOBS_INDEX = re.compile(
 )
 # "Top 38 Email copywriter Jobs in Remote" is a result list even when the host is not in the URL check.
 _TOP_N_JOBS = re.compile(r"^\s*top\s+\d[\d,]*\s+.{0,60}\bjobs\b", re.I)
+# "Copywriter Jobs in October 2026" and "Copywriting Jobs (October 2026)" are monthly lists.
+_DATED_JOBS_INDEX = re.compile(
+    r"\bjobs\s+in\s+(?:january|february|march|april|may|june|july|august|september|"
+    r"october|november|december)\s+20\d\d\b"
+    r"|\bjobs\s*\(\s*(?:january|february|march|april|may|june|july|august|september|"
+    r"october|november|december)\s+20\d\d\s*\)",
+    re.I,
+)
 # "Copywriter Jobs in Miami (492 Open Roles)" and a title that is only "Creative strategist jobs".
 _OPEN_ROLES_TITLE = re.compile(
     r"\(\s*\d[\d,]*\s+open roles\s*\)"
@@ -173,6 +181,7 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
         return True
     if (_SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _DIRECTORY_TITLE.search(title)
             or _JOBS_INDEX_TITLE.search(title) or _JOB_COUNT_INDEX.search(title)
+            or _DATED_JOBS_INDEX.search(title)
             or _AGGREGATOR_TITLE.search(title) or _SALARY_JOBS_INDEX.search(blob)
             or _OPEN_ROLES_TITLE.search(title) or _TOP_N_JOBS.search(title)
             or _DIRECTORY.search(blob) or _BROWSE_JOBS.search(blob)
