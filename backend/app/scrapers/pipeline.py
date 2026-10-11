@@ -61,6 +61,12 @@ _DATED_JOBS_INDEX = re.compile(
     r"october|november|december)\s+20\d\d\s*\)",
     re.I,
 )
+# "Creative Strategist Jobs in Atlanta" and "Creative Strategist jobs in New York" are city lists.
+_JOBS_IN_PLACE = re.compile(
+    r"^\s*(?:remote\s+)?(?:copywriters?|copywriting|creative strategists?|funnel builders?|"
+    r"email marketers?|email copywriters?|landing pages?)\s+jobs\s+in\b",
+    re.I,
+)
 # "Copywriter Jobs in Miami (492 Open Roles)" and a title that is only "Creative strategist jobs".
 _OPEN_ROLES_TITLE = re.compile(
     r"\(\s*\d[\d,]*\s+open roles\s*\)"
@@ -202,7 +208,8 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
             or _JOBS_INDEX_TITLE.search(title) or _JOB_COUNT_INDEX.search(title)
             or _JOB_COUNT_SUFFIX.search(title) or _DATED_JOBS_INDEX.search(title)
             or _AGGREGATOR_TITLE.search(title) or _SALARY_JOBS_INDEX.search(blob)
-            or _OPEN_ROLES_TITLE.search(title) or _TOP_N_JOBS.search(title)
+            or _OPEN_ROLES_TITLE.search(title) or _JOBS_IN_PLACE.search(title)
+            or _TOP_N_JOBS.search(title)
             or _DIRECTORY.search(blob) or _BROWSE_JOBS.search(blob)
             or _ADVICE.search(blob) or _ADVICE_TITLE.search(title) or _PRICE_QUESTION.search(blob)
             or _CLOSED_JOB.search(blob) or _NOT_A_JOB_PAGE.search(blob)):

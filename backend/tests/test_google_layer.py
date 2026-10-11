@@ -398,6 +398,18 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Creative strategist jobs",
         "Creative Strategist. Reach Digital. Creative Strategist. Ecom Warrior Academy.")
     assert pipeline.not_a_hiring_post(
+        "Creative Strategist Jobs in Atlanta Metropolitan Area ...",
+        "1,000+ Creative Strategist Jobs in Atlanta Metropolitan Area. Senior Manager, Creative Strategy.",
+        url="https://www.linkedin.com/jobs/creative-strategist-jobs-atlanta-metropolitan-area")
+    assert pipeline.not_a_hiring_post(
+        "Creative Strategist jobs in New York",
+        "Discover the latest Creative Strategist jobs at the fastest growing startups in New York.",
+        url="https://startup.jobs/locations/new-york/creative-strategist")
+    assert not pipeline.not_a_hiring_post(
+        "Creative Strategist",
+        "We are hiring a Creative Strategist in New York. 1,000+ brands in the category.",
+        url="https://www.linkedin.com/jobs/view/creative-strategist-123")
+    assert pipeline.not_a_hiring_post(
         "Copywriter Jobs in October 2026",
         "Find a Copywriter job at a fast-growing startup.",
         url="https://startup.jobs/roles/copywriter")
