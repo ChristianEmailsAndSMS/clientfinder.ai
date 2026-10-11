@@ -44,6 +44,8 @@ _SALARY_JOBS_INDEX = re.compile(
     r"|\bsearch\s+\d[\d,]*\s+.{0,60}\bjobs\b",
     re.I,
 )
+# "Top 38 Email copywriter Jobs in Remote" is a result list even when the host is not in the URL check.
+_TOP_N_JOBS = re.compile(r"^\s*top\s+\d[\d,]*\s+.{0,60}\bjobs\b", re.I)
 # "Copywriter Jobs in Miami (492 Open Roles)" and a title that is only "Creative strategist jobs".
 _OPEN_ROLES_TITLE = re.compile(
     r"\(\s*\d[\d,]*\s+open roles\s*\)"
@@ -142,6 +144,11 @@ def _marketplace_index(url: str) -> bool:
         return True
     if "roberthalf.com" in u and "/jobs/all/" in u:
         return True
+    # Indeed /q-...-jobs.html and SimplyHired /search are result lists, not one opening.
+    if "indeed.com" in u and ("/q-" in u or u.split("?", 1)[0].rstrip("/").endswith("-jobs.html")):
+        return True
+    if "simplyhired.com/search" in u:
+        return True
     return False
 
 
@@ -160,7 +167,7 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     if (_SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _DIRECTORY_TITLE.search(title)
             or _JOBS_INDEX_TITLE.search(title) or _JOB_COUNT_INDEX.search(title)
             or _AGGREGATOR_TITLE.search(title) or _SALARY_JOBS_INDEX.search(blob)
-            or _OPEN_ROLES_TITLE.search(title)
+            or _OPEN_ROLES_TITLE.search(title) or _TOP_N_JOBS.search(title)
             or _DIRECTORY.search(blob) or _BROWSE_JOBS.search(blob)
             or _ADVICE.search(blob) or _ADVICE_TITLE.search(title) or _PRICE_QUESTION.search(blob)
             or _CLOSED_JOB.search(blob) or _NOT_A_JOB_PAGE.search(blob)):

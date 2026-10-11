@@ -377,6 +377,22 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
     assert not pipeline.not_a_hiring_post(
         "Creative Strategist at Reach Digital",
         "492 people on the marketing team. Open roles are listed separately.")
+    assert pipeline.not_a_hiring_post(
+        "Email copywriting jobs",
+        "Email Copywriter. Instant Email Copy. $45,000 - $70,000 a year.",
+        url="https://www.indeed.com/q-email-copywriting-jobs.html")
+    assert pipeline.not_a_hiring_post(
+        "Top 38 Email copywriter Jobs in Remote",
+        "38 Email copywriter jobs available in Remote. See salaries, compare reviews, easily apply.",
+        url="https://www.simplyhired.com/search?q=email+copywriter&l=remote")
+    assert pipeline.not_a_hiring_post(
+        "Remote copywriter jobs in Davidson, NC",
+        "Browse 20 Remote Copywriter job openings from Davidson, NC.",
+        url="https://www.indeed.com/q-remote-copywriter-l-davidson,-nc-jobs.html")
+    assert not pipeline.not_a_hiring_post(
+        "Email Copywriter",
+        "Work within Klaviyo. $45,000 - $70,000 a year.",
+        url="https://www.indeed.com/viewjob?jk=abc123")
     assert not pipeline.not_a_hiring_post(
         "Remote Copywriter at YO IT Consulting",
         "5+ years of professional experience in copywriting. Salary $69K to $103K.",
