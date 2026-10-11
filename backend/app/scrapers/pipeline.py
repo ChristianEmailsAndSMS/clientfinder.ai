@@ -273,6 +273,9 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
         return True
     if "moderncopywriter.com/category" in low_url or _ALL_JOB_POSTS.search(title):
         return True
+    # Expertini reprints one opening across city domains, plus a roles index.
+    if "expertini.com" in low_url:
+        return True
     if "recruitment-agency" in (url or "").lower() or _RECRUITER_PITCH.search(blob):
         return True
     if _RECRUITMENT_AGENCY_TITLE.search(title) and _HIRE_IN_TITLE.search(title):

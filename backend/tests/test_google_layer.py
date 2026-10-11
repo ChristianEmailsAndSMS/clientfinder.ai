@@ -635,6 +635,18 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We're hiring a senior copywriter. See all job posts on the blog.",
         url="https://example.com/jobs/senior-copywriter")
     assert pipeline.not_a_hiring_post(
+        "323+ Hiring Landing Page Builder Ecommerce Vijayawada Oak Media",
+        "323+ roles in Vijayawada, India. Local salary data, AI resume match.",
+        url="https://vijayawada.in.expertini.com/jobs/in/hiring-landing-page-builder-ecommerce-vijayawada-oak-media/")
+    assert pipeline.not_a_hiring_post(
+        "Hiring: Landing Page Builder (Ecommerce) — OAK Media",
+        "View requirements, salary and apply today on Expertini.",
+        url="https://kozhikode.in.expertini.com/job/hiring-landing-page-builder-ecommerce-kozhikode-oak-media-636478425691064827/")
+    assert not pipeline.not_a_hiring_post(
+        "Landing Page Builder",
+        "We are hiring a landing page builder. Apply today on Expertini if you prefer.",
+        url="https://example.com/jobs/landing-page-builder")
+    assert pipeline.not_a_hiring_post(
         "Email Marketer Job Description Template",
         "As an email marketer, you will develop, implement and optimise email marketing strategies for our company.",
         url="https://business.linkedin.com/hire/resources/how-to-hire-guides/email-marketer-job-description")
