@@ -595,6 +595,15 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We're hiring a funnel builder",
         "You'll use Perspective, the #1 Mobile Funnel Builder, to ship the pages.",
         query='hiring "funnel builder"')
+    assert pipeline.not_a_hiring_post(
+        "Say hello to the Heyflow funnel builder",
+        "Heyflow gives you the right funnel builder at your fingertips.",
+        query='hiring "funnel builder"',
+        url="https://heyflow.com/funnel-builder/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a funnel builder",
+        "You'll have a funnel builder at your fingertips and a designer on the team.",
+        query='hiring "funnel builder"')
     assert not pipeline.not_a_hiring_post(
         "NoDesk",
         "Perspective - #1 Mobile Funnel Builder.",
