@@ -403,6 +403,18 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Fixed price, ongoing.",
         url="https://www.upwork.com/jobs/~0123456789")
     assert pipeline.not_a_hiring_post(
+        "Where can I hire an email marketing manager?",
+        "",
+        url="https://www.quora.com/Where-can-I-hire-an-email-marketing-manager")
+    assert pipeline.not_a_hiring_post(
+        "What are the best email marketing jobs in the USA for 2025?",
+        "",
+        url="https://www.quora.com/What-are-the-best-email-marketing-jobs-in-the-USA-for-2025")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring an email marketer",
+        "Where can I hire one? Apply on the careers page.",
+        url="https://example.com/jobs/email-marketer")
+    assert pipeline.not_a_hiring_post(
         "Audience & Connections Strategist at Wpromote",
         "Creative Strategist. Rocket Money. Browse Marketing jobs.")
     assert not pipeline.not_a_hiring_post(

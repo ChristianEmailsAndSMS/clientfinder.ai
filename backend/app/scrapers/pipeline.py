@@ -128,6 +128,9 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     blob = f"{title}\n{snippet or ''}"
     if _marketplace_index(url):
         return True
+    # Quora is people asking where to hire, not an employer posting an opening.
+    if "quora.com" in (url or "").lower():
+        return True
     if (_SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _DIRECTORY_TITLE.search(title)
             or _JOBS_INDEX_TITLE.search(title) or _JOB_COUNT_INDEX.search(title)
             or _DIRECTORY.search(blob) or _BROWSE_JOBS.search(blob)
