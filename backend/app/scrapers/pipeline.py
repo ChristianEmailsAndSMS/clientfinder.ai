@@ -175,6 +175,8 @@ _RECRUITER_PITCH = re.compile(r"\bwe help\b.{0,80}\b(?:founders|brands|companies
 # when the title does not also say hire. Title only, so a description mention stays.
 _RECRUITMENT_AGENCY_TITLE = re.compile(r"\brecruitment agency\b", re.I)
 _HIRE_IN_TITLE = re.compile(r"\bhire\b", re.I)
+# "Copywriter Hiring • 500+ reels on Instagram" is a topic page. Title only.
+_INSTAGRAM_REEL_INDEX = re.compile(r"\breels on instagram\b", re.I)
 # "Cost to build a funnel? I checked Fiverr already" is a price question, not an opening.
 _PRICE_QUESTION = re.compile(r"^\s*cost to build\b|\bi checked fiverr\b", re.I)
 # Remote OK says this when the listing is dead. City jobs says the vacancy has expired.
@@ -234,6 +236,10 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
         return True
     # Quora is people asking where to hire, not an employer posting an opening.
     if "quora.com" in (url or "").lower():
+        return True
+    # Instagram /popular and /explore are reel indexes, not one post.
+    low_url = (url or "").lower()
+    if "instagram.com/popular/" in low_url or "instagram.com/explore/" in low_url or _INSTAGRAM_REEL_INDEX.search(title):
         return True
     if "recruitment-agency" in (url or "").lower() or _RECRUITER_PITCH.search(blob):
         return True

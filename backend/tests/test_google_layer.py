@@ -567,6 +567,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Where can I hire one? Apply on the careers page.",
         url="https://example.com/jobs/email-marketer")
     assert pipeline.not_a_hiring_post(
+        "Copywriter Hiring • 500+ reels on Instagram",
+        "Today, we're spotlighting one of the hottest jobs on Creatively.",
+        url="https://www.instagram.com/popular/copywriter-hiring/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "500+ reels on Instagram taught us the brief. Apply if you write ads.",
+        url="https://www.instagram.com/p/AbC123/")
+    assert pipeline.not_a_hiring_post(
         "Email Marketer Job Description Template",
         "As an email marketer, you will develop, implement and optimise email marketing strategies for our company.",
         url="https://business.linkedin.com/hire/resources/how-to-hire-guides/email-marketer-job-description")
