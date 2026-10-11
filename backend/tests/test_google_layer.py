@@ -322,6 +322,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
     assert pipeline.not_a_hiring_post(
         "Marketing Copywriter - BIS Safety Software",
         "This job post is closed and the position is probably filled. Please do not apply.")
+    assert pipeline.not_a_hiring_post(
+        "Creative Strategist | City of New York Jobs",
+        "This vacancy has now expired. Minimum Qualifications.",
+        url="https://cityjobs.nyc.gov/job/creative-strategist-in-manhattan-jid-32088")
+    assert not pipeline.not_a_hiring_post(
+        "Creative Strategist | City of New York Jobs",
+        "The Creative Strategist will develop creative ideas for the agency.",
+        url="https://cityjobs.nyc.gov/job/creative-strategist-in-manhattan-jid-32088")
     assert not pipeline.not_a_hiring_post(
         "We're hiring a copywriter",
         "Please do not apply unless you have a portfolio of live emails.")

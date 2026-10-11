@@ -129,8 +129,13 @@ _JOB_SEEKER = re.compile(r"\bis anyone hiring\b", re.I)
 _RECRUITER_PITCH = re.compile(r"\bwe help\b.{0,80}\b(?:founders|brands|companies)\s+hire\b", re.I)
 # "Cost to build a funnel? I checked Fiverr already" is a price question, not an opening.
 _PRICE_QUESTION = re.compile(r"^\s*cost to build\b|\bi checked fiverr\b", re.I)
-# Remote OK says this when the listing is dead. "Please do not apply unless..." on a live post stays.
-_CLOSED_JOB = re.compile(r"\bjob post is closed\b|\bposition is probably filled\b|\bno longer accepting applications\b", re.I)
+# Remote OK says this when the listing is dead. City jobs says the vacancy has expired.
+# "Please do not apply unless..." on a live post stays.
+_CLOSED_JOB = re.compile(
+    r"\bjob post is closed\b|\bposition is probably filled\b|\bno longer accepting applications\b"
+    r"|\bvacancy has now expired\b",
+    re.I,
+)
 # These titles are a different job. A title that also names the searched role still stays.
 _OTHER_ROLE_TITLE = re.compile(
     r"\b(?:account managers?|graphics? designers?|performance marketing specialists?)\b",
