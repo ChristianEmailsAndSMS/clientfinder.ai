@@ -146,9 +146,7 @@ def _process(db: Session, source: Source, result: SearchResult, seen: set[str], 
         return
     page, fetched = page_fetcher.fetch_page_for_result(result)
     extracted = llm_extractor.extract(result, page)
-    if extracted.usage:
-        stats["tokens_in"] += extracted.usage.get("input_tokens", 0)
-        stats["tokens_out"] += extracted.usage.get("output_tokens", 0)
+    _add_usage(stats, extracted.usage)
     if not extracted.is_real_job:
         stats["skipped"] += 1
         _resolve_failure(db, result)
@@ -171,8 +169,7 @@ def _run_one(db: Session, source: Source, result: SearchResult, seen: set[str], 
         log.warning("skipping %s: %s", result.url, e)
         stats["skipped"] += 1
         if e.usage:                                          # the model WAS called: those tokens cost money, so they are counted
-            stats["tokens_in"] += e.usage.get("input_tokens", 0)
-            stats["tokens_out"] += e.usage.get("output_tokens", 0)
+            _add_usage(stats, e.usage)
         _record_failure(db, source.key, result, f"extraction: {e}")
     except Exception as e:
         log.exception("pipeline row failed: %s", e)
@@ -182,7 +179,17 @@ def _run_one(db: Session, source: Source, result: SearchResult, seen: set[str], 
 
 def _new_stats(query: str) -> dict:
     return {"query": query, "searched": False, "search_hits": 0, "extracted": 0, "added": 0, "updated": 0,
-            "skipped": 0, "errors": 0, "tokens_in": 0, "tokens_out": 0, "job_ids": []}
+            "skipped": 0, "errors": 0, "tokens_in": 0, "tokens_out": 0, "job_ids": [], "calls": []}
+
+
+def _add_usage(stats: dict, usage: dict | None) -> None:
+    """Count one model call on its own. The long-prompt rate is per call, so calls must not be glued into one prompt."""
+    if not usage:
+        return
+    tin, tout = int(usage.get("input_tokens") or 0), int(usage.get("output_tokens") or 0)
+    stats["tokens_in"] += tin
+    stats["tokens_out"] += tout
+    stats.setdefault("calls", []).append((tin, tout))
 
 
 def _live_ready(stats: dict, what: str) -> bool:

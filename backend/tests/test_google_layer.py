@@ -3,6 +3,7 @@ SerpAPI/Claude/Playwright calls are stubbed; nothing here proves the live servic
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 
+import httpx
 import pytest
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
@@ -48,9 +49,15 @@ def db(monkeypatch):
 # ---------- plan ----------
 def test_plan_has_open_web_and_site_scoped_queries_without_duplicates():
     texts = [q.text for q in build_plan()]
-    assert len(texts) == len(set(texts)) == 10 + 4 * 6
-    assert '"hiring copywriter"' in texts and '"hiring copywriter" site:reddit.com' in texts
+    assert len(texts) == len(set(texts)) == 8 + 8 * 5
+    assert '"hiring copywriter"' in texts
+    assert "site:linkedin.com/posts copywriting jobs" in texts
+    assert "site:linkedin.com/jobs/view copywriter jobs" in texts
+    assert "site:x.com email marketing jobs" in texts
+    assert "site:facebook.com email copywriter jobs" in texts
+    assert "site:reddit.com creative strategy jobs" in texts
     assert all(len(t) <= 256 for t in texts)
+    assert all(not t.startswith('"') or " site:" not in t for t in texts)
 
 
 # ---------- due / budget ----------
@@ -194,8 +201,39 @@ def test_everything_fails_falls_back_to_escaped_snippet(modes):
 
 def test_social_platforms_never_fetch(modes):
     calls = modes(simple=LONG)
-    tw = R.model_copy(update={"platform": "twitter"})
-    assert page_fetcher.fetch_page_for_result(tw)[1] is False and calls == []
+    for platform in ("twitter", "linkedin", "facebook"):
+        calls.clear()
+        row = R.model_copy(update={"platform": platform})
+        assert page_fetcher.fetch_page_for_result(row)[1] is False and calls == []
+
+
+def test_site_query_drops_results_from_other_hosts():
+    assert google_search.on_site("https://www.linkedin.com/posts/a", "linkedin.com/posts")
+    assert google_search.on_site("https://twitter.com/a/status/1", "x.com")
+    assert not google_search.on_site("https://www.ziprecruiter.com/Jobs/Copywriter", "linkedin.com")
+    assert not google_search.on_site("https://www.linkedin.com/jobs/copywriter-jobs", "linkedin.com/jobs/view")
+
+
+def test_quota_falls_back_to_serper_and_keeps_only_the_site(monkeypatch):
+    monkeypatch.setattr(settings, "dev_fixtures", False)
+    monkeypatch.setattr(settings, "serpapi_api_key", "k")
+    monkeypatch.setattr(settings, "serper_api_key", "s")
+    monkeypatch.setattr(settings, "google_search_provider", "serpapi")
+
+    def fake_get(url, **kw):
+        return httpx.Response(429, json={"error": "Your account has run out of searches."}, request=httpx.Request("GET", "https://serpapi.com/search.json"))
+
+    def fake_post(url, **kw):
+        return httpx.Response(200, json={"organic": [
+            {"link": "https://www.linkedin.com/posts/someone_hiring", "title": "Hiring a copywriter", "snippet": "remote"},
+            {"link": "https://www.ziprecruiter.com/Jobs/Copywriter", "title": "Copywriter jobs", "snippet": "browse"},
+        ]}, request=httpx.Request("POST", "https://google.serper.dev/search"))
+
+    monkeypatch.setattr(google_search.httpx, "get", fake_get)
+    monkeypatch.setattr(google_search.httpx, "post", fake_post)
+    res = google_search.search("site:linkedin.com/posts hiring copywriter")
+    assert [r.url for r in res] == ["https://www.linkedin.com/posts/someone_hiring"]
+    assert res[0].platform == "linkedin"
 
 
 # ---------- pipeline ----------

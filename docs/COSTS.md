@@ -20,14 +20,14 @@ on **collecting** jobs. So 10 customers or 10,000 cost the same to serve; collec
 |---|---|---|---|---|
 | All 5,000 from Google | ~1,250 (37,500/mo) | ~$560 | ~$600 (about half with snippet-only or batch extraction) | **~$1,150** |
 | 3,500 from free feeds, 1,500 from Google | ~375 (11,000/mo) | ~$170 | ~$180 | **~$350** |
-| Today's plan (34 queries, twice a day) | ~68 (2,040/mo) | ~$31 | small | **~$35-45** |
+| Today's plan (48 queries, twice a day) | ~96 (2,880/mo) | ~$43 | small | **~$50-70** |
 
 Reality check: the free feeds produced about 95 jobs in total. The number of genuinely new copywriter / email / funnel hiring posts per day
 across the whole internet is probably in the low hundreds, so spend is capped by supply of jobs, not by budget. Start small and use the
 cost report to see cost per new job before scaling queries.
 
 ## Customer-run searches
-A live search costs us ~$0.015 (search) + ~$0.004 per page read (about 10) = about $0.055; customers are charged 1.5x = about $0.08.
+A live search runs the customer's words on the open web plus LinkedIn posts, LinkedIn jobs, X, Facebook, and Reddit (6 Google searches). That costs us about $0.09 in searches plus extraction, and the customer pays 1.5x, shown as the estimate before they run. A search aimed at one site is a single Google search.
 Repeating a search within 6 hours is served from the database and costs nobody anything.
 
 ## Levers, in order of effect
@@ -39,7 +39,6 @@ Repeating a search within 6 hours is served from the database and costs nobody a
 
 
 ## Customer-paid searches (live search)
-Customers pay for their own searches from prepaid credits. Charge = max(fee + extraction, 1.5 × our real cost). With Haiku 5.5 the SerpAPI
-search ($0.015) dominates, so a typical 10-result search costs us about $0.02 and the customer about $0.033. The scheduled Google plan
+Customers pay for their own searches from prepaid credits. Charge = max(fee + extraction, 1.5 × our real cost), once per Google search that actually ran. A default search is 6 Google searches (the open web, LinkedIn posts, LinkedIn jobs, X, Facebook, and Reddit), so the estimate is several times a single search. One chosen site is still one Google search. The scheduled Google plan
 stays OFF (`GOOGLE_SCHEDULE_ENABLED=0`) so API keys alone never spend your money on a timer. The real margin is shown on the admin
 dashboard and in `scripts/cost_report.py`; it must read 1.50×.

@@ -70,7 +70,7 @@
   CF.num = (n) => Number(n || 0).toLocaleString();
 
   CF.PLATFORM = { remoteok: "RemoteOK", weworkremotely: "We Work Remotely", remotive: "Remotive", greenhouse: "Greenhouse", lever: "Lever", ashby: "Ashby",
-    problogger: "ProBlogger", reddit: "Reddit", linkedin: "LinkedIn", twitter: "X / Twitter", indeed: "Indeed", upwork: "Upwork", web: "Web", mediabistro: "Mediabistro" };
+    problogger: "ProBlogger", reddit: "Reddit", linkedin: "LinkedIn", twitter: "X / Twitter", facebook: "Facebook", indeed: "Indeed", upwork: "Upwork", web: "Web", mediabistro: "Mediabistro" };
   CF.TYPE = { full_time: "Full-time", contract: "Contract", hourly: "Hourly", fixed: "Fixed price", social_post: "Social post", part_time: "Part-time" };
   CF.platformBadge = (p) => h("span", { class: "plat " + String(p).replace(/[^a-z]/g, ""), text: CF.PLATFORM[p] || p });
 

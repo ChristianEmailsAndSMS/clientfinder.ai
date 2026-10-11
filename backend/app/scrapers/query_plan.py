@@ -1,6 +1,8 @@
 """What the Google layer searches, how often, and within what budget.
 
-Plan = base phrases (open web) + the strongest phrases scoped to the sites where hiring posts live.
+Plan = hiring phrases on the open web, plus copywriting / email / creative-strategy terms on
+LinkedIn (posts and individual jobs), X, Facebook, and Reddit. The query shape is
+`site:linkedin.com/posts copywriting jobs`, which is what actually stays on that site.
 Each query re-runs every GOOGLE_QUERY_CYCLE_HOURS with a past-24h filter (a never-run query backfills a
 week first). Every search is logged in `search_queries`; that log decides what is due and counts the
 monthly spend, so a restart can never double-spend or blow the SerpAPI budget."""
@@ -20,7 +22,8 @@ from ..models import SearchQuery
 
 log = logging.getLogger(__name__)
 
-BASE_PHRASES: tuple[str, ...] = (
+# Open web. Quoted hiring phrases, because an unscoped "copywriting" search is dictionaries and course ads.
+OPEN_WEB: tuple[str, ...] = (
     '"hiring copywriter"',
     '"hiring email copywriter"',
     '"hiring email marketer"',
@@ -28,16 +31,26 @@ BASE_PHRASES: tuple[str, ...] = (
     '"hiring creative director"',
     '"hiring landing page builder"',
     '"hiring funnel builder"',
-    '"looking for a copywriter"',
-    '"need a copywriter"',
     '"copywriter wanted"',
 )
-# Only the highest-yield phrases get site scopes; scoping all of them multiplies cost for little gain.
-SCOPED_PHRASES: tuple[str, ...] = (
-    '"hiring copywriter"', '"hiring email marketer"', '"looking for a copywriter"', '"need a copywriter"',
+# What a person actually types. site:linkedin.com copywriting jobs returns LinkedIn.
+# /posts and /jobs/view are the individual posts and openings, not the "9,000 jobs" category pages.
+TERMS: tuple[str, ...] = (
+    "copywriting jobs",
+    "copywriter jobs",
+    "email marketing jobs",
+    "email copywriter jobs",
+    "creative strategy jobs",
+    "creative strategist jobs",
+    "funnel builder jobs",
+    "landing page jobs",
 )
 SITE_SCOPES: tuple[str, ...] = (
-    "twitter.com", "x.com", "reddit.com", "linkedin.com/posts", "indeed.com", "upwork.com",
+    "linkedin.com/posts",
+    "linkedin.com/jobs/view",
+    "x.com",
+    "facebook.com",
+    "reddit.com",
 )
 ERROR_RETRY_AFTER = timedelta(hours=1)
 MAX_BACKOFF = 14    # base cycle x 14 = 7 days at the default 12h: the slowest a dead query ever runs
@@ -55,8 +68,8 @@ class QuerySpec:
 
 
 def build_plan() -> list[QuerySpec]:
-    texts = list(BASE_PHRASES)
-    texts += [f"{p} site:{site}" for site in SITE_SCOPES for p in SCOPED_PHRASES]
+    texts = list(OPEN_WEB)
+    texts += [f"site:{site} {term}" for site in SITE_SCOPES for term in TERMS]
     return [QuerySpec(t, "d") for t in texts]
 
 

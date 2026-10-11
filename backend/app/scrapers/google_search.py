@@ -1,11 +1,16 @@
 """Google-search layer. Returns SearchResult rows for a given query.
 
-Real mode: hits SerpAPI (or Serper.dev if configured).
-Dev mode (DEV_FIXTURES=1): reads a local JSON fixture — lets you iterate without an API key."""
+Real mode: hits SerpAPI, and Serper if that account is out of searches (or Serper first when configured).
+Dev mode (DEV_FIXTURES=1): reads a local JSON fixture — lets you iterate without an API key.
+
+A query that says site:linkedin.com never keeps a result from another host. Google sometimes
+ignores site: and fills the page with job-board category URLs; those are not the search we ran."""
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Iterable
+from urllib.parse import urlparse
 
 import httpx
 
@@ -14,31 +19,99 @@ from ..schemas import SearchResult
 
 log = logging.getLogger(__name__)
 
+# x.com and twitter.com are the same site. A site:x.com search may still link to twitter.com.
+_HOST_ALIASES = {"x.com": "twitter.com", "twitter.com": "x.com"}
+_SITE = re.compile(r"\bsite:(\S+)", re.I)
+
 
 class SearchError(RuntimeError):
     """A search call failed. The message never contains the request URL (it carries the API key)."""
 
+    def __init__(self, message: str, *, quota: bool = False):
+        super().__init__(message)
+        self.quota = quota
+
+
+def _quota_text(text: str) -> bool:
+    low = (text or "").lower()
+    return "run out of searches" in low or "not enough credits" in low or "quota exceeded" in low
+
+
+def _checked(provider: str, r: httpx.Response) -> httpx.Response:
+    """Turn a failed response into SearchError. Never include the request URL (it carries the key)."""
+    status = getattr(r, "status_code", 200) or 200
+    body = getattr(r, "text", "") or ""
+    if status == 429 or _quota_text(body):
+        raise SearchError(f"{provider} is out of searches", quota=True)
+    if status >= 400:
+        raise SearchError(f"{provider} HTTP {status}")
+    return r
+
 
 def _http_get(provider: str, url: str, **kw) -> httpx.Response:
     try:
-        r = httpx.get(url, **kw)
-        r.raise_for_status()
-        return r
-    except httpx.HTTPStatusError as e:
-        raise SearchError(f"{provider} HTTP {e.response.status_code}") from None
+        return _checked(provider, httpx.get(url, **kw))
+    except SearchError:
+        raise
     except httpx.HTTPError as e:
         raise SearchError(f"{provider} request failed: {type(e).__name__}") from None
 
 
 def _http_post(provider: str, url: str, **kw) -> httpx.Response:
     try:
-        r = httpx.post(url, **kw)
-        r.raise_for_status()
-        return r
-    except httpx.HTTPStatusError as e:
-        raise SearchError(f"{provider} HTTP {e.response.status_code}") from None
+        return _checked(provider, httpx.post(url, **kw))
+    except SearchError:
+        raise
     except httpx.HTTPError as e:
         raise SearchError(f"{provider} request failed: {type(e).__name__}") from None
+
+
+def site_constraint(query: str) -> str | None:
+    m = _SITE.search(query or "")
+    return m.group(1).lower() if m else None
+
+
+def on_site(url: str, site: str) -> bool:
+    """True when url is on the host (and path, if site: included one) the query asked for."""
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+    host = (parsed.netloc or "").lower().removeprefix("www.")
+    site_host, _, site_path = site.lower().partition("/")
+    site_host = site_host.removeprefix("www.")
+    hosts = {site_host}
+    alt = _HOST_ALIASES.get(site_host)
+    if alt:
+        hosts.add(alt)
+    if not any(host == h or host.endswith("." + h) for h in hosts):
+        return False
+    if site_path and site_path not in (parsed.path or "").lower().lstrip("/"):
+        return False
+    return True
+
+
+def _filter_site(query: str, results: list[SearchResult]) -> list[SearchResult]:
+    site = site_constraint(query)
+    if not site:
+        return results
+    kept = [r for r in results if on_site(r.url, site)]
+    dropped = len(results) - len(kept)
+    if dropped:
+        log.info("dropped %d off-site results for site:%s", dropped, site)
+    return kept
+
+
+def _provider_order() -> list[str]:
+    """Configured provider first. The other one is only a fallback when the first is out of searches."""
+    primary = "serper" if (settings.google_search_provider == "serper" and settings.serper_api_key) else "serpapi"
+    secondary = "serpapi" if primary == "serper" else "serper"
+    order = []
+    for name in (primary, secondary):
+        key = settings.serper_api_key if name == "serper" else settings.serpapi_api_key
+        if key and name not in order:
+            order.append(name)
+    return order
 
 FIXTURE_DIR = Path(__file__).resolve().parent.parent.parent / "fixtures"
 
@@ -70,6 +143,7 @@ def _fixture_results(query: str) -> list[SearchResult]:
 def _platform_from_url(url: str) -> str:
     u = url.lower()
     if "twitter.com" in u or "x.com" in u: return "twitter"
+    if "facebook.com" in u or "fb.com" in u: return "facebook"
     if "reddit.com" in u: return "reddit"
     if "linkedin.com" in u: return "linkedin"
     if "upwork.com" in u: return "upwork"
@@ -88,6 +162,12 @@ def _serpapi_results(query: str, num: int = 10, freshness: str | None = None) ->
         params["tbs"] = f"qdr:{freshness}"   # d = past 24h, w = past week, m = past month, m3/m6/m9 = past N months, y = past year
     r = _http_get("serpapi", "https://serpapi.com/search.json", params=params, timeout=30)
     data = r.json()
+    err = data.get("error") if isinstance(data, dict) else None
+    if isinstance(err, str) and _quota_text(err):
+        raise SearchError("serpapi is out of searches", quota=True)
+    if isinstance(err, str):
+        log.info("serpapi returned no results: %s", err[:200])
+        return []
     out: list[SearchResult] = []
     for item in data.get("organic_results", []):
         url = item.get("link")
@@ -126,15 +206,32 @@ def _serper_results(query: str, num: int = 10, freshness: str | None = None) -> 
     return out
 
 
+def _call_provider(provider: str, query: str, num: int, freshness: str | None) -> list[SearchResult]:
+    if provider == "serper":
+        return _serper_results(query, num=num, freshness=freshness)
+    return _serpapi_results(query, num=num, freshness=freshness)
+
+
 def search(query: str, num: int = 10, freshness: str | None = None) -> list[SearchResult]:
     if settings.dev_fixtures:
-        return _fixture_results(query)
-    if settings.google_search_provider == "serper" and settings.serper_api_key:
-        return _serper_results(query, num=num, freshness=freshness)
-    if settings.serpapi_api_key:
-        return _serpapi_results(query, num=num, freshness=freshness)
-    # No key configured. Never fall back to fixtures here: they are fake and would end up in the live DB.
-    log.warning("no search API key configured; skipping %r (set DEV_FIXTURES=1 for fake local data)", query)
+        return _filter_site(query, _fixture_results(query))
+    order = _provider_order()
+    if not order:
+        # No key configured. Never fall back to fixtures here: they are fake and would end up in the live DB.
+        log.warning("no search API key configured; skipping %r (set DEV_FIXTURES=1 for fake local data)", query)
+        return []
+    last: SearchError | None = None
+    for provider in order:
+        try:
+            return _filter_site(query, _call_provider(provider, query, num, freshness))
+        except SearchError as e:
+            last = e
+            if e.quota and provider != order[-1]:
+                log.warning("%s is out of searches; trying the next provider", provider)
+                continue
+            raise
+    if last:
+        raise last
     return []
 
 
