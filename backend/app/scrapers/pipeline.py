@@ -37,6 +37,12 @@ _JOBS_INDEX_TITLE = re.compile(r"\bremote-first\b.{0,40}\bjobs\s*$", re.I)
 _BROWSE_JOBS = re.compile(r"\bbrowse\b.{0,40}\bjobs\b", re.I)
 # "9000+ Copywriter jobs in United States" is a search-results page, not one opening.
 _JOB_COUNT_INDEX = re.compile(r"^\s*\d[\d,]*\+?\s+.{0,80}\bjobs\b", re.I)
+# "Creative Strategist Jobs in Manhattan, NY (3403)" is the same list with the count at the end.
+# A year in parentheses, such as "(2026)", is not a count.
+_JOB_COUNT_SUFFIX = re.compile(
+    r"\bjobs\b.{0,60}\(\s*(?:\d{1,3}(?:,\d{3})+|(?!20\d\d\b)\d{3,})\s*\)\s*$",
+    re.I,
+)
 # "$20-$72/hr Funnel Jobs (NOW HIRING)" is the same kind of list. Title only.
 _AGGREGATOR_TITLE = re.compile(r"\bjobs\s*\(\s*now hiring\s*\)", re.I)
 # "Remote Copywriter Jobs ($69K to $103K)" / "Search 216 copywriter remote jobs" is a list.
@@ -194,7 +200,7 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
         return True
     if (_SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _DIRECTORY_TITLE.search(title)
             or _JOBS_INDEX_TITLE.search(title) or _JOB_COUNT_INDEX.search(title)
-            or _DATED_JOBS_INDEX.search(title)
+            or _JOB_COUNT_SUFFIX.search(title) or _DATED_JOBS_INDEX.search(title)
             or _AGGREGATOR_TITLE.search(title) or _SALARY_JOBS_INDEX.search(blob)
             or _OPEN_ROLES_TITLE.search(title) or _TOP_N_JOBS.search(title)
             or _DIRECTORY.search(blob) or _BROWSE_JOBS.search(blob)

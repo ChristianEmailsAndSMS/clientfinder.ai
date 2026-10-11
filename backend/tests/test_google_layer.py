@@ -387,6 +387,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Copywriter Jobs in Miami (492 Open Roles)",
         "492 Copywriter Jobs in Miami. Digital Copywriter. Junior Copywriter. Lead, Copywriter.")
     assert pipeline.not_a_hiring_post(
+        "Creative Strategist Jobs in Manhattan, NY (3403)",
+        "There are 3,403 Creative Strategist opportunities available in Manhattan, NY.",
+        url="https://www.joblist.com/j/creative-strategist-jobs/manhattan-ny")
+    assert not pipeline.not_a_hiring_post(
+        "Funnel Builder",
+        "We are looking for a Funnel Builder. 3,403 brands use this stack.",
+        url="https://www.multiplymii.com/job-description/funnel-builder")
+    assert pipeline.not_a_hiring_post(
         "Creative strategist jobs",
         "Creative Strategist. Reach Digital. Creative Strategist. Ecom Warrior Academy.")
     assert pipeline.not_a_hiring_post(
