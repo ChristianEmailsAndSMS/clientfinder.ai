@@ -171,7 +171,7 @@ def live(monkeypatch):
     rec = type("Rec", (), {})()
     rec.searches, rec.n, rec.usage, rec.fail = [], 3, (2000, 400), None
 
-    def search(query, num=10, freshness=None):
+    def search(query, num=10, freshness=None, **_):
         rec.searches.append((query, num, freshness))
         if rec.fail:
             raise rec.fail
@@ -194,6 +194,13 @@ def balance(env, uid):
         return db.scalar(select(User.balance_micro).where(User.id == uid))
 
 
+def test_funnel_builder_is_quoted_so_it_does_not_match_the_company():
+    assert live_search.clean_query("hiring funnel builder") == 'hiring "funnel builder"'
+    assert live_search.clean_query("Hiring Funnel Builder") == 'Hiring "Funnel Builder"'
+    assert live_search.clean_query('hiring "funnel builder"') == 'hiring "funnel builder"'
+    assert live_search.clean_query("hiring copywriter") == "hiring copywriter"
+
+
 def test_live_search_is_off_until_keys_exist(env):
     c = member(env, balance_usd=5)
     assert c.get("/searches/config").json()["ready"] is False
@@ -209,17 +216,29 @@ def test_a_search_runs_stores_jobs_and_charges_exactly_what_it_cost(env, live):
     assert r.status_code == 202
     sid = r.json()["id"]
     s = c.get(f"/searches/{sid}").json()                              # background task already ran (TestClient runs it inline)
-    assert s["status"] == "done" and s["results"] == 3 and s["new_jobs"] == 3 and s["cached"] is False
-    expected = live_search.search_fee_micro() + credits.usage_cost_micro(MODEL, 3 * 2000, 3 * 400)
+    n = len(live_search.search_targets("hiring copywriter", None))
+    assert s["status"] == "done" and s["results"] == 3 * n and s["new_jobs"] == 3 * n and s["cached"] is False
+    # Each page is its own model call. Summing every page into one prompt would cross Haiku's long-context rate.
+    extraction, _ours = live_search.extraction_totals([(2000, 400)] * (3 * n))
+    expected = n * live_search.search_fee_micro() + extraction
     assert credits.usd_to_micro(s["cost_usd"]) == expected
     assert balance(env, c.uid) == start - expected
     with env.scope() as db:
         e = db.scalar(select(CreditEntry).where(CreditEntry.user_id == c.uid))
         assert (e.kind, e.ref, e.delta_micro) == ("usage", f"usersearch:{sid}", -expected)
-        assert e.meta["tokens_in"] == 6000 and e.meta["search_id"] == sid
-    assert len(c.get(f"/searches/{sid}/jobs").json()) == 3
-    assert c.get("/jobs").headers["x-total-count"] == "3"            # the jobs are in the shared database for everyone
-    assert live.searches == [("hiring copywriter", settings.user_search_results, "w")]
+        assert e.meta["tokens_in"] == 3 * n * 2000 and e.meta["search_id"] == sid
+    assert len(c.get(f"/searches/{sid}/jobs?limit=300").json()) == 3 * n
+    assert c.get("/jobs").headers["x-total-count"] == str(3 * n)      # the jobs are in the shared database for everyone
+    assert live.searches[0] == ("hiring copywriter", settings.user_search_results, "w")
+    assert ("site:linkedin.com/posts hiring copywriter", settings.user_search_results, "w") in live.searches
+    assert ("site:x.com hiring copywriter", settings.user_search_results, "w") in live.searches
+    assert ("site:facebook.com hiring copywriter", settings.user_search_results, "w") in live.searches
+    assert ("site:reddit.com/r/forhire/comments hiring copywriter", settings.user_search_results, "w") in live.searches
+    assert ("site:reddit.com/r/hiring/comments hiring copywriter", settings.user_search_results, "w") in live.searches
+    assert ("site:dynamitejobs.com/company hiring copywriter", settings.user_search_results, "w") in live.searches
+    assert ("site:himalayas.app/companies hiring copywriter", settings.user_search_results, "w") in live.searches
+    assert ("site:remotive.com/remote/jobs/ hiring copywriter", settings.user_search_results, "w") in live.searches
+    assert len(live.searches) == n
 
 
 def test_the_price_includes_the_1_5x_markup(env, live):
@@ -245,22 +264,25 @@ def test_repeating_a_search_is_free_and_served_from_the_database(env, live):
     b = member(env, "b@example.com", balance_usd=0)                     # a different customer with NO credit
     r = run(b, "hiring copywriter")                                     # same search, different case/spacing
     assert r.status_code == 202 and r.json()["cached"] is True and r.json()["status"] == "done" and r.json()["cost_usd"] == 0
-    assert len(live.searches) == 1 and balance(env, a.uid) == bal and balance(env, b.uid) == 0
-    ids_a = {j["id"] for j in a.get(f"/searches/{first['id']}/jobs").json()}
-    assert {j["id"] for j in b.get(f"/searches/{r.json()['id']}/jobs").json()} == ids_a and len(ids_a) == 3
+    n = len(live_search.search_targets("hiring copywriter", None))
+    assert len(live.searches) == n and balance(env, a.uid) == bal and balance(env, b.uid) == 0
+    ids_a = {j["id"] for j in a.get(f"/searches/{first['id']}/jobs?limit=300").json()}
+    assert {j["id"] for j in b.get(f"/searches/{r.json()['id']}/jobs?limit=300").json()} == ids_a and len(ids_a) == 3 * n
     q = b.post("/searches/estimate", json={"query": "HIRING COPYWRITER", "freshness": "w"}, headers=CSRF).json()
-    assert q["cached"] is True and q["price_usd"] == 0 and q["cached_results"] == 3
+    assert q["cached"] is True and q["price_usd"] == 0 and q["cached_results"] == 3 * n
 
 
 def test_different_options_are_different_searches_and_the_cache_expires(env, live, monkeypatch):
     c = member(env, balance_usd=5)
-    run(c); run(c, freshness="d"); run(c, site="reddit.com")
-    assert [q for q, _, _ in live.searches] == ["hiring copywriter", "hiring copywriter", "hiring copywriter site:reddit.com"]
-    assert [f for _, _, f in live.searches] == ["w", "d", "w"]
+    run(c); run(c, freshness="d"); run(c, site="reddit.com/r/forhire/comments")
+    n = len(live_search.search_targets("hiring copywriter", None))
+    assert live.searches[0][0] == "hiring copywriter" and live.searches[0][2] == "w"
+    assert ("site:reddit.com/r/forhire/comments hiring copywriter", settings.user_search_results, "w") in live.searches
+    assert [f for _, _, f in live.searches].count("d") == n
     with env.scope() as db:
         db.query(UserSearch).update({UserSearch.finished_at: utcnow() - timedelta(hours=settings.search_cache_hours + 1)})
     run(c)
-    assert len(live.searches) == 4
+    assert len(live.searches) == n * 3 + 1
 
 
 def test_daily_limit_counts_new_searches_only(env, live, monkeypatch):
@@ -331,7 +353,7 @@ def test_running_the_same_search_twice_charges_once(env, live):
     sid = run(c).json()["id"]
     bal = balance(env, c.uid)
     live_search.run_search(sid)                                          # a retried task: the search is no longer 'queued'
-    assert balance(env, c.uid) == bal and len(live.searches) == 1
+    assert balance(env, c.uid) == bal and len(live.searches) == len(live_search.search_targets("hiring copywriter", None))
     with env.scope() as db:
         s = db.get(UserSearch, sid); s.status = "queued"                  # even if forced to re-run, the ledger ref stops a double charge
     live_search.run_search(sid)
@@ -369,7 +391,10 @@ def test_estimate_reports_affordability_and_never_runs_anything(env, live):
     c = member(env, balance_usd=0.001)
     q = c.post("/searches/estimate", json={"query": "hiring copywriter", "freshness": "w"}, headers=CSRF).json()
     assert q["ready"] is True and q["cached"] is False and q["affordable"] is False
-    assert q["price_usd"] == live_search.estimated_user_price_usd() and 0.02 < q["price_usd"] < 0.06
+    n = len(live_search.search_targets("hiring copywriter", None))
+    assert q["price_usd"] == live_search.estimated_user_price_usd()
+    assert q["price_usd"] == live_search.price_for(None) / 1_000_000
+    assert q["price_usd"] > n * 0.02                                               # one fee per site, not a single search
     assert live.searches == []
 
 
@@ -393,9 +418,11 @@ def test_every_search_is_charged_at_least_1_5x_what_it_really_cost_us_and_not_a_
         meta = e.meta
         charged, our_cost = -e.delta_micro, meta["our_cost_micro"]
     # independent recomputation of our real cost from the raw rates (not through the code under test)
+    n = len(live_search.search_targets("x", None))
+    pages = n * results
     r_in, r_out = (0.50, 2.50) if usage[0] > 100_000 else (0.10, 0.50)
-    real_extraction = results * (usage[0] * r_in + usage[1] * r_out)
-    real_cost = settings.serpapi_cost_per_search_usd * 1_000_000 + real_extraction
+    real_extraction = pages * (usage[0] * r_in + usage[1] * r_out)
+    real_cost = n * settings.serpapi_cost_per_search_usd * 1_000_000 + real_extraction
     assert our_cost >= real_cost - 1e-6 and our_cost - real_cost < 3          # we record what we really spent (rounded up)
     assert charged >= 1.5 * real_cost - 1e-6                                  # the customer pays at least 1.5x
     assert charged <= 1.5 * real_cost + 5                                     # ...and only rounding on top: never an accidental surcharge
@@ -415,7 +442,8 @@ def test_tokens_from_pages_the_model_read_but_we_could_not_use_are_charged_too(e
     sid = run(c, "partial failure").json()["id"]
     with env.scope() as db:
         meta = db.scalar(select(CreditEntry).where(CreditEntry.ref == f"usersearch:{sid}")).meta
-    assert meta["tokens_in"] == 2000 + 3000 + 2000 and meta["tokens_out"] == 400 + 50 + 400
+    pages = 3 * len(live_search.search_targets("partial failure", None))
+    assert meta["tokens_in"] == (pages - 1) * 2000 + 3000 and meta["tokens_out"] == (pages - 1) * 400 + 50
 
 
 def test_search_refuses_to_run_when_the_model_has_no_price(env, live, monkeypatch):
@@ -472,6 +500,7 @@ def test_location_text_maps_to_time_zone_bands(text, expected):
 def test_platforms_are_split_into_job_boards_and_social_media():
     assert [platforms.kind_of(p) for p in ("indeed", "remoteok", "reddit", "twitter", "linkedin", "web", "somethingnew")] == \
         ["board", "board", "social", "social", "social", "web", "web"]
+    assert platforms.kind_of("himalayas") == "board" and platforms.kind_of("dynamite") == "board"
 
 
 @pytest.fixture
@@ -546,7 +575,8 @@ def test_unlimited_account_searches_without_a_balance_and_is_never_charged(env, 
     r = run(c, "unlimited run")
     assert r.status_code == 202
     s = c.get(f"/searches/{r.json()['id']}").json()
-    assert s["status"] == "done" and s["results"] == 3 and s["cost_usd"] == 0
+    n = len(live_search.search_targets("unlimited run", None))
+    assert s["status"] == "done" and s["results"] == 3 * n and s["cost_usd"] == 0
     assert balance(env, c.uid) == 0
     with env.scope() as db:
         assert db.scalar(select(func.count()).select_from(CreditEntry).where(CreditEntry.user_id == c.uid, CreditEntry.kind == "usage")) == 0

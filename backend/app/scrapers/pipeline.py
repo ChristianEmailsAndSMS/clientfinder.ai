@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Iterable
 
@@ -23,6 +24,228 @@ from .common import clip
 from .llm_extractor import ExtractionError
 
 log = logging.getLogger(__name__)
+
+# Advice, self-promotion, and careers indexes. "We're hiring" stays. "When I'm hiring, I look for" does not.
+_SELF_PROMO = re.compile(r"^\s*\[?\s*(for hire|hire me)\b", re.I)
+_CAREERS_INDEX = re.compile(r"^\s*(careers at|all open positions)\b", re.I)
+# "Copywriter Jobs Board" and "Creative Strategist Job Board" are directories, not one opening.
+# "post it on our job board" in a description stays.
+_DIRECTORY_TITLE = re.compile(r"\bjobs? board\b", re.I)
+_DIRECTORY = re.compile(r"\b\d+\s+writer jobs\b|\bjobs exclusive to paid subscribers\b", re.I)
+# "Remote-First Marketing Jobs" and a snippet of "Browse Marketing jobs" are category pages.
+_JOBS_INDEX_TITLE = re.compile(r"\bremote-first\b.{0,40}\bjobs\s*$", re.I)
+_BROWSE_JOBS = re.compile(r"\bbrowse\b.{0,40}\bjobs\b", re.I)
+# "9000+ Copywriter jobs in United States" is a search-results page, not one opening.
+_JOB_COUNT_INDEX = re.compile(r"^\s*\d[\d,]*\+?\s+.{0,80}\bjobs\b", re.I)
+# "Creative Strategist Jobs in Manhattan, NY (3403)" is the same list with the count at the end.
+# A year in parentheses, such as "(2026)", is not a count.
+_JOB_COUNT_SUFFIX = re.compile(
+    r"\bjobs\b.{0,60}\(\s*(?:\d{1,3}(?:,\d{3})+|(?!20\d\d\b)\d{3,})\s*\)\s*$",
+    re.I,
+)
+# "$20-$72/hr Funnel Jobs (NOW HIRING)" is the same kind of list. Title only.
+_AGGREGATOR_TITLE = re.compile(r"\bjobs\s*\(\s*now hiring\s*\)", re.I)
+# "Remote Copywriter Jobs ($69K to $103K)" / "Search 216 copywriter remote jobs" is a list.
+# "$26-$54/hr No Experience Copywriting Jobs in Royal Oak" is the same list with the pay first.
+_SALARY_JOBS_INDEX = re.compile(
+    r"^\s*(?:remote\s+)?.{0,40}\bjobs\s*\(\s*\$"
+    r"|\bsearch\s+\d[\d,]*\s+.{0,60}\bjobs\b"
+    r"|^\s*\$\d[\d,]*\s*-\s*\$\d[\d,]*\s*/\s*h(?:r|our)\b.{0,80}\bjobs\b",
+    re.I,
+)
+# "Top 38 Email copywriter Jobs" and "Top Copywriter Jobs in NYC" are result lists.
+_TOP_N_JOBS = re.compile(
+    r"^\s*top\s+\d[\d,]*\s+.{0,60}\bjobs\b"
+    r"|^\s*top\s+[a-z]+\s+jobs\b",
+    re.I,
+)
+# "Creative Strategy Jobs – Reduced Hours (2026)" is a category page. A job that offers reduced hours stays.
+_REDUCED_HOURS_INDEX = re.compile(r"\bjobs\b.{0,30}\breduced hours\b", re.I)
+# "Copywriter Jobs in October 2026" and "Copywriting Jobs (October 2026)" are monthly lists.
+_DATED_JOBS_INDEX = re.compile(
+    r"\bjobs\s+in\s+(?:january|february|march|april|may|june|july|august|september|"
+    r"october|november|december)\s+20\d\d\b"
+    r"|\bjobs\s*\(\s*(?:january|february|march|april|may|june|july|august|september|"
+    r"october|november|december)\s+20\d\d\s*\)",
+    re.I,
+)
+# "Creative Strategist Jobs in Atlanta" and "Viral Marketing Copywriter Jobs in Greenville" are city lists.
+# The role does not have to be the first words. A single opening titled as the role stays.
+_JOBS_IN_PLACE = re.compile(
+    r"\b(?:copywriters?|copywriting|creative strategists?|funnel builders?|"
+    r"email marketers?|email copywriters?|landing pages?)\s+jobs\s+in\b",
+    re.I,
+)
+# "Copywriter Jobs in Miami (492 Open Roles)" and a title that is only "Creative strategist jobs"
+# or "Remote Copywriting Jobs". A single remote copywriter opening stays.
+_OPEN_ROLES_TITLE = re.compile(
+    r"\(\s*\d[\d,]*\s+open roles\s*\)"
+    r"|^\s*(?:remote\s+)?(?:copywriter|copywriting|creative strategist|funnel builder|email marketer|email copywriter|landing page)\s+jobs\s*$",
+    re.I,
+)
+# Title only. A real post can mention a template in the description.
+_JOB_TEMPLATE = re.compile(r"\bjob description template\b", re.I)
+# A "hiring landing page" search returns templates, galleries, stock files, and docs. Not openings.
+_NOT_A_JOB_PAGE = re.compile(
+    r"\bai landing page generator\b|\bdesigns on dribbble\b|\bstock photos\b"
+    r"|\bfree for commercial use\b|\blearn how to build a landing page\b"
+    r"|\brecruitment landing page best practices\b",
+    re.I,
+)
+_ADVICE = re.compile(
+    r"\b(when i(?:'m| am) hiring|why you should hire|why i look for|what i look for when|the rise of the|"
+    r"how to hire|how should \w+ hire|how i built|legitimate career path|has anyone made the transition|"
+    r"\d+ signs you(?:'re| are)? not)\b",
+    re.I,
+)
+# Title only. A real job can say "how to become" in the description. These headlines are articles.
+# "Hiring a creative strategist?" is a question about the work, not an opening. "Hiring a strategist for a brand" is.
+_ADVICE_TITLE = re.compile(
+    r"\b(?:how to become|checklist for hiring|how to get hired|how can i get hired)\b"
+    r"|^\s*seeking advice\b"
+    r"|^\s*what makes a (?:great|good)\b"
+    r"|\bfast[- ]growing job\b"
+    r"|^\s*the best\b.{0,80}\b20\d\d\b"
+    r"|^\s*best\b.{0,40}\bjobs\b"
+    r"|\beasy guide\b"
+    r"|\bpsa to anyone hiring\b"
+    r"|^\s*how to make a\b"
+    r"|^\s*how to get into\b"
+    r"|^\s*what to look for when hiring\b"
+    r"|\bexamples:\s*what works\b"
+    r"|^\s*what does (?:a|an)\b.{0,60}\bdo\b"
+    r"|\bfreelancers?\s*-\s*hire\b"
+    r"|^\s*hiring an?\b[^?\n]{0,80}\?",
+    re.I,
+)
+# A company can be named "Funnel Builder" (or use that phrase as a tagline) and be hiring an
+# engineer. Platform, backend, and fullstack titles are the same miss as "software engineer".
+_ENGINEERING_ROLE = re.compile(
+    r"\b(?:software|platform|fullstack|full[\s-]stack|backend|front[\s-]?end)\s+engineers?\b"
+    r"|\bsoftware engineering\b",
+    re.I,
+)
+# Perspective's product tagline. It is not a funnel-builder job. A title that names the role still stays.
+_MOBILE_FUNNEL_PRODUCT = re.compile(r"\bmobile funnel builder\b", re.I)
+# Heyflow's product page. "Say hello to the Heyflow funnel builder" is the tool, not an opening.
+# A post that is also hiring someone stays.
+_FUNNEL_PRODUCT_PAGE = re.compile(
+    r"^\s*say hello to\b.{0,80}\bfunnel builder\b"
+    r"|\bfunnel builder at your fingertips\b",
+    re.I,
+)
+# "I have 4+ years" under a #hiring tag is someone selling themselves. "We're hiring" plus that line is still a job.
+_FIRST_PERSON_YEARS = re.compile(r"\bi have \d+\+?\s*years\b", re.I)
+# "Hi, I'm a copywriter" is the same ad. "Hi, I'm a founder and we're hiring" is not, and neither is
+# "Hi everyone, I'm hiring" (that line has no "a/an" before a role).
+_FIRST_PERSON_INTRO = re.compile(
+    r"\bhi[,!]?\s+i(?:'m| am)\s+(?:a|an)\s+(?:\w+\s+){0,3}?(?:copywriters?|writers?|freelancers?|marketers?|strategists?|builders?)\b",
+    re.I,
+)
+_HIRING_SOMEONE = re.compile(
+    r"\b(we(?:'re| are) hiring|we(?:'re| are) looking|looking for (?:a|someone)|now hiring|is hiring)\b",
+    re.I,
+)
+# "is anyone hiring" is a person looking for work, often for a friend. "We're hiring" in the same post is an opening.
+_JOB_SEEKER = re.compile(r"\bis anyone hiring\b", re.I)
+# An agency selling "we help founders hire a creative strategist" is not an opening.
+_RECRUITER_PITCH = re.compile(r"\bwe help\b.{0,80}\b(?:founders|brands|companies)\s+hire\b", re.I)
+# "Cost to build a funnel? I checked Fiverr already" is a price question, not an opening.
+_PRICE_QUESTION = re.compile(r"^\s*cost to build\b|\bi checked fiverr\b", re.I)
+# Remote OK says this when the listing is dead. City jobs says the vacancy has expired.
+# "Please do not apply unless..." on a live post stays.
+_CLOSED_JOB = re.compile(
+    r"\bjob post is closed\b|\bposition is probably filled\b|\bno longer accepting applications\b"
+    r"|\bvacancy has now expired\b",
+    re.I,
+)
+# These titles are a different job. A title that also names the searched role still stays.
+_OTHER_ROLE_TITLE = re.compile(
+    r"\b(?:account managers?|graphics? designers?|performance marketing specialists?)\b",
+    re.I,
+)
+
+
+_ROLE_STOPWORDS = frozenset({
+    "hiring", "hire", "jobs", "job", "remote", "the", "and", "for", "with", "from", "a", "an",
+})
+
+
+def _role_needles(query: str) -> list[str]:
+    """Role words from the Google query, without the site: scope or the word hiring."""
+    text = re.sub(r"site:\S+", " ", query or "", flags=re.I)
+    phrases = [p.strip().lower() for p in re.findall(r'"([^"]+)"', text)]
+    phrases = [p for p in phrases if p and p not in {"hiring", "hire"}]
+    if phrases:
+        return phrases
+    bare = re.sub(r'"', " ", text).lower()
+    return [w for w in re.findall(r"[a-z0-9']+", bare) if w not in _ROLE_STOPWORDS and len(w) >= 4]
+
+
+def _marketplace_index(url: str) -> bool:
+    """Category and search pages on hire marketplaces, not one opening."""
+    u = (url or "").lower()
+    if "upwork.com" in u and "/hire/" in u:
+        return True
+    if "fiverr.com" in u and "/cat/" in u:
+        return True
+    if "freelancer.com/job-search/" in u:
+        return True
+    if "roberthalf.com" in u and "/jobs/all/" in u:
+        return True
+    # Indeed /q-...-jobs.html and SimplyHired /search are result lists, not one opening.
+    if "indeed.com" in u and ("/q-" in u or u.split("?", 1)[0].rstrip("/").endswith("-jobs.html")):
+        return True
+    if "simplyhired.com/search" in u:
+        return True
+    return False
+
+
+def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str = "") -> bool:
+    """True when the search result is commentary, a person advertising themselves, or a careers index."""
+    title = title or ""
+    blob = f"{title}\n{snippet or ''}"
+    if _marketplace_index(url):
+        return True
+    # Quora is people asking where to hire, not an employer posting an opening.
+    if "quora.com" in (url or "").lower():
+        return True
+    if "recruitment-agency" in (url or "").lower() or _RECRUITER_PITCH.search(blob):
+        return True
+    # LinkedIn's how-to-hire guides are sample descriptions, not openings.
+    if "how-to-hire-guide" in (url or "").lower() or _JOB_TEMPLATE.search(title):
+        return True
+    if (_SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _DIRECTORY_TITLE.search(title)
+            or _JOBS_INDEX_TITLE.search(title) or _JOB_COUNT_INDEX.search(title)
+            or _JOB_COUNT_SUFFIX.search(title) or _DATED_JOBS_INDEX.search(title)
+            or _AGGREGATOR_TITLE.search(title) or _SALARY_JOBS_INDEX.search(blob)
+            or _OPEN_ROLES_TITLE.search(title) or _JOBS_IN_PLACE.search(title)
+            or _TOP_N_JOBS.search(title) or _REDUCED_HOURS_INDEX.search(title)
+            or _DIRECTORY.search(blob) or _BROWSE_JOBS.search(blob)
+            or _ADVICE.search(blob) or _ADVICE_TITLE.search(title) or _PRICE_QUESTION.search(blob)
+            or _CLOSED_JOB.search(blob) or _NOT_A_JOB_PAGE.search(blob)):
+        return True
+    if (_FIRST_PERSON_YEARS.search(blob) or _FIRST_PERSON_INTRO.search(blob) or _JOB_SEEKER.search(blob)) and not _HIRING_SOMEONE.search(blob):
+        return True
+    # Title only. A real funnel-builder post can mention working with engineers in the body.
+    if re.search(r"funnel builder", query or "", re.I) and _ENGINEERING_ROLE.search(title):
+        return True
+    if (re.search(r"funnel builder", query or "", re.I) and _MOBILE_FUNNEL_PRODUCT.search(blob)
+            and "funnel builder" not in title.lower()):
+        return True
+    if _FUNNEL_PRODUCT_PAGE.search(blob) and not _HIRING_SOMEONE.search(blob):
+        return True
+    # On Reddit the role often appears only in the related-posts snippet of a different thread.
+    # LinkedIn titles are the author's name, so this check stays on reddit.com.
+    # A "Freelance Writer" title can still be a copywriter job, so other roles are an explicit list.
+    needles = _role_needles(query)
+    if "reddit.com" in (url or "").lower():
+        if needles and not all(needle in title.lower() for needle in needles):
+            return True
+    if (_OTHER_ROLE_TITLE.search(title) and needles
+            and not all(needle in title.lower() for needle in needles)):
+        return True
+    return False
 
 
 def _get_or_create_source(db: Session, key: str, kind: str, display_name: str) -> Source:
@@ -144,11 +367,15 @@ def _process(db: Session, source: Source, result: SearchResult, seen: set[str], 
         seen.add(h)
         _resolve_failure(db, result)
         return
+    if not_a_hiring_post(result.title, result.snippet, result.source_query, result.url):
+        stats["skipped"] += 1
+        _resolve_failure(db, result)
+        return
     page, fetched = page_fetcher.fetch_page_for_result(result)
     extracted = llm_extractor.extract(result, page)
-    if extracted.usage:
-        stats["tokens_in"] += extracted.usage.get("input_tokens", 0)
-        stats["tokens_out"] += extracted.usage.get("output_tokens", 0)
+    _add_usage(stats, extracted.usage)
+    if extracted.is_real_job and not_a_hiring_post(extracted.title or "", extracted.raw_snippet or "", result.source_query):
+        extracted.is_real_job = False
     if not extracted.is_real_job:
         stats["skipped"] += 1
         _resolve_failure(db, result)
@@ -171,8 +398,7 @@ def _run_one(db: Session, source: Source, result: SearchResult, seen: set[str], 
         log.warning("skipping %s: %s", result.url, e)
         stats["skipped"] += 1
         if e.usage:                                          # the model WAS called: those tokens cost money, so they are counted
-            stats["tokens_in"] += e.usage.get("input_tokens", 0)
-            stats["tokens_out"] += e.usage.get("output_tokens", 0)
+            _add_usage(stats, e.usage)
         _record_failure(db, source.key, result, f"extraction: {e}")
     except Exception as e:
         log.exception("pipeline row failed: %s", e)
@@ -182,7 +408,17 @@ def _run_one(db: Session, source: Source, result: SearchResult, seen: set[str], 
 
 def _new_stats(query: str) -> dict:
     return {"query": query, "searched": False, "search_hits": 0, "extracted": 0, "added": 0, "updated": 0,
-            "skipped": 0, "errors": 0, "tokens_in": 0, "tokens_out": 0, "job_ids": []}
+            "skipped": 0, "errors": 0, "tokens_in": 0, "tokens_out": 0, "job_ids": [], "calls": []}
+
+
+def _add_usage(stats: dict, usage: dict | None) -> None:
+    """Count one model call on its own. The long-prompt rate is per call, so calls must not be glued into one prompt."""
+    if not usage:
+        return
+    tin, tout = int(usage.get("input_tokens") or 0), int(usage.get("output_tokens") or 0)
+    stats["tokens_in"] += tin
+    stats["tokens_out"] += tout
+    stats.setdefault("calls", []).append((tin, tout))
 
 
 def _live_ready(stats: dict, what: str) -> bool:
@@ -194,7 +430,7 @@ def _live_ready(stats: dict, what: str) -> bool:
 
 
 def run_pipeline_for_query(query: str, num: int = 10, freshness: str | None = None, *, source_key: str | None = None,
-                           source_label: str | None = None) -> dict:
+                           source_label: str | None = None, exhausted: set[str] | None = None) -> dict:
     """Execute the full pipeline for one search query. Returns a stats dict.
     stats["searched"] is True only if a search was actually attempted (i.e. may have cost a credit)."""
     stats = _new_stats(query)
@@ -202,7 +438,10 @@ def run_pipeline_for_query(query: str, num: int = 10, freshness: str | None = No
         return stats
     stats["searched"] = True
     try:
-        results = google_search.search(query, num=num, freshness=freshness)
+        used: list[str] = []
+        results = google_search.search(query, num=num, freshness=freshness, exhausted=exhausted, used=used)
+        if used:
+            stats["provider"] = used[-1]
     except Exception as e:
         log.exception("search failed for %r", query)
         stats["search_error"] = redact(e)
@@ -257,9 +496,10 @@ def requeue_failed(limit: int = 50, ids: list[int] | None = None) -> dict:
 def run_pipeline_for_queries(queries: Iterable[str] | None = None, num: int = 10) -> list[dict]:
     queries = list(queries) if queries else list(google_search.DEFAULT_QUERIES)
     out = []
+    exhausted: set[str] = set()
     for q in queries:
         try:
-            out.append(run_pipeline_for_query(q, num=num))
+            out.append(run_pipeline_for_query(q, num=num, exhausted=exhausted))
         except Exception as e:  # one bad query (HTTP error, quota) must not stop the rest
             log.exception("query %r failed", q)
             out.append({"query": q, "error": redact(e)})

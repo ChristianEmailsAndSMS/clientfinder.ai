@@ -31,7 +31,10 @@ log = logging.getLogger(__name__)
 
 SOURCE_KEY = "usersearch"
 SOURCE_LABEL = "Customer searches"
-SITES = ("twitter.com", "x.com", "reddit.com", "linkedin.com/posts", "indeed.com", "upwork.com")
+# A customer search with no site runs their words on the open web and on each planned site.
+# Same list as the scheduler, so a board added in one place is searched in both.
+CUSTOMER_SITES = query_plan.SITE_SCOPES
+SITES = CUSTOMER_SITES + ("linkedin.com", "twitter.com", "indeed.com", "upwork.com")
 FRESHNESS = ("d", "w", "m", "m3", "m6", "m9", "y")        # Google date filter: day, week, month, N months, year
 STALE_AFTER = timedelta(minutes=10)
 # input, output tokens of a typical extraction, for estimates only (actual tokens are billed). Haiku 5.5's tokenizer makes ~30% more
@@ -50,6 +53,8 @@ def clean_query(raw: str) -> str:
     q = re.sub(r"\s+", " ", (raw or "")).strip()
     if re.search(r"[\x00-\x1f\x7f]", raw or ""):
         raise SearchRefused(422, "That search contains characters we can't use.")
+    # Unquoted "funnel builder" matches a company named Builder Funnel. The phrase does not.
+    q = re.sub(r'(?<!")\bfunnel builder\b(?!")', lambda m: f'"{m.group(0)}"', q, count=1, flags=re.I)
     if not 3 <= len(q) <= 120:
         raise SearchRefused(422, "Type between 3 and 120 characters, for example: hiring email copywriter klaviyo")
     return q
@@ -79,8 +84,22 @@ def typical_extraction_micro() -> int:
     return m if m is not None else 8_000
 
 
+def search_targets(query: str, site: str | None) -> list[str]:
+    """One Google search on the open web, plus one per site, unless the customer already picked a site."""
+    q = query.strip()
+    if site:
+        return [f"site:{site} {q}"]
+    return [q, *[f"site:{host} {q}" for host in CUSTOMER_SITES]]
+
+
+def price_for(site: str | None) -> int:
+    """Quoted price: one search fee and a typical extraction, per Google search we will run."""
+    n = len(search_targets("hiring copywriter", site))
+    return n * (search_fee_micro() + settings.user_search_results * typical_extraction_micro())
+
+
 def estimated_user_price_micro() -> int:
-    return search_fee_micro() + settings.user_search_results * typical_extraction_micro()
+    return price_for(None)
 
 
 def estimated_user_price_usd() -> float:
@@ -124,7 +143,7 @@ def quote(db: Session, user: User, query: str, freshness: str, site: str | None)
     freshness, site = _check_options(freshness, site)
     ready, why = live_search_ready()
     cached = find_cached(db, query_key(q, freshness, site))
-    price = 0 if cached else estimated_user_price_micro()
+    price = 0 if cached else price_for(site)
     return {"query": q, "ready": ready, "reason": why, "cached": bool(cached), "cached_results": cached.results_count if cached else 0,
             "price_usd": credits.micro_to_usd(price), "balance_usd": credits.micro_to_usd(user.balance_micro),
             "affordable": user.unlimited_credits or user.balance_micro >= price, "unlimited": user.unlimited_credits,
@@ -176,9 +195,10 @@ def start_search(db: Session, user: User, query: str, freshness: str, site: str 
         raise SearchRefused(409, "You already have a search running. Wait for it to finish.")
     if (db.scalar(select(func.count(UserSearch.id)).where(UserSearch.status.in_(("queued", "running")))) or 0) >= settings.user_search_max_concurrent:
         raise SearchRefused(503, "Search is busy right now. Try again in a minute.")
-    if query_plan.searches_used_this_month(db) >= settings.serpapi_monthly_budget:
+    n = len(search_targets(q, site))
+    if query_plan.searches_used_this_month(db) + n > settings.serpapi_monthly_budget:
         raise SearchRefused(503, "Custom search is paused for this month. Browsing the database still works.")
-    need = estimated_user_price_micro()
+    need = price_for(site)
     if not user.unlimited_credits and user.balance_micro < need:
         raise SearchRefused(402, "Not enough credit for a search.", needed_usd=credits.micro_to_usd(need),
                             balance_usd=credits.micro_to_usd(user.balance_micro))
@@ -190,17 +210,57 @@ def start_search(db: Session, user: User, query: str, freshness: str, site: str 
 
 
 # ---------- running it (background) ----------
+def _merge(combined: dict, stats: dict) -> None:
+    for key in ("search_hits", "added", "updated", "skipped", "errors", "tokens_in", "tokens_out"):
+        combined[key] += int(stats.get(key) or 0)
+    combined.setdefault("calls", []).extend(stats.get("calls") or [])
+    for jid in stats.get("job_ids") or []:
+        if jid not in combined["_seen"]:
+            combined["_seen"].add(jid)
+            combined["job_ids"].append(jid)
+
+
+def extraction_totals(calls: list[tuple[int, int]]) -> tuple[int, int]:
+    """Customer charge and our cost for many model calls. Each call keeps its own rate card; the sum is rounded up once."""
+    ours = Decimal(0)
+    for tin, tout in calls:
+        cost = pricing.cost_micro_exact(settings.extraction_model, tin, tout)
+        if cost is None:
+            raise SearchRefused(503, "Custom search is paused: the extraction model has no price configured, so it cannot be billed correctly.")
+        ours += cost
+    charge = int((ours * Decimal(str(CREDIT_MARKUP))).to_integral_value(ROUND_CEILING))
+    return charge, int(ours.to_integral_value(ROUND_CEILING))
+
+
 def run_search(search_id: int) -> None:
     with session_scope() as db:
         s = db.get(UserSearch, search_id)
         if s is None or s.status != "queued":
             return
         s.status = "running"
-        text, fresh, user_id = full_query(s.query, s.site), s.freshness, s.user_id
+        query, fresh, site, user_id = s.query, s.freshness, s.site, s.user_id
+    targets = search_targets(query, site)
+    combined = {"searched": False, "search_hits": 0, "added": 0, "updated": 0, "skipped": 0, "errors": 0,
+                "tokens_in": 0, "tokens_out": 0, "job_ids": [], "calls": [], "searches_ok": 0, "search_error": None, "_seen": set()}
     try:
-        stats = pipeline.run_pipeline_for_query(text, num=settings.user_search_results, freshness=fresh,
-                                                source_key=SOURCE_KEY, source_label=SOURCE_LABEL)
-        _finish(search_id, user_id, text, fresh, stats)
+        failures: list[str] = []
+        exhausted: set[str] = set()
+        for text in targets:
+            stats = pipeline.run_pipeline_for_query(text, num=settings.user_search_results, freshness=fresh,
+                                                    source_key=SOURCE_KEY, source_label=SOURCE_LABEL, exhausted=exhausted)
+            if stats.get("searched") and not stats.get("search_error") and not stats.get("error"):
+                combined["searched"] = True
+                combined["searches_ok"] += 1
+                _merge(combined, stats)
+                with session_scope() as db:
+                    query_plan.log_search(db, query_plan.QuerySpec(text, fresh), results=stats.get("search_hits", 0),
+                                          new_jobs=stats.get("added", 0), provider=stats.get("provider"))
+            else:
+                failures.append(redact(stats.get("search_error") or stats.get("error") or "Search did not run"))
+        if combined["searches_ok"] == 0:
+            combined["searched"] = True
+            combined["search_error"] = failures[0] if failures else "Search did not run"
+        _finish(search_id, user_id, combined)
     except Exception as e:                                             # never leave a search 'running'
         log.exception("user search %s failed", search_id)
         with session_scope() as db:
@@ -209,19 +269,25 @@ def run_search(search_id: int) -> None:
                 s.status, s.error, s.finished_at = "failed", redact(f"Search failed: {type(e).__name__}. You were not charged."), utcnow()
 
 
-def _finish(search_id: int, user_id: int, text: str, fresh: str, stats: dict) -> None:
+def _finish(search_id: int, user_id: int, stats: dict) -> None:
     with session_scope() as db:
         s = db.get(UserSearch, search_id)
         s.finished_at = utcnow()
-        if stats.get("error") or not stats.get("searched") or stats.get("search_error"):
+        ok = int(stats.get("searches_ok") or 0)
+        if stats.get("error") or not stats.get("searched") or stats.get("search_error") or ok == 0:
             s.status = "failed"
             s.error = redact(stats.get("search_error") or stats.get("error") or "Search did not run") + " You were not charged."
             return
-        query_plan.log_search(db, query_plan.QuerySpec(text, fresh), results=stats.get("search_hits", 0), new_jobs=stats.get("added", 0))
-        tin, tout = stats.get("tokens_in", 0), stats.get("tokens_out", 0)
-        extraction = credits.usage_cost_micro(settings.extraction_model, tin, tout) if (tin or tout) else 0
-        our_extraction = pricing.cost_micro(settings.extraction_model, tin, tout) if (tin or tout) else 0
-        fee, our_cost = search_fee_micro(), our_search_cost_micro() + our_extraction
+        calls = stats.get("calls") or []
+        if calls:
+            extraction, our_extraction = extraction_totals(calls)
+            tin = sum(i for i, _ in calls)
+            tout = sum(o for _, o in calls)
+        else:
+            tin, tout = stats.get("tokens_in", 0), stats.get("tokens_out", 0)
+            extraction = credits.usage_cost_micro(settings.extraction_model, tin, tout) if (tin or tout) else 0
+            our_extraction = pricing.cost_micro(settings.extraction_model, tin, tout) if (tin or tout) else 0
+        fee, our_cost = search_fee_micro() * ok, our_search_cost_micro() * ok + our_extraction
         # The customer pays at least CREDIT_MARKUP x what the search really cost us (the floor is belt and braces: the two parts
         # already round up individually).
         total = max(fee + extraction, math.ceil(our_cost * CREDIT_MARKUP))

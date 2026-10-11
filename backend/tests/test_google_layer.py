@@ -3,6 +3,7 @@ SerpAPI/Claude/Playwright calls are stubbed; nothing here proves the live servic
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 
+import httpx
 import pytest
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
@@ -13,7 +14,9 @@ from app.dedup import dedupe_hash
 from app.models import Job, ScrapeRun, SearchQuery
 from app.schemas import ExtractedJob, SearchResult
 from app.scrapers import google_search, llm_extractor, page_fetcher, pipeline, query_plan
-from app.scrapers.query_plan import QuerySpec, build_plan, due_queries, searches_used_this_month
+from app.scrapers.query_plan import (
+    JOB_SCOPES, OPEN_WEB, POST_SCOPES, POST_TERMS, TERMS, QuerySpec, build_plan, due_queries, searches_used_this_month,
+)
 
 NOW = datetime(2026, 10, 8, 12, 0, tzinfo=timezone.utc)
 
@@ -48,9 +51,26 @@ def db(monkeypatch):
 # ---------- plan ----------
 def test_plan_has_open_web_and_site_scoped_queries_without_duplicates():
     texts = [q.text for q in build_plan()]
-    assert len(texts) == len(set(texts)) == 10 + 4 * 6
-    assert '"hiring copywriter"' in texts and '"hiring copywriter" site:reddit.com' in texts
+    assert len(texts) == len(set(texts)) == len(OPEN_WEB) + len(POST_TERMS) * len(POST_SCOPES) + len(TERMS) * len(JOB_SCOPES)
+    assert '"hiring copywriter"' in texts
+    assert 'site:linkedin.com/posts "hiring" copywriter' in texts
+    assert "site:linkedin.com/jobs/view copywriter jobs" in texts
+    assert 'site:x.com "hiring" "creative strategist"' in texts
+    assert 'site:facebook.com "hiring" "email copywriter"' in texts
+    assert 'site:reddit.com/r/forhire/comments "hiring" "creative strategist"' in texts
+    assert 'site:reddit.com/r/hiring/comments "hiring" copywriter' in texts
+    assert "site:dynamitejobs.com/company copywriter jobs" in texts
+    assert 'site:linkedin.com/jobs/view "funnel builder" jobs' in texts
+    assert 'site:linkedin.com/posts "hiring" "funnel builder"' in texts
+    assert "site:himalayas.app/companies copywriter jobs" in texts
+    assert "site:remotive.com/remote/jobs/ creative strategist jobs" in texts
+    assert not any(
+        host in t
+        for t in texts
+        for host in ("tryremotely.com", "creatorjobboard.com", "jobspresso.co", "remote.co")
+    )
     assert all(len(t) <= 256 for t in texts)
+    assert all(not t.startswith('"') or " site:" not in t for t in texts)
 
 
 # ---------- due / budget ----------
@@ -194,8 +214,548 @@ def test_everything_fails_falls_back_to_escaped_snippet(modes):
 
 def test_social_platforms_never_fetch(modes):
     calls = modes(simple=LONG)
-    tw = R.model_copy(update={"platform": "twitter"})
-    assert page_fetcher.fetch_page_for_result(tw)[1] is False and calls == []
+    for platform in ("twitter", "linkedin", "facebook", "himalayas", "weworkremotely", "euremotejobs"):
+        calls.clear()
+        row = R.model_copy(update={"platform": platform})
+        assert page_fetcher.fetch_page_for_result(row)[1] is False and calls == []
+
+
+def test_site_query_drops_results_from_other_hosts():
+    assert google_search.on_site("https://www.linkedin.com/posts/a", "linkedin.com/posts")
+    assert google_search.on_site("https://twitter.com/a/status/1", "x.com")
+    assert google_search.on_site("https://x.com/someone/status/123", "x.com")
+    assert not google_search.on_site("https://x.com/copywriting_job", "x.com")
+    assert not google_search.on_site("https://x.com/someone/article/123", "x.com")
+    assert google_search.on_site("https://www.reddit.com/r/forhire/comments/abc/hiring_copywriter", "reddit.com/r/forhire/comments")
+    assert not google_search.on_site("https://www.reddit.com/r/forhire/", "reddit.com/r/forhire/comments")
+    assert not google_search.on_site("https://www.reddit.com/r/advertising/comments/abc/how_to", "reddit.com/r/forhire/comments")
+    assert not google_search.on_site("https://www.ziprecruiter.com/Jobs/Copywriter", "linkedin.com")
+    assert not google_search.on_site("https://www.linkedin.com/jobs/copywriter-jobs", "linkedin.com/jobs/view")
+    assert google_search.on_site("https://dynamitejobs.com/company/kindred/remote-job/lead-copywriter", "dynamitejobs.com/company")
+    assert not google_search.on_site("https://dynamitejobs.com/skill/remote-copywriting-jobs", "dynamitejobs.com/company")
+    assert google_search.on_site("https://himalayas.app/companies/codekeeper/jobs/marketing-copywriter", "himalayas.app/companies")
+    assert not google_search.on_site("https://himalayas.app/jobs/copywriting", "himalayas.app/companies")
+    assert google_search.on_site("https://weworkremotely.com/remote-jobs/acme-copywriter", "weworkremotely.com/remote-jobs/")
+    assert not google_search.on_site("https://weworkremotely.com/remote-jobs-copywriting", "weworkremotely.com/remote-jobs/")
+    assert google_search.on_site("https://remote.co/job-details/copywriter-256ca411", "remote.co/job-details/")
+    assert not google_search.on_site("https://remote.co/remote-jobs/copywriting", "remote.co/job-details/")
+    assert google_search.on_site("https://remotive.com/remote/jobs/writing/copywriter-1", "remotive.com/remote/jobs/")
+    assert not google_search.on_site("https://remotive.com/remote-jobs/o-marketing-copywriter", "remotive.com/remote/jobs/")
+    assert google_search._platform_from_url("https://www.himalayas.app/companies/x/jobs/y") == "himalayas"
+    assert google_search._platform_from_url("https://jobs.workable.com/view/abc/creative-strategist") == "workable"
+    assert google_search._platform_from_url("https://euremotejobs.com/job/copywriter/") == "euremotejobs"
+    assert google_search._platform_from_url("https://remote.co/job-details/copywriter-1") == "remoteco"
+    assert google_search._platform_from_url("https://4dayweek.io/job/copywriter-at-anthropic") == "fourdayweek"
+
+
+def test_quota_falls_back_to_serper_and_keeps_only_the_site(monkeypatch):
+    monkeypatch.setattr(settings, "dev_fixtures", False)
+    monkeypatch.setattr(settings, "serpapi_api_key", "k")
+    monkeypatch.setattr(settings, "serper_api_key", "s")
+    monkeypatch.setattr(settings, "google_search_provider", "serpapi")
+
+    def fake_get(url, **kw):
+        return httpx.Response(429, json={"error": "Your account has run out of searches."}, request=httpx.Request("GET", "https://serpapi.com/search.json"))
+
+    def fake_post(url, **kw):
+        return httpx.Response(200, json={"organic": [
+            {"link": "https://www.linkedin.com/posts/someone_hiring", "title": "Hiring a copywriter", "snippet": "remote"},
+            {"link": "https://www.ziprecruiter.com/Jobs/Copywriter", "title": "Copywriter jobs", "snippet": "browse"},
+        ]}, request=httpx.Request("POST", "https://google.serper.dev/search"))
+
+    monkeypatch.setattr(google_search.httpx, "get", fake_get)
+    monkeypatch.setattr(google_search.httpx, "post", fake_post)
+    res = google_search.search("site:linkedin.com/posts hiring copywriter")
+    assert [r.url for r in res] == ["https://www.linkedin.com/posts/someone_hiring"]
+    assert res[0].platform == "linkedin"
+
+
+def test_a_provider_that_is_out_of_searches_is_not_asked_again(monkeypatch):
+    monkeypatch.setattr(settings, "dev_fixtures", False)
+    monkeypatch.setattr(settings, "serpapi_api_key", "k")
+    monkeypatch.setattr(settings, "serper_api_key", "s")
+    monkeypatch.setattr(settings, "google_search_provider", "serpapi")
+    gets = []
+
+    def fake_get(url, **kw):
+        gets.append(1)
+        return httpx.Response(429, json={"error": "Your account has run out of searches."}, request=httpx.Request("GET", "https://serpapi.com/search.json"))
+
+    def fake_post(url, **kw):
+        return httpx.Response(200, json={"organic": [
+            {"link": "https://example.org/job/1", "title": "Hiring a copywriter", "snippet": "remote"},
+        ]}, request=httpx.Request("POST", "https://google.serper.dev/search"))
+
+    monkeypatch.setattr(google_search.httpx, "get", fake_get)
+    monkeypatch.setattr(google_search.httpx, "post", fake_post)
+    exhausted: set[str] = set()
+    used: list[str] = []
+    google_search.search("hiring copywriter", exhausted=exhausted, used=used)
+    assert exhausted == {"serpapi"} and used == ["serper"] and len(gets) == 1
+    used.clear()
+    google_search.search("hiring email copywriter", exhausted=exhausted, used=used)
+    assert used == ["serper"] and len(gets) == 1
+
+
+def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
+    assert pipeline.not_a_hiring_post("Jim Schroën's Post", "When I'm hiring a creative strategist, I look for three things.")
+    assert pipeline.not_a_hiring_post("[FOR HIRE] Senior Creative Strategist", "I can help your brand")
+    assert pipeline.not_a_hiring_post("[Hire Me] Copywriter", "")
+    assert pipeline.not_a_hiring_post("Careers at Liberty Mutual Insurance", "See open roles")
+    assert pipeline.not_a_hiring_post("All Open Positions", "")
+    assert pipeline.not_a_hiring_post(
+        "Copywriter Jobs Board",
+        "240 writer jobs, submission calls; 129 jobs exclusive to paid subscribers on the site!")
+    assert pipeline.not_a_hiring_post(
+        "Creative Strategist Job Board",
+        "Discover exciting creative strategist job opportunities.",
+        url="https://www.foreplay.co/creative-strategist-jobs")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a creative strategist",
+        "Post the role on our job board and send a portfolio.")
+    assert pipeline.not_a_hiring_post(
+        "Cost to build funnel for course by top builder?",
+        "How much would be to build funnel for course by top funnel builder? I checked Fiverr already. Cheers,")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a funnel builder",
+        "Cost to build the pages is covered. Send a Fiverr profile if you have one.")
+    assert pipeline.not_a_hiring_post(
+        "Marketing Copywriter - BIS Safety Software",
+        "This job post is closed and the position is probably filled. Please do not apply.")
+    assert pipeline.not_a_hiring_post(
+        "Creative Strategist | City of New York Jobs",
+        "This vacancy has now expired. Minimum Qualifications.",
+        url="https://cityjobs.nyc.gov/job/creative-strategist-in-manhattan-jid-32088")
+    assert not pipeline.not_a_hiring_post(
+        "Creative Strategist | City of New York Jobs",
+        "The Creative Strategist will develop creative ideas for the agency.",
+        url="https://cityjobs.nyc.gov/job/creative-strategist-in-manhattan-jid-32088")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "Please do not apply unless you have a portfolio of live emails.")
+    assert pipeline.not_a_hiring_post(
+        "Remote Performance Marketing Specialist | E-Commerce",
+        "Think project manager meets creative strategist, all while being knee-deep in data.",
+        query='hiring "creative strategist"')
+    assert pipeline.not_a_hiring_post(
+        "Remote Account Manager at SOCi",
+        "Creative strategist; develop new ways to drive sales.",
+        query='hiring "creative strategist"')
+    assert pipeline.not_a_hiring_post(
+        "Email Graphics Designer at C9 - Philippines Remote",
+        "work with the email copywriter and creative team to conceptualize graphic assets",
+        query='hiring "email copywriter"')
+    assert not pipeline.not_a_hiring_post(
+        "Lead Creative Strategist (Performance Marketing)",
+        "Superside is hiring a Creative Strategist",
+        query='hiring "creative strategist"')
+    assert not pipeline.not_a_hiring_post(
+        "Remote Freelance Writer at ProWriterSites",
+        "our ultimate goal is to bring on a full-time copywriter",
+        query="hiring copywriter")
+    assert not pipeline.not_a_hiring_post(
+        "Email Copywriter, Account Coordinator – Dutch-speaking",
+        "Full Time",
+        query='hiring "email copywriter"')
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "Send a portfolio. We also post roles on our jobs board.")
+    assert pipeline.not_a_hiring_post(
+        "Remote-First Marketing Jobs",
+        "Copywriter; Creative Strategist; Organic Marketing.")
+    assert pipeline.not_a_hiring_post(
+        "9000+ Copywriter jobs in United States",
+        "Today's top 9000+ Copywriter jobs in United States. Leverage your professional network, and get hired.")
+    assert pipeline.not_a_hiring_post(
+        "92 Copywriter Jobs in Charleston, South Carolina",
+        "Senior Copywriter. Growth Marketing & Content Manager.")
+    assert pipeline.not_a_hiring_post(
+        "10000+ Funnel Builder jobs in United States",
+        "New Funnel Builder jobs added daily.")
+    assert not pipeline.not_a_hiring_post(
+        "Funnel Builder",
+        "We are looking for a highly strategic Funnel Builder to join our marketing team. 9000+ brands use the tool.")
+    assert pipeline.not_a_hiring_post(
+        "$20-$72/hr Funnel Jobs (NOW HIRING) Oct 2026",
+        "Overview We're looking for a high-level funnel builder who understands both conversion and design.",
+        url="https://www.ziprecruiter.com/Jobs/Funnel")
+    assert pipeline.not_a_hiring_post(
+        "Remote Copywriter Jobs ($69K to $103K)",
+        "Search 216 copywriter remote jobs. 26 added this week.",
+        url="https://www.remoterocketship.com/jobs/copywriter/")
+    assert pipeline.not_a_hiring_post(
+        "$26-$54/hr No Experience Copywriting Jobs in Royal Oak, MI",
+        "Browse 16 ROYAL OAK, MI NO EXPERIENCE COPYWRITING jobs hiring now.",
+        url="https://www.ziprecruiter.com/Jobs/No-Experience-Copywriting/-in-Royal-Oak,MI")
+    assert not pipeline.not_a_hiring_post(
+        "Copywriter",
+        "We are hiring a copywriter in Royal Oak. Pay is $26-$54/hr.",
+        url="https://www.ziprecruiter.com/c/acme/Job/Copywriter/-in-Royal-Oak,MI")
+    assert pipeline.not_a_hiring_post(
+        "Copywriter Jobs in Miami (492 Open Roles)",
+        "492 Copywriter Jobs in Miami. Digital Copywriter. Junior Copywriter. Lead, Copywriter.")
+    assert pipeline.not_a_hiring_post(
+        "Creative Strategist Jobs in Manhattan, NY (3403)",
+        "There are 3,403 Creative Strategist opportunities available in Manhattan, NY.",
+        url="https://www.joblist.com/j/creative-strategist-jobs/manhattan-ny")
+    assert not pipeline.not_a_hiring_post(
+        "Funnel Builder",
+        "We are looking for a Funnel Builder. 3,403 brands use this stack.",
+        url="https://www.multiplymii.com/job-description/funnel-builder")
+    assert pipeline.not_a_hiring_post(
+        "Creative strategist jobs",
+        "Creative Strategist. Reach Digital. Creative Strategist. Ecom Warrior Academy.")
+    assert pipeline.not_a_hiring_post(
+        "Remote Copywriting Jobs",
+        "Explore the fully remote Copywriting jobs worldwide. Apply to positions like Copywriter and Content Writer.",
+        url="https://www.workingnomads.com/remote-copywriting-jobs")
+    assert not pipeline.not_a_hiring_post(
+        "Copywriter at a remote studio",
+        "We are hiring a copywriter. This listing is also on the remote copywriting jobs page.",
+        url="https://www.workingnomads.com/job/go/copywriter")
+    assert pipeline.not_a_hiring_post(
+        "Creative Strategist Jobs in Atlanta Metropolitan Area ...",
+        "1,000+ Creative Strategist Jobs in Atlanta Metropolitan Area. Senior Manager, Creative Strategy.",
+        url="https://www.linkedin.com/jobs/creative-strategist-jobs-atlanta-metropolitan-area")
+    assert pipeline.not_a_hiring_post(
+        "Creative Strategist jobs in New York",
+        "Discover the latest Creative Strategist jobs at the fastest growing startups in New York.",
+        url="https://startup.jobs/locations/new-york/creative-strategist")
+    assert pipeline.not_a_hiring_post(
+        "Viral Marketing Copywriter Jobs in Greenville NC",
+        "Copywriter Jobs in Greenville NC, Jobs in Film, TV, Music, VFX and more.",
+        url="https://www.entertainmentcareers.net/jobs/s/viral-marketing-copywriter/545-greenville-nc/")
+    assert not pipeline.not_a_hiring_post(
+        "Viral Marketing Copywriter",
+        "As the Copywriter, you'll bring a strong verbal and narrative lens. Full time in Greenville, NC.",
+        url="https://www.entertainmentcareers.net/mrbeast/viral-marketing-copywriter/job/528861/")
+    assert not pipeline.not_a_hiring_post(
+        "Creative Strategist",
+        "We are hiring a Creative Strategist in New York. 1,000+ brands in the category.",
+        url="https://www.linkedin.com/jobs/view/creative-strategist-123")
+    assert pipeline.not_a_hiring_post(
+        "Copywriter Jobs in October 2026",
+        "Find a Copywriter job at a fast-growing startup.",
+        url="https://startup.jobs/roles/copywriter")
+    assert pipeline.not_a_hiring_post(
+        "Copywriting Jobs (October 2026)",
+        "313 Copywriting jobs available at Startup Jobs.",
+        url="https://startup.jobs/copywriting-jobs")
+    assert not pipeline.not_a_hiring_post(
+        "Funnel Builder",
+        "We are looking for a Funnel Builder to join in October 2026.",
+        url="https://www.multiplymii.com/job-description/funnel-builder")
+    assert not pipeline.not_a_hiring_post(
+        "Creative Strategist at Reach Digital",
+        "492 people on the marketing team. Open roles are listed separately.")
+    assert pipeline.not_a_hiring_post(
+        "Email copywriting jobs",
+        "Email Copywriter. Instant Email Copy. $45,000 - $70,000 a year.",
+        url="https://www.indeed.com/q-email-copywriting-jobs.html")
+    assert pipeline.not_a_hiring_post(
+        "Top 38 Email copywriter Jobs in Remote",
+        "38 Email copywriter jobs available in Remote. See salaries, compare reviews, easily apply.",
+        url="https://www.simplyhired.com/search?q=email+copywriter&l=remote")
+    assert pipeline.not_a_hiring_post(
+        "Top Copywriter Jobs in NYC, NY",
+        "Search for the best NYC copywriter jobs from top companies. Jobs updated daily.",
+        url="https://www.builtinnyc.com/jobs/content/search/copywriter")
+    assert not pipeline.not_a_hiring_post(
+        "Copywriter",
+        "We are hiring a copywriter. Search for the best work in your portfolio.",
+        url="https://example.com/jobs/copywriter")
+    assert pipeline.not_a_hiring_post(
+        "Creative Strategy Jobs – Reduced Hours (2026)",
+        "Hiring companies include Canva, Power Digital, and Suno.",
+        url="https://4dayweek.io/creative-strategy-jobs")
+    assert not pipeline.not_a_hiring_post(
+        "Creative Strategist",
+        "Rocket Money is hiring a Creative Strategist. Reduced hours, four-day week.",
+        url="https://4dayweek.io/job/creative-strategist-rocket-money")
+    assert pipeline.not_a_hiring_post(
+        "Remote copywriter jobs in Davidson, NC",
+        "Browse 20 Remote Copywriter job openings from Davidson, NC.",
+        url="https://www.indeed.com/q-remote-copywriter-l-davidson,-nc-jobs.html")
+    assert not pipeline.not_a_hiring_post(
+        "Email Copywriter",
+        "Work within Klaviyo. $45,000 - $70,000 a year.",
+        url="https://www.indeed.com/viewjob?jk=abc123")
+    assert not pipeline.not_a_hiring_post(
+        "Remote Copywriter at YO IT Consulting",
+        "5+ years of professional experience in copywriting. Salary $69K to $103K.",
+        url="https://remoteok.com/remote-jobs/copywriter-yo")
+    assert not pipeline.not_a_hiring_post(
+        "Funnel Builder",
+        "We are looking for a high-level funnel builder. Jobs (now hiring) are listed on our site.",
+        url="https://www.multiplymii.com/job-description/funnel-builder")
+    assert pipeline.not_a_hiring_post(
+        "Recruitment Landing Page Templates for High Conversions",
+        "Lunar is an AI landing page generator that turns your brief into a complete page.")
+    assert pipeline.not_a_hiring_post(
+        "Hiring Landing Page",
+        "Discover 26 Hiring Landing Page designs on Dribbble.")
+    assert pipeline.not_a_hiring_post(
+        "Hiring landing page Images - Free Download",
+        "Free Graphic Resources for Hiring landing page Vectors, Stock Photos & PSD files. Free for commercial use.")
+    assert pipeline.not_a_hiring_post(
+        "Landing Pages | Hiring on LinkedIn",
+        "Learn how to build a Landing Page and attract talent.")
+    assert pipeline.not_a_hiring_post(
+        "Recruitment Landing Page Examples: What Works + Best",
+        "Recruitment landing page best practices. Match your ad to your headline.")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a landing page designer",
+        "You'll write landing page templates for clients and learn how to build a funnel.")
+    assert pipeline.not_a_hiring_post(
+        "Best Freelance Email Marketers for Hire (Oct 2026)",
+        "How much does hiring an email marketer cost?",
+        url="https://www.upwork.com/hire/email-marketing-consultants/")
+    assert pipeline.not_a_hiring_post(
+        "Hire the Best funnel builders",
+        "Freelancers typically offer planning and setup.",
+        url="https://pro.fiverr.com/cat/marketing-and-sales/funnel-builder")
+    assert pipeline.not_a_hiring_post(
+        "Sales funnel builder Jobs, Employment",
+        "Search for jobs related to Sales funnel builder or hire on the world's largest freelancing marketplace.",
+        url="https://www.freelancer.com/job-search/sales-funnel-builder/")
+    assert pipeline.not_a_hiring_post(
+        "Copywriter Jobs",
+        "Search and apply to our open Copywriter jobs.",
+        url="https://www.roberthalf.com/us/en/jobs/all/copywriter")
+    assert not pipeline.not_a_hiring_post(
+        "Funnel Builder",
+        "We are looking for a Funnel Builder to join our marketing team.",
+        url="https://www.multiplymii.com/job-description/funnel-builder")
+    assert not pipeline.not_a_hiring_post(
+        "Email marketer for an ecommerce brand",
+        "Fixed price, ongoing.",
+        url="https://www.upwork.com/jobs/~0123456789")
+    assert pipeline.not_a_hiring_post(
+        "Where can I hire an email marketing manager?",
+        "",
+        url="https://www.quora.com/Where-can-I-hire-an-email-marketing-manager")
+    assert pipeline.not_a_hiring_post(
+        "What are the best email marketing jobs in the USA for 2025?",
+        "",
+        url="https://www.quora.com/What-are-the-best-email-marketing-jobs-in-the-USA-for-2025")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring an email marketer",
+        "Where can I hire one? Apply on the careers page.",
+        url="https://example.com/jobs/email-marketer")
+    assert pipeline.not_a_hiring_post(
+        "Email Marketer Job Description Template",
+        "As an email marketer, you will develop, implement and optimise email marketing strategies for our company.",
+        url="https://business.linkedin.com/hire/resources/how-to-hire-guides/email-marketer-job-description")
+    assert not pipeline.not_a_hiring_post(
+        "Funnel Builder",
+        "We are looking for a Funnel Builder to join our marketing team. See the job description template in the doc.",
+        url="https://www.multiplymii.com/job-description/funnel-builder")
+    assert pipeline.not_a_hiring_post(
+        "Audience & Connections Strategist at Wpromote",
+        "Creative Strategist. Rocket Money. Browse Marketing jobs.")
+    assert not pipeline.not_a_hiring_post(
+        "Paid Social Creative Strategist at Suno",
+        "Proven experience as a creative strategist in a high-volume environment.")
+    assert not pipeline.not_a_hiring_post(
+        "Senior Creative Strategist at Polymarket",
+        "Marketing Jobs/Senior Creative Strategist. Posted 2 months ago.")
+    assert not pipeline.not_a_hiring_post("We're hiring a copywriter", "1-3 years into their career")
+    assert not pipeline.not_a_hiring_post("[HIRING] Creative Strategist (Fully Remote)", "full-time")
+    assert pipeline.not_a_hiring_post("How to hire a creative strategist: 3 signs and 3 skills", "")
+    assert pipeline.not_a_hiring_post("How should brands hire creative strategists?!", "")
+    assert pipeline.not_a_hiring_post("3 signs you're not actually a creative strategist", "")
+    assert pipeline.not_a_hiring_post("Ultimate checklist for hiring a copywriting genius", "Secret checklist for a pro copywriter")
+    assert pipeline.not_a_hiring_post("How to become a creative strategist as a copywriter", "More brands are hiring creative strategists")
+    assert pipeline.not_a_hiring_post("Here's how to get hired as a copywriter at storyarb.", "Our acceptance rate is less than 0.5%.")
+    assert pipeline.not_a_hiring_post(
+        "How can I get hired in Agora as a financial copywriter?",
+        "Their programs are offered periodically and totally depends on what division needs copywriters.")
+    assert pipeline.not_a_hiring_post(
+        "Seeking Advice: Funnel Design vs. Funnel Builder – What's the Best Approach",
+        "Hi everyone, I'm in the early stages of building my business.")
+    assert pipeline.not_a_hiring_post(
+        "What makes a great creative strategist? | Sarim Siddiqui",
+        "Media Buyer & Creative Strategist. I help brands reduce new customer cost.")
+    assert pipeline.not_a_hiring_post(
+        "The Creative Strategist role is the fast growing job in performance marketing",
+        "But it's a new role so people always ask: what's the right background?")
+    assert pipeline.not_a_hiring_post(
+        "The Best Funnel Builder for Recruiting in 2026",
+        "Streamline your candidate acquisition with Heyflow's funnel builder.")
+    assert pipeline.not_a_hiring_post(
+        "Best Copywriter Jobs 2026",
+        "Search for the best copywriter jobs",
+        url="https://builtin.com/jobs/content/search/copywriter")
+    assert not pipeline.not_a_hiring_post(
+        "Copywriter",
+        "We are hiring a copywriter. Search for the best copywriter jobs is how candidates find us.",
+        url="https://builtin.com/job/copywriter/senior-copywriter")
+    assert pipeline.not_a_hiring_post(
+        "Hire a GoHighLevel Funnel Builder Expert: Easy Guide",
+        "A GoHighLevel funnel builder expert helps design and structure your sales process.")
+    assert pipeline.not_a_hiring_post(
+        "Connor Gross - PSA to anyone hiring a creative strategist.",
+        "We hired 14 this year. And the best always have the same 2 things in common.")
+    assert pipeline.not_a_hiring_post(
+        "How to make a junior creative strategist quit within 10 days",
+        "Day 1: Give them no onboarding.")
+    assert pipeline.not_a_hiring_post(
+        "Recruitment Landing Page Examples: What Works + Best",
+        "A recruitment landing page solves this. It's a standalone page built for one goal.")
+    assert pipeline.not_a_hiring_post(
+        "What does a Creative Strategist do?",
+        "This page details key information about the Creative Strategist role, salaries, and how to approach recruitment.")
+    assert pipeline.not_a_hiring_post(
+        "How to get into Creative Strategist Job?",
+        "I've been applying to multiple companies via LinkedIn but never get any interview.",
+        url="https://www.reddit.com/r/CreativeStrategists/comments/abc/how_to_get_into/")
+    assert pipeline.not_a_hiring_post(
+        "What to look for when hiring a creative strategist?",
+        "I run a DTC beauty brand and I've never hired for this before.",
+        url="https://www.reddit.com/r/AskMarketing/comments/abc/what_to_look_for/")
+    assert pipeline.not_a_hiring_post(
+        '"Creative Strategist"?',
+        "Has anyone made the transition from a typical agency role? Is this a legitimate career path?",
+        url="https://www.reddit.com/r/advertising/comments/abc/creative_strategist/")
+    assert not pipeline.not_a_hiring_post(
+        "Where can I find a good creative strategist based in the US?",
+        "I've been trying for several months already to get a creative strategist.",
+        url="https://www.reddit.com/r/advertising/comments/abc/where_can_i_find/")
+    assert pipeline.not_a_hiring_post(
+        "Hire a Creative Strategist for Your DTC Brand",
+        "We help DTC and e-commerce founders hire creative strategists who scale paid social.",
+        url="https://www.constanthire.com/creative-strategist-recruitment-agency")
+    assert not pipeline.not_a_hiring_post(
+        "Senior Creative Strategist Job | Lilo Social Careers",
+        "Lilo Social is seeking a Senior Creative Strategist. We help founders grow. You'll hire no one on day one.",
+        url="https://lilosocial.com/careers/senior-creative-strategist/")
+    assert pipeline.not_a_hiring_post(
+        "Creative Strategist freelancers - Hire",
+        "Write down these goals clearly. This will help the creative strategist understand the brief.")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a creative strategist",
+        "What does a creative strategist do? You'll own the ads. We also keep a freelancers - hire list.")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a creative strategist",
+        "PSA to anyone hiring: send work. How to make a good first week. Examples: what works in our niche.")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a funnel builder",
+        "The best funnel builder for recruiting in 2026 is who we need. Easy guide in the doc.")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a Creative Strategist",
+        "What makes a great creative strategist? This is a fast growing job and we need one.")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "How can I get hired? Send a portfolio. Seeking advice from the team is part of week one.")
+    assert pipeline.not_a_hiring_post(
+        "Hiring a creative strategist? - Melissa Jaalaid's Post",
+        "I just did this for a client. They needed someone to pump out 30-40+ creatives weekly.")
+    assert not pipeline.not_a_hiring_post(
+        "Hiring a Senior Creative Strategist / Copywriter for a fast-growing brand",
+        "Remote, apply here")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "A checklist for your first week, and how to become comfortable with the brand voice")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "Here's how to get hired onto the account: send a portfolio")
+    assert pipeline.not_a_hiring_post(
+        "BD Funnel Builder is hiring Software Engineering Manager", "Full-time", query='hiring "funnel builder"')
+    assert pipeline.not_a_hiring_post(
+        "Remote Senior Platform Engineer at Perspective",
+        "Perspective - #1 Mobile Funnel Builder.", query='hiring "funnel builder"')
+    assert pipeline.not_a_hiring_post(
+        "Perspective is hiring a remote Senior Fullstack Engineer to join the team",
+        "Perspective - #1 Mobile Funnel Builder.", query='hiring "funnel builder"')
+    assert pipeline.not_a_hiring_post(
+        "Remote Senior Backend Engineer (f/m/d) at Perspective",
+        "Perspective - #1 Mobile Funnel Builder.", query='hiring "funnel builder"')
+    assert pipeline.not_a_hiring_post(
+        "NoDesk",
+        "This is a full-time position that can be done remotely anywhere in Europe. Perspective - #1 Mobile Funnel Builder.",
+        query='hiring "funnel builder"')
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a funnel builder",
+        "You'll use Perspective, the #1 Mobile Funnel Builder, to ship the pages.",
+        query='hiring "funnel builder"')
+    assert pipeline.not_a_hiring_post(
+        "Say hello to the Heyflow funnel builder",
+        "Heyflow gives you the right funnel builder at your fingertips.",
+        query='hiring "funnel builder"',
+        url="https://heyflow.com/funnel-builder/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a funnel builder",
+        "You'll have a funnel builder at your fingertips and a designer on the team.",
+        query='hiring "funnel builder"')
+    assert not pipeline.not_a_hiring_post(
+        "NoDesk",
+        "Perspective - #1 Mobile Funnel Builder.",
+        query="hiring copywriter")
+    assert not pipeline.not_a_hiring_post(
+        "Now hiring - GoFunnels is looking for a full-time Funnel Builder",
+        "Expertise with ClickFunnels, Go High Level, Kajabi", query='hiring "funnel builder"')
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a funnel builder",
+        "You'll work with our backend engineers to ship the pages", query='hiring "funnel builder"')
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter", "for a software engineering company", query="hiring copywriter")
+    assert pipeline.not_a_hiring_post(
+        "#hiring | Marina Aghbalyan",
+        "AI FUNNEL BUILDER I have 4+ years of hands-on experience with GoHighLevel")
+    assert pipeline.not_a_hiring_post(
+        "LinkedIn Ghostwriter | Newsletter & Case Study Writer",
+        "Hi, I'm a copywriter and content writer specializing in helping startups")
+    assert not pipeline.not_a_hiring_post(
+        "Agency post",
+        "Hi, I'm a copywriter and we're hiring a designer to pair with me")
+    assert not pipeline.not_a_hiring_post(
+        "Carol Dasaro's Post",
+        "Hi everyone, I'm hiring for a freelance copywriter. We're looking for someone with 3-7 years")
+    assert not pipeline.not_a_hiring_post(
+        "Founder post",
+        "Hi, I'm a founder and we're hiring a copywriter")
+    assert not pipeline.not_a_hiring_post(
+        "I am a Funnel Builder/Designer & CRM automation specialist",
+        "Now Hiring: Funnel Builder Genius. We're looking for a skilled funnel builder")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a funnel builder",
+        "I have 8 years running this studio and we need a builder")
+    assert pipeline.not_a_hiring_post(
+        "[Hiring] 2D Animation Tutor — $30/hr (Remote)",
+        "[HIRING] Creative Strategist · r/forhire",
+        query='site:reddit.com/r/hiring/comments hiring "creative strategist"',
+        url="https://www.reddit.com/r/hiring/comments/abc/2d_animation_tutor/")
+    assert pipeline.not_a_hiring_post(
+        "[HIRING] Viral Manager : r/hiring",
+        "[HIRING] Creative Strategist",
+        query='hiring "creative strategist"',
+        url="https://www.reddit.com/r/hiring/comments/abc/viral_manager/")
+    assert pipeline.not_a_hiring_post(
+        "[HIRING] TikTok Content Poster – Remote Side Job",
+        "Create and post 5 TikTok carousel posts per day",
+        query="site:reddit.com/r/hiring/comments hiring copywriter",
+        url="https://www.reddit.com/r/hiring/comments/abc/tiktok/")
+    assert not pipeline.not_a_hiring_post(
+        "[HIRING] Creative Strategist (Fully Remote)",
+        "full-time",
+        query='site:reddit.com/r/forhire/comments hiring "creative strategist"',
+        url="https://www.reddit.com/r/forhire/comments/abc/creative_strategist/")
+    assert not pipeline.not_a_hiring_post(
+        "[Hiring] Copywriter with B2B SaaS Experience",
+        "Website pages and cold emails",
+        query="site:reddit.com/r/forhire/comments hiring copywriter",
+        url="https://www.reddit.com/r/forhire/comments/abc/copywriter/")
+    assert not pipeline.not_a_hiring_post(
+        "Carol Dasaro's Post",
+        "Hi everyone, I'm hiring for a freelance copywriter.",
+        query="hiring copywriter",
+        url="https://www.linkedin.com/posts/carol_activity")
+    assert pipeline.not_a_hiring_post(
+        '"is anyone hiring for a brand & creative strategist in nyc?',
+        "is anyone hiring for a brand & creative strategist in nyc? my friend with 9+ yoe is looking to move")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a creative strategist",
+        "is anyone hiring? No. We're hiring a creative strategist for the brand team")
 
 
 # ---------- pipeline ----------
