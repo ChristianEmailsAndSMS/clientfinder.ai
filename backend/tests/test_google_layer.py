@@ -379,6 +379,30 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We're hiring a landing page designer",
         "You'll write landing page templates for clients and learn how to build a funnel.")
     assert pipeline.not_a_hiring_post(
+        "Best Freelance Email Marketers for Hire (Oct 2026)",
+        "How much does hiring an email marketer cost?",
+        url="https://www.upwork.com/hire/email-marketing-consultants/")
+    assert pipeline.not_a_hiring_post(
+        "Hire the Best funnel builders",
+        "Freelancers typically offer planning and setup.",
+        url="https://pro.fiverr.com/cat/marketing-and-sales/funnel-builder")
+    assert pipeline.not_a_hiring_post(
+        "Sales funnel builder Jobs, Employment",
+        "Search for jobs related to Sales funnel builder or hire on the world's largest freelancing marketplace.",
+        url="https://www.freelancer.com/job-search/sales-funnel-builder/")
+    assert pipeline.not_a_hiring_post(
+        "Copywriter Jobs",
+        "Search and apply to our open Copywriter jobs.",
+        url="https://www.roberthalf.com/us/en/jobs/all/copywriter")
+    assert not pipeline.not_a_hiring_post(
+        "Funnel Builder",
+        "We are looking for a Funnel Builder to join our marketing team.",
+        url="https://www.multiplymii.com/job-description/funnel-builder")
+    assert not pipeline.not_a_hiring_post(
+        "Email marketer for an ecommerce brand",
+        "Fixed price, ongoing.",
+        url="https://www.upwork.com/jobs/~0123456789")
+    assert pipeline.not_a_hiring_post(
         "Audience & Connections Strategist at Wpromote",
         "Creative Strategist. Rocket Money. Browse Marketing jobs.")
     assert not pipeline.not_a_hiring_post(

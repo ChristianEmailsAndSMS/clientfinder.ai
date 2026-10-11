@@ -108,10 +108,26 @@ def _role_needles(query: str) -> list[str]:
     return [w for w in re.findall(r"[a-z0-9']+", bare) if w not in _ROLE_STOPWORDS and len(w) >= 4]
 
 
+def _marketplace_index(url: str) -> bool:
+    """Category and search pages on hire marketplaces, not one opening."""
+    u = (url or "").lower()
+    if "upwork.com" in u and "/hire/" in u:
+        return True
+    if "fiverr.com" in u and "/cat/" in u:
+        return True
+    if "freelancer.com/job-search/" in u:
+        return True
+    if "roberthalf.com" in u and "/jobs/all/" in u:
+        return True
+    return False
+
+
 def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str = "") -> bool:
     """True when the search result is commentary, a person advertising themselves, or a careers index."""
     title = title or ""
     blob = f"{title}\n{snippet or ''}"
+    if _marketplace_index(url):
+        return True
     if (_SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _DIRECTORY_TITLE.search(title)
             or _JOBS_INDEX_TITLE.search(title) or _JOB_COUNT_INDEX.search(title)
             or _DIRECTORY.search(blob) or _BROWSE_JOBS.search(blob)
