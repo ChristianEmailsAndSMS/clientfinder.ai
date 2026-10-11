@@ -406,6 +406,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Creative strategist jobs",
         "Creative Strategist. Reach Digital. Creative Strategist. Ecom Warrior Academy.")
     assert pipeline.not_a_hiring_post(
+        "Remote Copywriting Jobs",
+        "Explore the fully remote Copywriting jobs worldwide. Apply to positions like Copywriter and Content Writer.",
+        url="https://www.workingnomads.com/remote-copywriting-jobs")
+    assert not pipeline.not_a_hiring_post(
+        "Copywriter at a remote studio",
+        "We are hiring a copywriter. This listing is also on the remote copywriting jobs page.",
+        url="https://www.workingnomads.com/job/go/copywriter")
+    assert pipeline.not_a_hiring_post(
         "Creative Strategist Jobs in Atlanta Metropolitan Area ...",
         "1,000+ Creative Strategist Jobs in Atlanta Metropolitan Area. Senior Manager, Creative Strategy.",
         url="https://www.linkedin.com/jobs/creative-strategist-jobs-atlanta-metropolitan-area")

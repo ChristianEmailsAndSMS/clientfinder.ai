@@ -75,10 +75,11 @@ _JOBS_IN_PLACE = re.compile(
     r"email marketers?|email copywriters?|landing pages?)\s+jobs\s+in\b",
     re.I,
 )
-# "Copywriter Jobs in Miami (492 Open Roles)" and a title that is only "Creative strategist jobs".
+# "Copywriter Jobs in Miami (492 Open Roles)" and a title that is only "Creative strategist jobs"
+# or "Remote Copywriting Jobs". A single remote copywriter opening stays.
 _OPEN_ROLES_TITLE = re.compile(
     r"\(\s*\d[\d,]*\s+open roles\s*\)"
-    r"|^\s*(?:remote\s+)?(?:copywriter|creative strategist|funnel builder|email marketer|email copywriter|landing page)\s+jobs\s*$",
+    r"|^\s*(?:remote\s+)?(?:copywriter|copywriting|creative strategist|funnel builder|email marketer|email copywriter|landing page)\s+jobs\s*$",
     re.I,
 )
 # Title only. A real post can mention a template in the description.
