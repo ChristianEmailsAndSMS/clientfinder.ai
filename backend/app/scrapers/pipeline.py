@@ -33,6 +33,8 @@ _ADVICE = re.compile(
     r"how to hire|how should \w+ hire|how i built|\d+ signs you(?:'re| are)? not)\b",
     re.I,
 )
+# Title only. A real job can say "how to become" in the description. These headlines are articles.
+_ADVICE_TITLE = re.compile(r"\b(?:how to become|checklist for hiring)\b", re.I)
 # A company can be named "Funnel Builder" (or use that phrase as a tagline) and be hiring an
 # engineer. Platform, backend, and fullstack titles are the same miss as "software engineer".
 _ENGINEERING_ROLE = re.compile(
@@ -52,7 +54,7 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "") -> bool:
     """True when the search result is commentary, a person advertising themselves, or a careers index."""
     title = title or ""
     blob = f"{title}\n{snippet or ''}"
-    if _SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _ADVICE.search(blob):
+    if _SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _ADVICE.search(blob) or _ADVICE_TITLE.search(title):
         return True
     if _FIRST_PERSON_YEARS.search(blob) and not _HIRING_SOMEONE.search(blob):
         return True
