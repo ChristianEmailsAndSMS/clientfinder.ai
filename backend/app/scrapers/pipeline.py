@@ -313,6 +313,9 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     # Expertini reprints one opening across city domains, plus a roles index.
     if "expertini.com" in low_url:
         return True
+    # BeBee puts several jobs in one result. The title is often a different role.
+    if "bebee.com" in low_url:
+        return True
     # ZipRecruiter /e/ pages explain a job title. They are not openings.
     if "ziprecruiter.com/e/" in low_url:
         return True

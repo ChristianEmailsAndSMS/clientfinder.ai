@@ -702,6 +702,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Hiring: Landing Page Builder (Ecommerce) — OAK Media",
         "View requirements, salary and apply today on Expertini.",
         url="https://kozhikode.in.expertini.com/job/hiring-landing-page-builder-ecommerce-kozhikode-oak-media-636478425691064827/")
+    assert pipeline.not_a_hiring_post(
+        "Landing Page Developer & Cro Specialist - Vysta Paid",
+        "Cro Specialist. Mangaluru. Vysta Paid Media Group. Hiring: Landing Page Builder (Ecommerce). Mangaluru. OAK Media.",
+        url="https://bebee.com/in/jobs/landing-page-developer-cro-specialist-vysta-paid-media-group-mangaluru--talent-637301585873602645")
+    assert not pipeline.not_a_hiring_post(
+        "Landing Page Builder",
+        "We are hiring a landing page builder. This role was also listed on BeBee.",
+        url="https://example.com/jobs/landing-page-builder")
     assert not pipeline.not_a_hiring_post(
         "Landing Page Builder",
         "We are hiring a landing page builder. Apply today on Expertini if you prefer.",
