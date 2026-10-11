@@ -364,6 +364,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "$20-$72/hr Funnel Jobs (NOW HIRING) Oct 2026",
         "Overview We're looking for a high-level funnel builder who understands both conversion and design.",
         url="https://www.ziprecruiter.com/Jobs/Funnel")
+    assert pipeline.not_a_hiring_post(
+        "Remote Copywriter Jobs ($69K to $103K)",
+        "Search 216 copywriter remote jobs. 26 added this week.",
+        url="https://www.remoterocketship.com/jobs/copywriter/")
+    assert not pipeline.not_a_hiring_post(
+        "Remote Copywriter at YO IT Consulting",
+        "5+ years of professional experience in copywriting. Salary $69K to $103K.",
+        url="https://remoteok.com/remote-jobs/copywriter-yo")
     assert not pipeline.not_a_hiring_post(
         "Funnel Builder",
         "We are looking for a high-level funnel builder. Jobs (now hiring) are listed on our site.",
