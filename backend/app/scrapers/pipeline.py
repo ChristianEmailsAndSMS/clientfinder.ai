@@ -256,7 +256,15 @@ def _marketplace_index(url: str) -> bool:
         return True
     if "fiverr.com" in u and "/cat/" in u:
         return True
-    if "freelancer.com/job-search/" in u:
+    if "freelancer.com/job-search/" in u or "freelancer.com/jobs/" in u:
+        return True
+    # PeoplePerHour /freelance-…-jobs is a category. A project URL has more path after it.
+    if "peopleperhour.com" in u:
+        path = u.split("peopleperhour.com", 1)[1].split("?", 1)[0].strip("/")
+        if path.startswith("freelance-") and path.endswith("-jobs") and "/" not in path:
+            return True
+    # Toptal /freelance-jobs/ is a network signup, not one opening.
+    if "toptal.com/freelance-jobs/" in u:
         return True
     if "roberthalf.com" in u and "/jobs/all/" in u:
         return True

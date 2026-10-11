@@ -567,6 +567,26 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Search for jobs related to Sales funnel builder or hire on the world's largest freelancing marketplace.",
         url="https://www.freelancer.com/job-search/sales-funnel-builder/")
     assert pipeline.not_a_hiring_post(
+        "Landing Pages Jobs for October 2026",
+        "World's largest website for Landing Pages Jobs. Find Landing Pages Jobs or hire a Landing Page Expert.",
+        url="https://www.freelancer.com/jobs/landing-pages")
+    assert pipeline.not_a_hiring_post(
+        "Freelance Landing Page Design Projects",
+        "Find Freelance Landing Page Design Jobs. 1000's of freelance jobs that pay.",
+        url="https://www.peopleperhour.com/freelance-landing-page-design-jobs")
+    assert pipeline.not_a_hiring_post(
+        "Remote Freelance Landing Page Designer Jobs [Oct 2026]",
+        "Join the Toptal network and find freelance landing page designer jobs with top companies.",
+        url="https://www.toptal.com/freelance-jobs/designers/landing-page")
+    assert not pipeline.not_a_hiring_post(
+        "Landing page designer",
+        "We are hiring a landing page designer for one project.",
+        url="https://www.freelancer.com/projects/design/landing-page-designer")
+    assert not pipeline.not_a_hiring_post(
+        "Landing page designer",
+        "We are hiring a landing page designer. This project is also on the freelance jobs page.",
+        url="https://www.peopleperhour.com/freelance-jobs/design/landing-page-designer-123")
+    assert pipeline.not_a_hiring_post(
         "Copywriter Jobs",
         "Search and apply to our open Copywriter jobs.",
         url="https://www.roberthalf.com/us/en/jobs/all/copywriter")
