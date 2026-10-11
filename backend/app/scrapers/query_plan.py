@@ -185,8 +185,9 @@ def due_queries(db: Session, plan: list[QuerySpec] | None = None, now: datetime 
     return out[:limit] if limit else out
 
 
-def log_search(db: Session, spec: QuerySpec, *, results: int = 0, new_jobs: int = 0, error: str | None = None) -> None:
-    db.add(SearchQuery(query_key=spec.key, provider=_provider(), freshness=spec.freshness,
+def log_search(db: Session, spec: QuerySpec, *, results: int = 0, new_jobs: int = 0, error: str | None = None,
+               provider: str | None = None) -> None:
+    db.add(SearchQuery(query_key=spec.key, provider=provider or _provider(), freshness=spec.freshness,
                        results=results, new_jobs=new_jobs, error=redact(error)[:1000] if error else None))
 
 
@@ -205,14 +206,15 @@ def run_due_queries(max_queries: int | None = None) -> list[dict]:
     log.info("google tick: %d due (budget used %d/%d)", len(todo), used, settings.serpapi_monthly_budget)
 
     out: list[dict] = []
+    exhausted: set[str] = set()
     for spec in todo:
-        stats = pipeline.run_pipeline_for_query(spec.text, freshness=spec.freshness)
+        stats = pipeline.run_pipeline_for_query(spec.text, freshness=spec.freshness, exhausted=exhausted)
         if not stats.get("searched"):  # preflight refused (e.g. no Anthropic key): nothing was spent, log nothing
             out.append(stats)
             continue
         with session_scope() as db:
             log_search(db, spec, results=stats.get("search_hits", 0), new_jobs=stats.get("added", 0),
-                       error=stats.get("search_error"))
+                       error=stats.get("search_error"), provider=stats.get("provider"))
         out.append(stats)
     return out
 
@@ -231,5 +233,5 @@ def run_query_now(text: str, freshness: str = "w") -> dict:
     if stats.get("searched"):
         with session_scope() as db:
             log_search(db, QuerySpec(text, freshness), results=stats.get("search_hits", 0),
-                       new_jobs=stats.get("added", 0), error=stats.get("search_error"))
+                       new_jobs=stats.get("added", 0), error=stats.get("search_error"), provider=stats.get("provider"))
     return stats

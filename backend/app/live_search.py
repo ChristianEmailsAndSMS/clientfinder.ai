@@ -242,16 +242,17 @@ def run_search(search_id: int) -> None:
                 "tokens_in": 0, "tokens_out": 0, "job_ids": [], "calls": [], "searches_ok": 0, "search_error": None, "_seen": set()}
     try:
         failures: list[str] = []
+        exhausted: set[str] = set()
         for text in targets:
             stats = pipeline.run_pipeline_for_query(text, num=settings.user_search_results, freshness=fresh,
-                                                    source_key=SOURCE_KEY, source_label=SOURCE_LABEL)
+                                                    source_key=SOURCE_KEY, source_label=SOURCE_LABEL, exhausted=exhausted)
             if stats.get("searched") and not stats.get("search_error") and not stats.get("error"):
                 combined["searched"] = True
                 combined["searches_ok"] += 1
                 _merge(combined, stats)
                 with session_scope() as db:
                     query_plan.log_search(db, query_plan.QuerySpec(text, fresh), results=stats.get("search_hits", 0),
-                                          new_jobs=stats.get("added", 0))
+                                          new_jobs=stats.get("added", 0), provider=stats.get("provider"))
             else:
                 failures.append(redact(stats.get("search_error") or stats.get("error") or "Search did not run"))
         if combined["searches_ok"] == 0:

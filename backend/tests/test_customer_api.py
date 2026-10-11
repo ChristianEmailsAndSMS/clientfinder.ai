@@ -171,7 +171,7 @@ def live(monkeypatch):
     rec = type("Rec", (), {})()
     rec.searches, rec.n, rec.usage, rec.fail = [], 3, (2000, 400), None
 
-    def search(query, num=10, freshness=None):
+    def search(query, num=10, freshness=None, **_):
         rec.searches.append((query, num, freshness))
         if rec.fail:
             raise rec.fail

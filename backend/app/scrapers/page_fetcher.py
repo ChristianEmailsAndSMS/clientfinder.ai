@@ -106,7 +106,8 @@ def fetch(url: str, *, mode: str = "simple") -> str:
 
 # Platforms whose pages need a login or are JS shells for anonymous visitors. The Google title + snippet
 # usually carry the post text, so we extract from that instead of burning a fetch (and risking a block).
-SNIPPET_ONLY_PLATFORMS = {"twitter", "linkedin", "instagram", "facebook"}
+# Social login walls, plus boards that answer this server with a bot challenge. The Google snippet is the page.
+SNIPPET_ONLY_PLATFORMS = {"twitter", "linkedin", "instagram", "facebook", "himalayas", "weworkremotely", "euremotejobs"}
 MIN_VISIBLE_CHARS = 300   # less than this from a plain fetch = probably a JS shell or a block page
 
 

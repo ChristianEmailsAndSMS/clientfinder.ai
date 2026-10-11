@@ -244,23 +244,33 @@ def _call_provider(provider: str, query: str, num: int, freshness: str | None) -
     return _serpapi_results(query, num=num, freshness=freshness)
 
 
-def search(query: str, num: int = 10, freshness: str | None = None) -> list[SearchResult]:
+def search(query: str, num: int = 10, freshness: str | None = None, *,
+           exhausted: set[str] | None = None, used: list[str] | None = None) -> list[SearchResult]:
+    """exhausted is shared across a fan-out: a provider that is out of searches is not asked again."""
     if settings.dev_fixtures:
         return _filter_site(query, _fixture_results(query))
-    order = _provider_order()
+    order = [p for p in _provider_order() if exhausted is None or p not in exhausted]
     if not order:
+        if exhausted:
+            raise SearchError("search providers are out of searches", quota=True)
         # No key configured. Never fall back to fixtures here: they are fake and would end up in the live DB.
         log.warning("no search API key configured; skipping %r (set DEV_FIXTURES=1 for fake local data)", query)
         return []
     last: SearchError | None = None
     for provider in order:
         try:
-            return _filter_site(query, _call_provider(provider, query, num, freshness))
+            results = _filter_site(query, _call_provider(provider, query, num, freshness))
+            if used is not None:
+                used.append(provider)
+            return results
         except SearchError as e:
             last = e
-            if e.quota and provider != order[-1]:
-                log.warning("%s is out of searches; trying the next provider", provider)
-                continue
+            if e.quota:
+                if exhausted is not None:
+                    exhausted.add(provider)
+                if provider != order[-1]:
+                    log.warning("%s is out of searches; trying the next provider", provider)
+                    continue
             raise
     if last:
         raise last

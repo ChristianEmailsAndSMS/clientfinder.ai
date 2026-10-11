@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Iterable
 
@@ -23,6 +24,22 @@ from .common import clip
 from .llm_extractor import ExtractionError
 
 log = logging.getLogger(__name__)
+
+# Advice, self-promotion, and careers indexes. "We're hiring" stays. "When I'm hiring, I look for" does not.
+_SELF_PROMO = re.compile(r"^\s*\[?\s*(for hire|hire me)\b", re.I)
+_CAREERS_INDEX = re.compile(r"^\s*(careers at|all open positions)\b", re.I)
+_ADVICE = re.compile(
+    r"\b(when i(?:'m| am) hiring|why you should hire|why i look for|what i look for when|the rise of the)\b",
+    re.I,
+)
+
+
+def not_a_hiring_post(title: str, snippet: str = "") -> bool:
+    """True when the search result is commentary, a person advertising themselves, or a careers index."""
+    title = title or ""
+    if _SELF_PROMO.search(title) or _CAREERS_INDEX.search(title):
+        return True
+    return bool(_ADVICE.search(f"{title}\n{snippet or ''}"))
 
 
 def _get_or_create_source(db: Session, key: str, kind: str, display_name: str) -> Source:
@@ -144,9 +161,15 @@ def _process(db: Session, source: Source, result: SearchResult, seen: set[str], 
         seen.add(h)
         _resolve_failure(db, result)
         return
+    if not_a_hiring_post(result.title, result.snippet):
+        stats["skipped"] += 1
+        _resolve_failure(db, result)
+        return
     page, fetched = page_fetcher.fetch_page_for_result(result)
     extracted = llm_extractor.extract(result, page)
     _add_usage(stats, extracted.usage)
+    if extracted.is_real_job and not_a_hiring_post(extracted.title or "", extracted.raw_snippet or ""):
+        extracted.is_real_job = False
     if not extracted.is_real_job:
         stats["skipped"] += 1
         _resolve_failure(db, result)
@@ -201,7 +224,7 @@ def _live_ready(stats: dict, what: str) -> bool:
 
 
 def run_pipeline_for_query(query: str, num: int = 10, freshness: str | None = None, *, source_key: str | None = None,
-                           source_label: str | None = None) -> dict:
+                           source_label: str | None = None, exhausted: set[str] | None = None) -> dict:
     """Execute the full pipeline for one search query. Returns a stats dict.
     stats["searched"] is True only if a search was actually attempted (i.e. may have cost a credit)."""
     stats = _new_stats(query)
@@ -209,7 +232,10 @@ def run_pipeline_for_query(query: str, num: int = 10, freshness: str | None = No
         return stats
     stats["searched"] = True
     try:
-        results = google_search.search(query, num=num, freshness=freshness)
+        used: list[str] = []
+        results = google_search.search(query, num=num, freshness=freshness, exhausted=exhausted, used=used)
+        if used:
+            stats["provider"] = used[-1]
     except Exception as e:
         log.exception("search failed for %r", query)
         stats["search_error"] = redact(e)
@@ -264,9 +290,10 @@ def requeue_failed(limit: int = 50, ids: list[int] | None = None) -> dict:
 def run_pipeline_for_queries(queries: Iterable[str] | None = None, num: int = 10) -> list[dict]:
     queries = list(queries) if queries else list(google_search.DEFAULT_QUERIES)
     out = []
+    exhausted: set[str] = set()
     for q in queries:
         try:
-            out.append(run_pipeline_for_query(q, num=num))
+            out.append(run_pipeline_for_query(q, num=num, exhausted=exhausted))
         except Exception as e:  # one bad query (HTTP error, quota) must not stop the rest
             log.exception("query %r failed", q)
             out.append({"query": q, "error": redact(e)})

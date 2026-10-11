@@ -208,7 +208,7 @@ def test_everything_fails_falls_back_to_escaped_snippet(modes):
 
 def test_social_platforms_never_fetch(modes):
     calls = modes(simple=LONG)
-    for platform in ("twitter", "linkedin", "facebook"):
+    for platform in ("twitter", "linkedin", "facebook", "himalayas", "weworkremotely", "euremotejobs"):
         calls.clear()
         row = R.model_copy(update={"platform": platform})
         assert page_fetcher.fetch_page_for_result(row)[1] is False and calls == []
@@ -262,6 +262,43 @@ def test_quota_falls_back_to_serper_and_keeps_only_the_site(monkeypatch):
     res = google_search.search("site:linkedin.com/posts hiring copywriter")
     assert [r.url for r in res] == ["https://www.linkedin.com/posts/someone_hiring"]
     assert res[0].platform == "linkedin"
+
+
+def test_a_provider_that_is_out_of_searches_is_not_asked_again(monkeypatch):
+    monkeypatch.setattr(settings, "dev_fixtures", False)
+    monkeypatch.setattr(settings, "serpapi_api_key", "k")
+    monkeypatch.setattr(settings, "serper_api_key", "s")
+    monkeypatch.setattr(settings, "google_search_provider", "serpapi")
+    gets = []
+
+    def fake_get(url, **kw):
+        gets.append(1)
+        return httpx.Response(429, json={"error": "Your account has run out of searches."}, request=httpx.Request("GET", "https://serpapi.com/search.json"))
+
+    def fake_post(url, **kw):
+        return httpx.Response(200, json={"organic": [
+            {"link": "https://example.org/job/1", "title": "Hiring a copywriter", "snippet": "remote"},
+        ]}, request=httpx.Request("POST", "https://google.serper.dev/search"))
+
+    monkeypatch.setattr(google_search.httpx, "get", fake_get)
+    monkeypatch.setattr(google_search.httpx, "post", fake_post)
+    exhausted: set[str] = set()
+    used: list[str] = []
+    google_search.search("hiring copywriter", exhausted=exhausted, used=used)
+    assert exhausted == {"serpapi"} and used == ["serper"] and len(gets) == 1
+    used.clear()
+    google_search.search("hiring email copywriter", exhausted=exhausted, used=used)
+    assert used == ["serper"] and len(gets) == 1
+
+
+def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
+    assert pipeline.not_a_hiring_post("Jim Schroën's Post", "When I'm hiring a creative strategist, I look for three things.")
+    assert pipeline.not_a_hiring_post("[FOR HIRE] Senior Creative Strategist", "I can help your brand")
+    assert pipeline.not_a_hiring_post("[Hire Me] Copywriter", "")
+    assert pipeline.not_a_hiring_post("Careers at Liberty Mutual Insurance", "See open roles")
+    assert pipeline.not_a_hiring_post("All Open Positions", "")
+    assert not pipeline.not_a_hiring_post("We're hiring a copywriter", "1-3 years into their career")
+    assert not pipeline.not_a_hiring_post("[HIRING] Creative Strategist (Fully Remote)", "full-time")
 
 
 # ---------- pipeline ----------
