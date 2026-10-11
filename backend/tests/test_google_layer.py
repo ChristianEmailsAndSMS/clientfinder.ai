@@ -451,6 +451,15 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
     assert pipeline.not_a_hiring_post(
         "The Creative Strategist role is the fast growing job in performance marketing",
         "But it's a new role so people always ask: what's the right background?")
+    assert pipeline.not_a_hiring_post(
+        "The Best Funnel Builder for Recruiting in 2026",
+        "Streamline your candidate acquisition with Heyflow's funnel builder.")
+    assert pipeline.not_a_hiring_post(
+        "Hire a GoHighLevel Funnel Builder Expert: Easy Guide",
+        "A GoHighLevel funnel builder expert helps design and structure your sales process.")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a funnel builder",
+        "The best funnel builder for recruiting in 2026 is who we need. Easy guide in the doc.")
     assert not pipeline.not_a_hiring_post(
         "We're hiring a Creative Strategist",
         "What makes a great creative strategist? This is a fast growing job and we need one.")
