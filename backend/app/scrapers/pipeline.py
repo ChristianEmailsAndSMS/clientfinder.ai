@@ -187,6 +187,8 @@ _HIRE_IN_TITLE = re.compile(r"\bhire\b", re.I)
 _INSTAGRAM_REEL_INDEX = re.compile(r"\breels on instagram\b", re.I)
 # "Free and customizable copywriting templates" is a design gallery. Title only.
 _TEMPLATE_GALLERY = re.compile(r"\bcustomizable\b.{0,60}\btemplates\b", re.I)
+# "Copywriter Near Me (ID:1608474)" is a generated listing. Title only.
+_NEAR_ME_LISTING = re.compile(r"\bnear me\s*\(\s*id\s*:", re.I)
 # "Cost to build a funnel? I checked Fiverr already" is a price question, not an opening.
 _PRICE_QUESTION = re.compile(r"^\s*cost to build\b|\bi checked fiverr\b", re.I)
 # Remote OK says this when the listing is dead. City jobs says the vacancy has expired.
@@ -252,6 +254,8 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     if "instagram.com/popular/" in low_url or "instagram.com/explore/" in low_url or _INSTAGRAM_REEL_INDEX.search(title):
         return True
     if "canva.com/templates" in low_url or _TEMPLATE_GALLERY.search(title):
+        return True
+    if "vitacv.com" in low_url or "job-near-me" in low_url or _NEAR_ME_LISTING.search(title):
         return True
     if "recruitment-agency" in (url or "").lower() or _RECRUITER_PITCH.search(blob):
         return True

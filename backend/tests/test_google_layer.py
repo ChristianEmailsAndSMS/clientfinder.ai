@@ -583,6 +583,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "You'll make customizable templates for the brand.",
         url="https://example.com/jobs/copywriter")
     assert pipeline.not_a_hiring_post(
+        "Hiring: Copywriter Near Me (ID:1608474)",
+        "Join a top company hiring Copywriter Near Me. Apply now via Vita CV!",
+        url="https://www.vitacv.com/jobs/copywriter-job-near-me/1608474")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter near me",
+        "Apply if you are local.",
+        url="https://example.com/jobs/copywriter-local")
+    assert pipeline.not_a_hiring_post(
         "Email Marketer Job Description Template",
         "As an email marketer, you will develop, implement and optimise email marketing strategies for our company.",
         url="https://business.linkedin.com/hire/resources/how-to-hire-guides/email-marketer-job-description")
