@@ -623,6 +623,18 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We are hiring a landing page builder. See the hiring manager's LinkedIn profile.",
         url="https://www.linkedin.com/jobs/view/landing-page-builder-at-personalize-pro-4430425557")
     assert pipeline.not_a_hiring_post(
+        "All Job Posts",
+        "Copywriter Wanted: Infantree · Senior Copywriter Wanted: 160over90, Philadelphia",
+        url="https://www.moderncopywriter.com/category/cws-wanted/")
+    assert pipeline.not_a_hiring_post(
+        "Philadelphia",
+        "Senior Copywriter Wanted: 160over90, Philadelphia · Mid-level Copywriters Wanted",
+        url="https://www.moderncopywriter.com/category/location/philadelphia/")
+    assert not pipeline.not_a_hiring_post(
+        "Senior Copywriter Wanted",
+        "We're hiring a senior copywriter. See all job posts on the blog.",
+        url="https://example.com/jobs/senior-copywriter")
+    assert pipeline.not_a_hiring_post(
         "Email Marketer Job Description Template",
         "As an email marketer, you will develop, implement and optimise email marketing strategies for our company.",
         url="https://business.linkedin.com/hire/resources/how-to-hire-guides/email-marketer-job-description")

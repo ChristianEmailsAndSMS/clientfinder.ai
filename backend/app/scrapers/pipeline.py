@@ -193,6 +193,8 @@ _TEMPLATE_GALLERY = re.compile(r"\bcustomizable\b.{0,60}\btemplates\b", re.I)
 _NEAR_ME_LISTING = re.compile(r"\bnear me\s*\(\s*id\s*:", re.I)
 # Ads of the World describes an old ad, not an opening.
 _AD_ARCHIVE = re.compile(r"\bthis professional campaign titled\b", re.I)
+# "All Job Posts" is a category of many wanted ads. Title only.
+_ALL_JOB_POSTS = re.compile(r"^\s*all job posts\b", re.I)
 # "Cost to build a funnel? I checked Fiverr already" is a price question, not an opening.
 _PRICE_QUESTION = re.compile(r"^\s*cost to build\b|\bi checked fiverr\b", re.I)
 # Remote OK says this when the listing is dead. City jobs says the vacancy has expired.
@@ -268,6 +270,8 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
         return True
     # A LinkedIn profile is a person, not an opening. Job pages are /jobs/view.
     if "linkedin.com/in/" in low_url or "linkedin.com/pub/" in low_url:
+        return True
+    if "moderncopywriter.com/category" in low_url or _ALL_JOB_POSTS.search(title):
         return True
     if "recruitment-agency" in (url or "").lower() or _RECRUITER_PITCH.search(blob):
         return True
