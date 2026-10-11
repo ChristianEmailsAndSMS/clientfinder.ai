@@ -46,9 +46,11 @@ _JOB_COUNT_SUFFIX = re.compile(
 # "$20-$72/hr Funnel Jobs (NOW HIRING)" is the same kind of list. Title only.
 _AGGREGATOR_TITLE = re.compile(r"\bjobs\s*\(\s*now hiring\s*\)", re.I)
 # "Remote Copywriter Jobs ($69K to $103K)" / "Search 216 copywriter remote jobs" is a list.
+# "$26-$54/hr No Experience Copywriting Jobs in Royal Oak" is the same list with the pay first.
 _SALARY_JOBS_INDEX = re.compile(
     r"^\s*(?:remote\s+)?.{0,40}\bjobs\s*\(\s*\$"
-    r"|\bsearch\s+\d[\d,]*\s+.{0,60}\bjobs\b",
+    r"|\bsearch\s+\d[\d,]*\s+.{0,60}\bjobs\b"
+    r"|^\s*\$\d[\d,]*\s*-\s*\$\d[\d,]*\s*/\s*h(?:r|our)\b.{0,80}\bjobs\b",
     re.I,
 )
 # "Top 38 Email copywriter Jobs" and "Top Copywriter Jobs in NYC" are result lists.

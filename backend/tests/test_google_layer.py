@@ -384,6 +384,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Search 216 copywriter remote jobs. 26 added this week.",
         url="https://www.remoterocketship.com/jobs/copywriter/")
     assert pipeline.not_a_hiring_post(
+        "$26-$54/hr No Experience Copywriting Jobs in Royal Oak, MI",
+        "Browse 16 ROYAL OAK, MI NO EXPERIENCE COPYWRITING jobs hiring now.",
+        url="https://www.ziprecruiter.com/Jobs/No-Experience-Copywriting/-in-Royal-Oak,MI")
+    assert not pipeline.not_a_hiring_post(
+        "Copywriter",
+        "We are hiring a copywriter in Royal Oak. Pay is $26-$54/hr.",
+        url="https://www.ziprecruiter.com/c/acme/Job/Copywriter/-in-Royal-Oak,MI")
+    assert pipeline.not_a_hiring_post(
         "Copywriter Jobs in Miami (492 Open Roles)",
         "492 Copywriter Jobs in Miami. Digital Copywriter. Junior Copywriter. Lead, Copywriter.")
     assert pipeline.not_a_hiring_post(
