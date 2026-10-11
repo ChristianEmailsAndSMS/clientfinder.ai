@@ -67,6 +67,9 @@ _ADVICE_TITLE = re.compile(
     r"|\bfast[- ]growing job\b"
     r"|^\s*the best\b.{0,80}\b20\d\d\b"
     r"|\beasy guide\b"
+    r"|\bpsa to anyone hiring\b"
+    r"|^\s*how to make a\b"
+    r"|\bexamples:\s*what works\b"
     r"|^\s*hiring an?\b[^?\n]{0,80}\?",
     re.I,
 )

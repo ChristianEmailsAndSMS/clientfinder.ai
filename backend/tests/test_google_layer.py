@@ -473,6 +473,18 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
     assert pipeline.not_a_hiring_post(
         "Hire a GoHighLevel Funnel Builder Expert: Easy Guide",
         "A GoHighLevel funnel builder expert helps design and structure your sales process.")
+    assert pipeline.not_a_hiring_post(
+        "Connor Gross - PSA to anyone hiring a creative strategist.",
+        "We hired 14 this year. And the best always have the same 2 things in common.")
+    assert pipeline.not_a_hiring_post(
+        "How to make a junior creative strategist quit within 10 days",
+        "Day 1: Give them no onboarding.")
+    assert pipeline.not_a_hiring_post(
+        "Recruitment Landing Page Examples: What Works + Best",
+        "A recruitment landing page solves this. It's a standalone page built for one goal.")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a creative strategist",
+        "PSA to anyone hiring: send work. How to make a good first week. Examples: what works in our niche.")
     assert not pipeline.not_a_hiring_post(
         "We're hiring a funnel builder",
         "The best funnel builder for recruiting in 2026 is who we need. Easy guide in the doc.")
