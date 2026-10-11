@@ -414,6 +414,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We are hiring a copywriter. This listing is also on the remote copywriting jobs page.",
         url="https://www.workingnomads.com/job/go/copywriter")
     assert pipeline.not_a_hiring_post(
+        "Email Copywriter Remote Jobs",
+        "Find Email Copywriter Remote Jobs that allow telecommuting, part-time, or freelance contracts.",
+        url="https://www.virtualvocations.com/q-email-copywriter-remote-jobs.html")
+    assert not pipeline.not_a_hiring_post(
+        "Email Copywriter",
+        "As the email copywriter, you help grow the clients. This role is remote.",
+        url="https://jobs.smartrecruiters.com/InstantEmailCopy/743999692475726-email-copywriter")
+    assert pipeline.not_a_hiring_post(
         "Creative Strategist Jobs in Atlanta Metropolitan Area ...",
         "1,000+ Creative Strategist Jobs in Atlanta Metropolitan Area. Senior Manager, Creative Strategy.",
         url="https://www.linkedin.com/jobs/creative-strategist-jobs-atlanta-metropolitan-area")
