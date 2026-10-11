@@ -599,6 +599,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Apply if you are local.",
         url="https://example.com/jobs/copywriter-local")
     assert pipeline.not_a_hiring_post(
+        "Red Antler is hiring : Creative Strategist - Remote in Houston",
+        "Kick-start your career. Easily apply on the largest job board for Gen-Z!",
+        url="https://talents.vaia.com/companies/red-antler/houston/red-antler-is-hiring-creative-strategist-remote-in-houston-65557143/")
+    assert not pipeline.not_a_hiring_post(
+        "Creative Strategist",
+        "We are hiring. This role was also listed on the largest job board for Gen-Z.",
+        url="https://example.com/jobs/creative-strategist")
+    assert pipeline.not_a_hiring_post(
         "Email Marketer Job Description Template",
         "As an email marketer, you will develop, implement and optimise email marketing strategies for our company.",
         url="https://business.linkedin.com/hire/resources/how-to-hire-guides/email-marketer-job-description")

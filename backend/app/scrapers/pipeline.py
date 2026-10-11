@@ -259,6 +259,9 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
         return True
     if "vitacv.com" in low_url or "job-near-me" in low_url or _NEAR_ME_LISTING.search(title):
         return True
+    # Vaia reprints a title plus "largest job board for Gen-Z" chrome.
+    if "vaia.com" in low_url:
+        return True
     if "recruitment-agency" in (url or "").lower() or _RECRUITER_PITCH.search(blob):
         return True
     if _RECRUITMENT_AGENCY_TITLE.search(title) and _HIRE_IN_TITLE.search(title):
