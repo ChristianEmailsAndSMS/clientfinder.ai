@@ -69,6 +69,8 @@ _HIRING_SOMEONE = re.compile(
 )
 # "is anyone hiring" is a person looking for work, often for a friend. "We're hiring" in the same post is an opening.
 _JOB_SEEKER = re.compile(r"\bis anyone hiring\b", re.I)
+# "Cost to build a funnel? I checked Fiverr already" is a price question, not an opening.
+_PRICE_QUESTION = re.compile(r"^\s*cost to build\b|\bi checked fiverr\b", re.I)
 
 
 _ROLE_STOPWORDS = frozenset({
@@ -92,7 +94,8 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     title = title or ""
     blob = f"{title}\n{snippet or ''}"
     if (_SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _DIRECTORY_TITLE.search(title)
-            or _DIRECTORY.search(blob) or _ADVICE.search(blob) or _ADVICE_TITLE.search(title)):
+            or _DIRECTORY.search(blob) or _ADVICE.search(blob) or _ADVICE_TITLE.search(title)
+            or _PRICE_QUESTION.search(blob)):
         return True
     if (_FIRST_PERSON_YEARS.search(blob) or _FIRST_PERSON_INTRO.search(blob) or _JOB_SEEKER.search(blob)) and not _HIRING_SOMEONE.search(blob):
         return True
