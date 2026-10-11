@@ -280,6 +280,9 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     # Vaia reprints a title plus "largest job board for Gen-Z" chrome.
     if "vaia.com" in low_url:
         return True
+    # Emerging Blue /tag/ pages list many staffing posts, not one opening.
+    if "emergingblue.com" in low_url and "/tag/" in low_url:
+        return True
     if "adsoftheworld.com" in low_url or _AD_ARCHIVE.search(blob):
         return True
     # A LinkedIn profile is a person, not an opening. Job pages are /jobs/view.

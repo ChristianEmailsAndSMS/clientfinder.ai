@@ -623,6 +623,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We are hiring. This role was also listed on the largest job board for Gen-Z.",
         url="https://example.com/jobs/creative-strategist")
     assert pipeline.not_a_hiring_post(
+        "Creative Director — Staffing | Fashion Home & Beauty",
+        "Now Hiring: Creative Director · Taylor Williamson · August 6, 2026. Now Hiring: Creative Director · Scott Gibree · June 3, 2026.",
+        url="https://www.emergingblue.com/blog-page-1/tag/Creative+Director")
+    assert not pipeline.not_a_hiring_post(
+        "Now Hiring: Creative Director",
+        "We're hiring a creative director. This post is also listed on the staffing tag.",
+        url="https://www.emergingblue.com/blog/now-hiring-creative-director")
+    assert pipeline.not_a_hiring_post(
         "Copywriter wanted - Pirana",
         "This professional campaign titled 'Copywriter wanted' was published in United Arab Emirates in April, 2008.",
         url="https://www.adsoftheworld.com/campaigns/copywriter-wanted-74b2bca9-5c22-4abf-9e85-3edee846ecb3")
