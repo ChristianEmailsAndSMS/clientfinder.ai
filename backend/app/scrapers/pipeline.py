@@ -63,7 +63,8 @@ _NOT_A_JOB_PAGE = re.compile(
 )
 _ADVICE = re.compile(
     r"\b(when i(?:'m| am) hiring|why you should hire|why i look for|what i look for when|the rise of the|"
-    r"how to hire|how should \w+ hire|how i built|\d+ signs you(?:'re| are)? not)\b",
+    r"how to hire|how should \w+ hire|how i built|legitimate career path|has anyone made the transition|"
+    r"\d+ signs you(?:'re| are)? not)\b",
     re.I,
 )
 # Title only. A real job can say "how to become" in the description. These headlines are articles.
@@ -77,6 +78,8 @@ _ADVICE_TITLE = re.compile(
     r"|\beasy guide\b"
     r"|\bpsa to anyone hiring\b"
     r"|^\s*how to make a\b"
+    r"|^\s*how to get into\b"
+    r"|^\s*what to look for when hiring\b"
     r"|\bexamples:\s*what works\b"
     r"|^\s*what does (?:a|an)\b.{0,60}\bdo\b"
     r"|\bfreelancers?\s*-\s*hire\b"

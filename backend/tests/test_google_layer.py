@@ -511,6 +511,22 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "What does a Creative Strategist do?",
         "This page details key information about the Creative Strategist role, salaries, and how to approach recruitment.")
     assert pipeline.not_a_hiring_post(
+        "How to get into Creative Strategist Job?",
+        "I've been applying to multiple companies via LinkedIn but never get any interview.",
+        url="https://www.reddit.com/r/CreativeStrategists/comments/abc/how_to_get_into/")
+    assert pipeline.not_a_hiring_post(
+        "What to look for when hiring a creative strategist?",
+        "I run a DTC beauty brand and I've never hired for this before.",
+        url="https://www.reddit.com/r/AskMarketing/comments/abc/what_to_look_for/")
+    assert pipeline.not_a_hiring_post(
+        '"Creative Strategist"?',
+        "Has anyone made the transition from a typical agency role? Is this a legitimate career path?",
+        url="https://www.reddit.com/r/advertising/comments/abc/creative_strategist/")
+    assert not pipeline.not_a_hiring_post(
+        "Where can I find a good creative strategist based in the US?",
+        "I've been trying for several months already to get a creative strategist.",
+        url="https://www.reddit.com/r/advertising/comments/abc/where_can_i_find/")
+    assert pipeline.not_a_hiring_post(
         "Creative Strategist freelancers - Hire",
         "Write down these goals clearly. This will help the creative strategist understand the brief.")
     assert not pipeline.not_a_hiring_post(
