@@ -31,6 +31,9 @@ _CAREERS_INDEX = re.compile(r"^\s*(careers at|all open positions)\b", re.I)
 # "Copywriter Jobs Board" is a directory, not one opening. "post it on our jobs board" in a description stays.
 _DIRECTORY_TITLE = re.compile(r"\bjobs board\b", re.I)
 _DIRECTORY = re.compile(r"\b\d+\s+writer jobs\b|\bjobs exclusive to paid subscribers\b", re.I)
+# "Remote-First Marketing Jobs" and a snippet of "Browse Marketing jobs" are category pages.
+_JOBS_INDEX_TITLE = re.compile(r"\bremote-first\b.{0,40}\bjobs\s*$", re.I)
+_BROWSE_JOBS = re.compile(r"\bbrowse\b.{0,40}\bjobs\b", re.I)
 _ADVICE = re.compile(
     r"\b(when i(?:'m| am) hiring|why you should hire|why i look for|what i look for when|the rise of the|"
     r"how to hire|how should \w+ hire|how i built|\d+ signs you(?:'re| are)? not)\b",
@@ -94,8 +97,8 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     title = title or ""
     blob = f"{title}\n{snippet or ''}"
     if (_SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _DIRECTORY_TITLE.search(title)
-            or _DIRECTORY.search(blob) or _ADVICE.search(blob) or _ADVICE_TITLE.search(title)
-            or _PRICE_QUESTION.search(blob)):
+            or _JOBS_INDEX_TITLE.search(title) or _DIRECTORY.search(blob) or _BROWSE_JOBS.search(blob)
+            or _ADVICE.search(blob) or _ADVICE_TITLE.search(title) or _PRICE_QUESTION.search(blob)):
         return True
     if (_FIRST_PERSON_YEARS.search(blob) or _FIRST_PERSON_INTRO.search(blob) or _JOB_SEEKER.search(blob)) and not _HIRING_SOMEONE.search(blob):
         return True

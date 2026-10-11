@@ -315,6 +315,18 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
     assert not pipeline.not_a_hiring_post(
         "We're hiring a copywriter",
         "Send a portfolio. We also post roles on our jobs board.")
+    assert pipeline.not_a_hiring_post(
+        "Remote-First Marketing Jobs",
+        "Copywriter; Creative Strategist; Organic Marketing.")
+    assert pipeline.not_a_hiring_post(
+        "Audience & Connections Strategist at Wpromote",
+        "Creative Strategist. Rocket Money. Browse Marketing jobs.")
+    assert not pipeline.not_a_hiring_post(
+        "Paid Social Creative Strategist at Suno",
+        "Proven experience as a creative strategist in a high-volume environment.")
+    assert not pipeline.not_a_hiring_post(
+        "Senior Creative Strategist at Polymarket",
+        "Marketing Jobs/Senior Creative Strategist. Posted 2 months ago.")
     assert not pipeline.not_a_hiring_post("We're hiring a copywriter", "1-3 years into their career")
     assert not pipeline.not_a_hiring_post("[HIRING] Creative Strategist (Fully Remote)", "full-time")
     assert pipeline.not_a_hiring_post("How to hire a creative strategist: 3 signs and 3 skills", "")
