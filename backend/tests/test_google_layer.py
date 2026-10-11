@@ -616,6 +616,15 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We are hiring someone to build landing pages. We compared 9 best tools first.",
         query='hiring "landing page"')
     assert pipeline.not_a_hiring_post(
+        "Best Practices for Virtual Hiring Event Landing Pages",
+        "The most crucial details on your landing page should include the event's time, date, and location.",
+        query='hiring "landing page"',
+        url="https://www.b2match.com/blog/best-practices-for-virtual-hiring-event-landing-pages")
+    assert not pipeline.not_a_hiring_post(
+        "Landing page builder",
+        "We are hiring someone to build the hiring event landing page. Follow our best practices.",
+        query='hiring "landing page"')
+    assert pipeline.not_a_hiring_post(
         "Hire a GoHighLevel Funnel Builder Expert: Easy Guide",
         "A GoHighLevel funnel builder expert helps design and structure your sales process.")
     assert pipeline.not_a_hiring_post(
