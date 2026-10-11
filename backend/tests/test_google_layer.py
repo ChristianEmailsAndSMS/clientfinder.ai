@@ -491,6 +491,15 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
     assert pipeline.not_a_hiring_post(
         "Recruitment Landing Page Examples: What Works + Best",
         "A recruitment landing page solves this. It's a standalone page built for one goal.")
+    assert pipeline.not_a_hiring_post(
+        "What does a Creative Strategist do?",
+        "This page details key information about the Creative Strategist role, salaries, and how to approach recruitment.")
+    assert pipeline.not_a_hiring_post(
+        "Creative Strategist freelancers - Hire",
+        "Write down these goals clearly. This will help the creative strategist understand the brief.")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a creative strategist",
+        "What does a creative strategist do? You'll own the ads. We also keep a freelancers - hire list.")
     assert not pipeline.not_a_hiring_post(
         "We're hiring a creative strategist",
         "PSA to anyone hiring: send work. How to make a good first week. Examples: what works in our niche.")
