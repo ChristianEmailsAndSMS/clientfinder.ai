@@ -361,6 +361,24 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Funnel Builder",
         "We are looking for a highly strategic Funnel Builder to join our marketing team. 9000+ brands use the tool.")
     assert pipeline.not_a_hiring_post(
+        "Recruitment Landing Page Templates for High Conversions",
+        "Lunar is an AI landing page generator that turns your brief into a complete page.")
+    assert pipeline.not_a_hiring_post(
+        "Hiring Landing Page",
+        "Discover 26 Hiring Landing Page designs on Dribbble.")
+    assert pipeline.not_a_hiring_post(
+        "Hiring landing page Images - Free Download",
+        "Free Graphic Resources for Hiring landing page Vectors, Stock Photos & PSD files. Free for commercial use.")
+    assert pipeline.not_a_hiring_post(
+        "Landing Pages | Hiring on LinkedIn",
+        "Learn how to build a Landing Page and attract talent.")
+    assert pipeline.not_a_hiring_post(
+        "Recruitment Landing Page Examples: What Works + Best",
+        "Recruitment landing page best practices. Match your ad to your headline.")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a landing page designer",
+        "You'll write landing page templates for clients and learn how to build a funnel.")
+    assert pipeline.not_a_hiring_post(
         "Audience & Connections Strategist at Wpromote",
         "Creative Strategist. Rocket Money. Browse Marketing jobs.")
     assert not pipeline.not_a_hiring_post(

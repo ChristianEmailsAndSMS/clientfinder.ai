@@ -36,6 +36,13 @@ _JOBS_INDEX_TITLE = re.compile(r"\bremote-first\b.{0,40}\bjobs\s*$", re.I)
 _BROWSE_JOBS = re.compile(r"\bbrowse\b.{0,40}\bjobs\b", re.I)
 # "9000+ Copywriter jobs in United States" is a search-results page, not one opening.
 _JOB_COUNT_INDEX = re.compile(r"^\s*\d[\d,]*\+?\s+.{0,80}\bjobs\b", re.I)
+# A "hiring landing page" search returns templates, galleries, stock files, and docs. Not openings.
+_NOT_A_JOB_PAGE = re.compile(
+    r"\bai landing page generator\b|\bdesigns on dribbble\b|\bstock photos\b"
+    r"|\bfree for commercial use\b|\blearn how to build a landing page\b"
+    r"|\brecruitment landing page best practices\b",
+    re.I,
+)
 _ADVICE = re.compile(
     r"\b(when i(?:'m| am) hiring|why you should hire|why i look for|what i look for when|the rise of the|"
     r"how to hire|how should \w+ hire|how i built|\d+ signs you(?:'re| are)? not)\b",
@@ -109,7 +116,7 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
             or _JOBS_INDEX_TITLE.search(title) or _JOB_COUNT_INDEX.search(title)
             or _DIRECTORY.search(blob) or _BROWSE_JOBS.search(blob)
             or _ADVICE.search(blob) or _ADVICE_TITLE.search(title) or _PRICE_QUESTION.search(blob)
-            or _CLOSED_JOB.search(blob)):
+            or _CLOSED_JOB.search(blob) or _NOT_A_JOB_PAGE.search(blob)):
         return True
     if (_FIRST_PERSON_YEARS.search(blob) or _FIRST_PERSON_INTRO.search(blob) or _JOB_SEEKER.search(blob)) and not _HIRING_SOMEONE.search(blob):
         return True
