@@ -51,6 +51,8 @@ _ENGINEERING_ROLE = re.compile(
     r"|\bsoftware engineering\b",
     re.I,
 )
+# Perspective's product tagline. It is not a funnel-builder job. A title that names the role still stays.
+_MOBILE_FUNNEL_PRODUCT = re.compile(r"\bmobile funnel builder\b", re.I)
 # "I have 4+ years" under a #hiring tag is someone selling themselves. "We're hiring" plus that line is still a job.
 _FIRST_PERSON_YEARS = re.compile(r"\bi have \d+\+?\s*years\b", re.I)
 # "Hi, I'm a copywriter" is the same ad. "Hi, I'm a founder and we're hiring" is not, and neither is
@@ -94,6 +96,9 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
         return True
     # Title only. A real funnel-builder post can mention working with engineers in the body.
     if re.search(r"funnel builder", query or "", re.I) and _ENGINEERING_ROLE.search(title):
+        return True
+    if (re.search(r"funnel builder", query or "", re.I) and _MOBILE_FUNNEL_PRODUCT.search(blob)
+            and "funnel builder" not in title.lower()):
         return True
     # On Reddit the role often appears only in the related-posts snippet of a different thread.
     # LinkedIn titles are the author's name, so this check stays on reddit.com.

@@ -349,6 +349,18 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
     assert pipeline.not_a_hiring_post(
         "Remote Senior Backend Engineer (f/m/d) at Perspective",
         "Perspective - #1 Mobile Funnel Builder.", query='hiring "funnel builder"')
+    assert pipeline.not_a_hiring_post(
+        "NoDesk",
+        "This is a full-time position that can be done remotely anywhere in Europe. Perspective - #1 Mobile Funnel Builder.",
+        query='hiring "funnel builder"')
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a funnel builder",
+        "You'll use Perspective, the #1 Mobile Funnel Builder, to ship the pages.",
+        query='hiring "funnel builder"')
+    assert not pipeline.not_a_hiring_post(
+        "NoDesk",
+        "Perspective - #1 Mobile Funnel Builder.",
+        query="hiring copywriter")
     assert not pipeline.not_a_hiring_post(
         "Now hiring - GoFunnels is looking for a full-time Funnel Builder",
         "Expertise with ClickFunnels, Go High Level, Kajabi", query='hiring "funnel builder"')
