@@ -206,6 +206,13 @@ _ALL_JOB_POSTS = re.compile(r"^\s*all job posts\b", re.I)
 # "A Funnel Builder is a specialized role within a marketing agency" explains the job.
 # A post that is also hiring someone stays.
 _ROLE_DEFINITION = re.compile(r"\bis a specialized role\b", re.I)
+# MultiplyMii offers a free Google Doc and a salary guide for hiring. Not an opening.
+# A post that is also hiring someone stays.
+_SALARY_GUIDE = re.compile(
+    r"\bfree editable google doc\b"
+    r"|\bsalary guide to start hiring\b",
+    re.I,
+)
 # "Cost to build a funnel? I checked Fiverr already" is a price question, not an opening.
 _PRICE_QUESTION = re.compile(r"^\s*cost to build\b|\bi checked fiverr\b", re.I)
 # Remote OK says this when the listing is dead. City jobs says the vacancy has expired.
@@ -333,6 +340,8 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     if _HIRING_SOFTWARE.search(blob) and not _HIRING_SOMEONE.search(blob):
         return True
     if _ROLE_DEFINITION.search(blob) and not _HIRING_SOMEONE.search(blob):
+        return True
+    if _SALARY_GUIDE.search(blob) and not _HIRING_SOMEONE.search(blob):
         return True
     # On Reddit the role often appears only in the related-posts snippet of a different thread.
     # LinkedIn titles are the author's name, so this check stays on reddit.com.
