@@ -663,6 +663,18 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We are hiring a landing page builder. Apply today on Expertini if you prefer.",
         url="https://example.com/jobs/landing-page-builder")
     assert pipeline.not_a_hiring_post(
+        "Landing page builder",
+        "Easily create your own recruitment campaign landing pages to capture job seeker information with Recruit Rooster's Landing Page Builder.",
+        url="https://recruitrooster.com/landing-page-builder/")
+    assert pipeline.not_a_hiring_post(
+        "Easy job ad landing page builder",
+        "Use Teamdash's page builder to create charming landing pages and job ads without a designer or developer.",
+        url="https://www.teamdash.com/job-ad-landing-pages-tool/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a landing page builder",
+        "You'll build pages without a designer or developer.",
+        url="https://example.com/jobs/landing-page-builder")
+    assert pipeline.not_a_hiring_post(
         "Email Marketer Job Description Template",
         "As an email marketer, you will develop, implement and optimise email marketing strategies for our company.",
         url="https://business.linkedin.com/hire/resources/how-to-hire-guides/email-marketer-job-description")

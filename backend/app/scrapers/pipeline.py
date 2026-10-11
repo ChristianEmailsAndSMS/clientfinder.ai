@@ -150,6 +150,13 @@ _FUNNEL_PRODUCT_PAGE = re.compile(
     r"|\bfunnel builder at your fingertips\b",
     re.I,
 )
+# Recruit Rooster and Teamdash sell software that builds job-ad landing pages.
+# A post that is also hiring someone stays.
+_LANDING_PAGE_TOOL = re.compile(
+    r"\bcapture job seeker information\b"
+    r"|\bwithout a designer or developer\b",
+    re.I,
+)
 # "Find freelance funnel builder jobs" is a signup for people offering services.
 # "We're hiring a freelance funnel builder" stays.
 _FREELANCE_DIRECTORY = re.compile(
@@ -313,6 +320,8 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
             and "funnel builder" not in title.lower()):
         return True
     if _FUNNEL_PRODUCT_PAGE.search(blob) and not _HIRING_SOMEONE.search(blob):
+        return True
+    if _LANDING_PAGE_TOOL.search(blob) and not _HIRING_SOMEONE.search(blob):
         return True
     if _FREELANCE_DIRECTORY.search(blob):
         return True
