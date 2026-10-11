@@ -29,17 +29,23 @@ log = logging.getLogger(__name__)
 _SELF_PROMO = re.compile(r"^\s*\[?\s*(for hire|hire me)\b", re.I)
 _CAREERS_INDEX = re.compile(r"^\s*(careers at|all open positions)\b", re.I)
 _ADVICE = re.compile(
-    r"\b(when i(?:'m| am) hiring|why you should hire|why i look for|what i look for when|the rise of the)\b",
+    r"\b(when i(?:'m| am) hiring|why you should hire|why i look for|what i look for when|the rise of the|"
+    r"how to hire|how should \w+ hire|how i built|\d+ signs you(?:'re| are)? not)\b",
     re.I,
 )
+# A company can be named "Funnel Builder" and be hiring an engineer. That is not the role.
+_ENGINEERING_ROLE = re.compile(r"\bsoftware engineers?\b|\bsoftware engineering\b", re.I)
 
 
-def not_a_hiring_post(title: str, snippet: str = "") -> bool:
+def not_a_hiring_post(title: str, snippet: str = "", query: str = "") -> bool:
     """True when the search result is commentary, a person advertising themselves, or a careers index."""
     title = title or ""
-    if _SELF_PROMO.search(title) or _CAREERS_INDEX.search(title):
+    blob = f"{title}\n{snippet or ''}"
+    if _SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _ADVICE.search(blob):
         return True
-    return bool(_ADVICE.search(f"{title}\n{snippet or ''}"))
+    if re.search(r"funnel builder", query or "", re.I) and _ENGINEERING_ROLE.search(blob):
+        return True
+    return False
 
 
 def _get_or_create_source(db: Session, key: str, kind: str, display_name: str) -> Source:
@@ -161,14 +167,14 @@ def _process(db: Session, source: Source, result: SearchResult, seen: set[str], 
         seen.add(h)
         _resolve_failure(db, result)
         return
-    if not_a_hiring_post(result.title, result.snippet):
+    if not_a_hiring_post(result.title, result.snippet, result.source_query):
         stats["skipped"] += 1
         _resolve_failure(db, result)
         return
     page, fetched = page_fetcher.fetch_page_for_result(result)
     extracted = llm_extractor.extract(result, page)
     _add_usage(stats, extracted.usage)
-    if extracted.is_real_job and not_a_hiring_post(extracted.title or "", extracted.raw_snippet or ""):
+    if extracted.is_real_job and not_a_hiring_post(extracted.title or "", extracted.raw_snippet or "", result.source_query):
         extracted.is_real_job = False
     if not extracted.is_real_job:
         stats["skipped"] += 1
