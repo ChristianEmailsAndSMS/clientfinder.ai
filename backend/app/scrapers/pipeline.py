@@ -253,7 +253,7 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     low_url = (url or "").lower()
     if "instagram.com/popular/" in low_url or "instagram.com/explore/" in low_url or _INSTAGRAM_REEL_INDEX.search(title):
         return True
-    if "canva.com/templates" in low_url or _TEMPLATE_GALLERY.search(title):
+    if "canva.com/templates" in low_url or "venngage.com/templates" in low_url or _TEMPLATE_GALLERY.search(title):
         return True
     if "vitacv.com" in low_url or "job-near-me" in low_url or _NEAR_ME_LISTING.search(title):
         return True

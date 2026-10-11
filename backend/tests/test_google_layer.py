@@ -583,6 +583,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "You'll make customizable templates for the brand.",
         url="https://example.com/jobs/copywriter")
     assert pipeline.not_a_hiring_post(
+        "Black Dark We Are Hiring Copywriter",
+        "The purpose of creating a Black Dark We Are Hiring Copywriter is to attract candidates.",
+        url="https://venngage.com/templates/posters/black-dark-we-are-hiring-copywriter-6cc4b9b3-0d23-46a1-b4ec-999e37afa014")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "Use a Venngage template for the hiring poster.",
+        url="https://example.com/jobs/copywriter-poster")
+    assert pipeline.not_a_hiring_post(
         "Hiring: Copywriter Near Me (ID:1608474)",
         "Join a top company hiring Copywriter Near Me. Apply now via Vita CV!",
         url="https://www.vitacv.com/jobs/copywriter-job-near-me/1608474")
