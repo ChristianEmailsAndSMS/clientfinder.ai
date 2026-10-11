@@ -14,7 +14,7 @@ from app.dedup import dedupe_hash
 from app.models import Job, ScrapeRun, SearchQuery
 from app.schemas import ExtractedJob, SearchResult
 from app.scrapers import google_search, llm_extractor, page_fetcher, pipeline, query_plan
-from app.scrapers.query_plan import QuerySpec, build_plan, due_queries, searches_used_this_month
+from app.scrapers.query_plan import OPEN_WEB, SITE_SCOPES, TERMS, QuerySpec, build_plan, due_queries, searches_used_this_month
 
 NOW = datetime(2026, 10, 8, 12, 0, tzinfo=timezone.utc)
 
@@ -49,13 +49,18 @@ def db(monkeypatch):
 # ---------- plan ----------
 def test_plan_has_open_web_and_site_scoped_queries_without_duplicates():
     texts = [q.text for q in build_plan()]
-    assert len(texts) == len(set(texts)) == 8 + 8 * 5
+    assert len(texts) == len(set(texts)) == len(OPEN_WEB) + len(TERMS) * len(SITE_SCOPES)
     assert '"hiring copywriter"' in texts
     assert "site:linkedin.com/posts copywriting jobs" in texts
     assert "site:linkedin.com/jobs/view copywriter jobs" in texts
     assert "site:x.com email marketing jobs" in texts
     assert "site:facebook.com email copywriter jobs" in texts
     assert "site:reddit.com creative strategy jobs" in texts
+    assert "site:dynamitejobs.com/company copywriter jobs" in texts
+    assert "site:himalayas.app/companies copywriter jobs" in texts
+    assert "site:tryremotely.com/job/ email copywriter jobs" in texts
+    assert "site:remotive.com/remote/jobs/ creative strategist jobs" in texts
+    assert "site:creatorjobboard.com/jobs/ creative strategy jobs" in texts
     assert all(len(t) <= 256 for t in texts)
     assert all(not t.startswith('"') or " site:" not in t for t in texts)
 
@@ -212,6 +217,23 @@ def test_site_query_drops_results_from_other_hosts():
     assert google_search.on_site("https://twitter.com/a/status/1", "x.com")
     assert not google_search.on_site("https://www.ziprecruiter.com/Jobs/Copywriter", "linkedin.com")
     assert not google_search.on_site("https://www.linkedin.com/jobs/copywriter-jobs", "linkedin.com/jobs/view")
+    assert google_search.on_site("https://dynamitejobs.com/company/kindred/remote-job/lead-copywriter", "dynamitejobs.com/company")
+    assert not google_search.on_site("https://dynamitejobs.com/skill/remote-copywriting-jobs", "dynamitejobs.com/company")
+    assert google_search.on_site("https://himalayas.app/companies/codekeeper/jobs/marketing-copywriter", "himalayas.app/companies")
+    assert not google_search.on_site("https://himalayas.app/jobs/copywriting", "himalayas.app/companies")
+    assert google_search.on_site("https://tryremotely.com/job/copywriter-1", "tryremotely.com/job/")
+    assert not google_search.on_site("https://tryremotely.com/jobs/copywriting-jobs", "tryremotely.com/job/")
+    assert google_search.on_site("https://weworkremotely.com/remote-jobs/acme-copywriter", "weworkremotely.com/remote-jobs/")
+    assert not google_search.on_site("https://weworkremotely.com/remote-jobs-copywriting", "weworkremotely.com/remote-jobs/")
+    assert google_search.on_site("https://remote.co/job-details/copywriter-256ca411", "remote.co/job-details/")
+    assert not google_search.on_site("https://remote.co/remote-jobs/copywriting", "remote.co/job-details/")
+    assert google_search.on_site("https://remotive.com/remote/jobs/writing/copywriter-1", "remotive.com/remote/jobs/")
+    assert not google_search.on_site("https://remotive.com/remote-jobs/o-marketing-copywriter", "remotive.com/remote/jobs/")
+    assert google_search._platform_from_url("https://www.himalayas.app/companies/x/jobs/y") == "himalayas"
+    assert google_search._platform_from_url("https://jobs.workable.com/view/abc/creative-strategist") == "workable"
+    assert google_search._platform_from_url("https://euremotejobs.com/job/copywriter/") == "euremotejobs"
+    assert google_search._platform_from_url("https://remote.co/job-details/copywriter-1") == "remoteco"
+    assert google_search._platform_from_url("https://4dayweek.io/job/copywriter-at-anthropic") == "fourdayweek"
 
 
 def test_quota_falls_back_to_serper_and_keeps_only_the_site(monkeypatch):

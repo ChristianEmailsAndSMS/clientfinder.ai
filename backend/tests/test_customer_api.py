@@ -211,20 +211,25 @@ def test_a_search_runs_stores_jobs_and_charges_exactly_what_it_cost(env, live):
     s = c.get(f"/searches/{sid}").json()                              # background task already ran (TestClient runs it inline)
     n = len(live_search.search_targets("hiring copywriter", None))
     assert s["status"] == "done" and s["results"] == 3 * n and s["new_jobs"] == 3 * n and s["cached"] is False
-    expected = n * live_search.search_fee_micro() + credits.usage_cost_micro(MODEL, 3 * n * 2000, 3 * n * 400)
+    # Each page is its own model call. Summing every page into one prompt would cross Haiku's long-context rate.
+    extraction, _ours = live_search.extraction_totals([(2000, 400)] * (3 * n))
+    expected = n * live_search.search_fee_micro() + extraction
     assert credits.usd_to_micro(s["cost_usd"]) == expected
     assert balance(env, c.uid) == start - expected
     with env.scope() as db:
         e = db.scalar(select(CreditEntry).where(CreditEntry.user_id == c.uid))
         assert (e.kind, e.ref, e.delta_micro) == ("usage", f"usersearch:{sid}", -expected)
         assert e.meta["tokens_in"] == 3 * n * 2000 and e.meta["search_id"] == sid
-    assert len(c.get(f"/searches/{sid}/jobs").json()) == 3 * n
+    assert len(c.get(f"/searches/{sid}/jobs?limit=300").json()) == 3 * n
     assert c.get("/jobs").headers["x-total-count"] == str(3 * n)      # the jobs are in the shared database for everyone
     assert live.searches[0] == ("hiring copywriter", settings.user_search_results, "w")
     assert ("site:linkedin.com/posts hiring copywriter", settings.user_search_results, "w") in live.searches
     assert ("site:x.com hiring copywriter", settings.user_search_results, "w") in live.searches
     assert ("site:facebook.com hiring copywriter", settings.user_search_results, "w") in live.searches
     assert ("site:reddit.com hiring copywriter", settings.user_search_results, "w") in live.searches
+    assert ("site:dynamitejobs.com/company hiring copywriter", settings.user_search_results, "w") in live.searches
+    assert ("site:himalayas.app/companies hiring copywriter", settings.user_search_results, "w") in live.searches
+    assert ("site:remotive.com/remote/jobs/ hiring copywriter", settings.user_search_results, "w") in live.searches
     assert len(live.searches) == n
 
 
@@ -253,8 +258,8 @@ def test_repeating_a_search_is_free_and_served_from_the_database(env, live):
     assert r.status_code == 202 and r.json()["cached"] is True and r.json()["status"] == "done" and r.json()["cost_usd"] == 0
     n = len(live_search.search_targets("hiring copywriter", None))
     assert len(live.searches) == n and balance(env, a.uid) == bal and balance(env, b.uid) == 0
-    ids_a = {j["id"] for j in a.get(f"/searches/{first['id']}/jobs").json()}
-    assert {j["id"] for j in b.get(f"/searches/{r.json()['id']}/jobs").json()} == ids_a and len(ids_a) == 3 * n
+    ids_a = {j["id"] for j in a.get(f"/searches/{first['id']}/jobs?limit=300").json()}
+    assert {j["id"] for j in b.get(f"/searches/{r.json()['id']}/jobs?limit=300").json()} == ids_a and len(ids_a) == 3 * n
     q = b.post("/searches/estimate", json={"query": "HIRING COPYWRITER", "freshness": "w"}, headers=CSRF).json()
     assert q["cached"] is True and q["price_usd"] == 0 and q["cached_results"] == 3 * n
 
@@ -487,6 +492,7 @@ def test_location_text_maps_to_time_zone_bands(text, expected):
 def test_platforms_are_split_into_job_boards_and_social_media():
     assert [platforms.kind_of(p) for p in ("indeed", "remoteok", "reddit", "twitter", "linkedin", "web", "somethingnew")] == \
         ["board", "board", "social", "social", "social", "web", "web"]
+    assert platforms.kind_of("himalayas") == "board" and platforms.kind_of("dynamite") == "board"
 
 
 @pytest.fixture

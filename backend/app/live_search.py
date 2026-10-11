@@ -31,15 +31,9 @@ log = logging.getLogger(__name__)
 
 SOURCE_KEY = "usersearch"
 SOURCE_LABEL = "Customer searches"
-# A customer search with no site runs their words on the open web and on each of these.
-# /posts and /jobs/view are individual LinkedIn posts and openings, not the "9,000 jobs" category pages.
-CUSTOMER_SITES = (
-    "linkedin.com/posts",
-    "linkedin.com/jobs/view",
-    "x.com",
-    "facebook.com",
-    "reddit.com",
-)
+# A customer search with no site runs their words on the open web and on each planned site.
+# Same list as the scheduler, so a board added in one place is searched in both.
+CUSTOMER_SITES = query_plan.SITE_SCOPES
 SITES = CUSTOMER_SITES + ("linkedin.com", "twitter.com", "indeed.com", "upwork.com")
 FRESHNESS = ("d", "w", "m", "m3", "m6", "m9", "y")        # Google date filter: day, week, month, N months, year
 STALE_AFTER = timedelta(minutes=10)

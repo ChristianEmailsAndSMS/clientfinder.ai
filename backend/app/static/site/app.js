@@ -423,7 +423,7 @@
     const chips = h("div", { class: "chips mt12" }, SERVICES.map((p) => h("button", { type: "button", class: "chip", text: p, onclick: () => { input.value = p; estimate(); input.focus(); } })));
 
     modal("Find clients who are hiring",
-      h("p", { class: "muted", text: "Tell us the service you sell. We search LinkedIn, X, Facebook, Reddit, and the rest of the web right now for people hiring for it." }),
+      h("p", { class: "muted", text: "Tell us the service you sell. We search LinkedIn, X, Facebook, Reddit, and remote boards (Dynamite Jobs, Himalayas, We Work Remotely, Remote OK, and more) right now for people hiring for it." }),
       !c.ready ? h("div", { class: "sresult fail mt12", text: c.reason }) : null,
       h("label", { class: "field" }, "What service do you sell?", input), willSearch, chips,
       h("div", { class: "mt16" }, h("div", { class: "hint", text: "How far back should we look?" }), win),
@@ -436,7 +436,7 @@
     async function estimate() {
       quote = null; runBtn.disabled = true;
       const q = asSearch(input.value);
-      willSearch.textContent = q ? `LinkedIn, X, Facebook, Reddit, and the web, for “${q}”` : "";
+      willSearch.textContent = q ? `LinkedIn, X, Facebook, Reddit, remote job boards, and the web, for “${q}”` : "";
       if (q.length < 3) { info.textContent = `Type the service you sell. You have ${c.left_today} new searches left today.`; runBtn.textContent = "Run search"; return; }
       const r = await api("POST", "/searches/estimate", { query: q, freshness: s.freshness, site: null });
       if (asSearch(input.value) !== q) return;
@@ -478,7 +478,7 @@
   async function showResult(s, out) {
     clear(out);
     if (s.status === "failed") { out.append(h("div", { class: "sresult fail mt16", text: s.error || "The search failed. You were not charged." })); return; }
-    const jobs = await api("GET", `/searches/${s.id}/jobs?limit=50`);
+    const jobs = await api("GET", `/searches/${s.id}/jobs?limit=300`);
     out.append(h("div", { class: "sresult mt16" }, h("strong", { text: s.cached ? "Served from our database (free)" : `Found ${s.results} ${s.results === 1 ? "job" : "jobs"}${s.new_jobs ? `, ${s.new_jobs} new to the database` : ""}` }),
       h("div", { class: "muted", text: s.cached ? "Someone searched this in the last few hours." : `Charged ${money(s.cost_usd, 4)}.` })));
     const list = h("div", { class: "mt16" });

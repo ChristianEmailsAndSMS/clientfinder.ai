@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 BOARDS = frozenset({"remoteok", "weworkremotely", "remotive", "greenhouse", "lever", "ashby", "problogger", "indeed", "upwork",
-                    "mediabistro", "wellfound", "workable", "smartrecruiters", "linkedin_jobs"})
+                    "mediabistro", "wellfound", "workable", "smartrecruiters", "linkedin_jobs",
+                    "dynamite", "himalayas", "remotely", "nodesk", "workingnomads", "fourdayweek", "contentjobs",
+                    "jobspresso", "creatorjobboard", "euremotejobs", "remoteco", "remoterocketship", "jobicy"})
 SOCIAL = frozenset({"reddit", "twitter", "x", "linkedin", "facebook", "instagram", "threads", "tiktok", "youtube", "bluesky", "mastodon"})
 
 KIND_LABEL = {"board": "Job boards", "social": "Social media", "web": "Other websites"}
