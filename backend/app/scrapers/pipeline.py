@@ -171,6 +171,10 @@ _HIRING_SOMEONE = re.compile(
 _JOB_SEEKER = re.compile(r"\bis anyone hiring\b", re.I)
 # An agency selling "we help founders hire a creative strategist" is not an opening.
 _RECRUITER_PITCH = re.compile(r"\bwe help\b.{0,80}\b(?:founders|brands|companies)\s+hire\b", re.I)
+# "Copywriter Recruitment Agency – Hire ..." sells hiring. A job at an agency stays
+# when the title does not also say hire. Title only, so a description mention stays.
+_RECRUITMENT_AGENCY_TITLE = re.compile(r"\brecruitment agency\b", re.I)
+_HIRE_IN_TITLE = re.compile(r"\bhire\b", re.I)
 # "Cost to build a funnel? I checked Fiverr already" is a price question, not an opening.
 _PRICE_QUESTION = re.compile(r"^\s*cost to build\b|\bi checked fiverr\b", re.I)
 # Remote OK says this when the listing is dead. City jobs says the vacancy has expired.
@@ -232,6 +236,8 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     if "quora.com" in (url or "").lower():
         return True
     if "recruitment-agency" in (url or "").lower() or _RECRUITER_PITCH.search(blob):
+        return True
+    if _RECRUITMENT_AGENCY_TITLE.search(title) and _HIRE_IN_TITLE.search(title):
         return True
     # LinkedIn's how-to-hire guides are sample descriptions, not openings.
     if "how-to-hire-guide" in (url or "").lower() or _JOB_TEMPLATE.search(title):

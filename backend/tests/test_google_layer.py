@@ -680,6 +680,18 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Lilo Social is seeking a Senior Creative Strategist. We help founders grow. You'll hire no one on day one.",
         url="https://lilosocial.com/careers/senior-creative-strategist/")
     assert pipeline.not_a_hiring_post(
+        "Copywriter Recruitment Agency – Hire Copywriters and Content Writers",
+        "Hire Copywriters and Hire Content writers, proof readers, writers, editors.",
+        url="https://www.80twenty.com/speciality/copywriting-content/")
+    assert not pipeline.not_a_hiring_post(
+        "Senior Copywriter",
+        "Join our recruitment agency. We are hiring a senior copywriter for a client brand.",
+        url="https://jobs.example.com/senior-copywriter")
+    assert not pipeline.not_a_hiring_post(
+        "Senior Copywriter at a recruitment agency",
+        "We are hiring a senior copywriter. Clients hire us for campaigns.",
+        url="https://jobs.example.com/senior-copywriter-agency")
+    assert pipeline.not_a_hiring_post(
         "Creative Strategist freelancers - Hire",
         "Write down these goals clearly. This will help the creative strategist understand the brief.")
     assert not pipeline.not_a_hiring_post(
