@@ -34,7 +34,12 @@ _ADVICE = re.compile(
     re.I,
 )
 # Title only. A real job can say "how to become" in the description. These headlines are articles.
-_ADVICE_TITLE = re.compile(r"\b(?:how to become|checklist for hiring)\b", re.I)
+# "Hiring a creative strategist?" is a question about the work, not an opening. "Hiring a strategist for a brand" is.
+_ADVICE_TITLE = re.compile(
+    r"\b(?:how to become|checklist for hiring|how to get hired)\b"
+    r"|^\s*hiring an?\b[^?\n]{0,80}\?",
+    re.I,
+)
 # A company can be named "Funnel Builder" (or use that phrase as a tagline) and be hiring an
 # engineer. Platform, backend, and fullstack titles are the same miss as "software engineer".
 _ENGINEERING_ROLE = re.compile(
