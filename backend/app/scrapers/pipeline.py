@@ -191,6 +191,8 @@ _INSTAGRAM_REEL_INDEX = re.compile(r"\breels on instagram\b", re.I)
 _TEMPLATE_GALLERY = re.compile(r"\bcustomizable\b.{0,60}\btemplates\b", re.I)
 # "Copywriter Near Me (ID:1608474)" is a generated listing. Title only.
 _NEAR_ME_LISTING = re.compile(r"\bnear me\s*\(\s*id\s*:", re.I)
+# Ads of the World describes an old ad, not an opening.
+_AD_ARCHIVE = re.compile(r"\bthis professional campaign titled\b", re.I)
 # "Cost to build a funnel? I checked Fiverr already" is a price question, not an opening.
 _PRICE_QUESTION = re.compile(r"^\s*cost to build\b|\bi checked fiverr\b", re.I)
 # Remote OK says this when the listing is dead. City jobs says the vacancy has expired.
@@ -261,6 +263,8 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
         return True
     # Vaia reprints a title plus "largest job board for Gen-Z" chrome.
     if "vaia.com" in low_url:
+        return True
+    if "adsoftheworld.com" in low_url or _AD_ARCHIVE.search(blob):
         return True
     if "recruitment-agency" in (url or "").lower() or _RECRUITER_PITCH.search(blob):
         return True

@@ -607,6 +607,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We are hiring. This role was also listed on the largest job board for Gen-Z.",
         url="https://example.com/jobs/creative-strategist")
     assert pipeline.not_a_hiring_post(
+        "Copywriter wanted - Pirana",
+        "This professional campaign titled 'Copywriter wanted' was published in United Arab Emirates in April, 2008.",
+        url="https://www.adsoftheworld.com/campaigns/copywriter-wanted-74b2bca9-5c22-4abf-9e85-3edee846ecb3")
+    assert not pipeline.not_a_hiring_post(
+        "Copywriter wanted",
+        "We're hiring a copywriter for a brand campaign.",
+        url="https://example.com/jobs/copywriter-wanted")
+    assert pipeline.not_a_hiring_post(
         "Email Marketer Job Description Template",
         "As an email marketer, you will develop, implement and optimise email marketing strategies for our company.",
         url="https://business.linkedin.com/hire/resources/how-to-hire-guides/email-marketer-job-description")
