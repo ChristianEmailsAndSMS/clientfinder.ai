@@ -28,8 +28,9 @@ log = logging.getLogger(__name__)
 # Advice, self-promotion, and careers indexes. "We're hiring" stays. "When I'm hiring, I look for" does not.
 _SELF_PROMO = re.compile(r"^\s*\[?\s*(for hire|hire me)\b", re.I)
 _CAREERS_INDEX = re.compile(r"^\s*(careers at|all open positions)\b", re.I)
-# "Copywriter Jobs Board" is a directory, not one opening. "post it on our jobs board" in a description stays.
-_DIRECTORY_TITLE = re.compile(r"\bjobs board\b", re.I)
+# "Copywriter Jobs Board" and "Creative Strategist Job Board" are directories, not one opening.
+# "post it on our job board" in a description stays.
+_DIRECTORY_TITLE = re.compile(r"\bjobs? board\b", re.I)
 _DIRECTORY = re.compile(r"\b\d+\s+writer jobs\b|\bjobs exclusive to paid subscribers\b", re.I)
 # "Remote-First Marketing Jobs" and a snippet of "Browse Marketing jobs" are category pages.
 _JOBS_INDEX_TITLE = re.compile(r"\bremote-first\b.{0,40}\bjobs\s*$", re.I)
