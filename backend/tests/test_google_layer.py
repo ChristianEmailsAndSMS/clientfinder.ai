@@ -64,7 +64,11 @@ def test_plan_has_open_web_and_site_scoped_queries_without_duplicates():
     assert 'site:linkedin.com/posts "hiring" "funnel builder"' in texts
     assert "site:himalayas.app/companies copywriter jobs" in texts
     assert "site:remotive.com/remote/jobs/ creative strategist jobs" in texts
-    assert not any("tryremotely.com" in t or "creatorjobboard.com" in t for t in texts)
+    assert not any(
+        host in t
+        for t in texts
+        for host in ("tryremotely.com", "creatorjobboard.com", "jobspresso.co", "remote.co")
+    )
     assert all(len(t) <= 256 for t in texts)
     assert all(not t.startswith('"') or " site:" not in t for t in texts)
 

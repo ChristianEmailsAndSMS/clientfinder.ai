@@ -63,7 +63,11 @@ POST_SCOPES: tuple[str, ...] = (
     "reddit.com/r/hiring/comments",
 )
 # Remote boards whose public pages are individual jobs, and LinkedIn's job pages.
-# tryremotely.com and creatorjobboard.com are omitted: site: searches for "hiring copywriter" returned nothing.
+# Omitted after live site: checks of the phrases customers type:
+# tryremotely.com and creatorjobboard.com returned nothing for "hiring copywriter".
+# jobspresso.co/job/ returned a copy editor and a brand designer for that query, and nothing
+# for creative strategist or email copywriter.
+# remote.co/job-details/ returned nothing for those three queries.
 REMOTE_SCOPES: tuple[str, ...] = (
     "dynamitejobs.com/company",
     "himalayas.app/companies",
@@ -73,9 +77,7 @@ REMOTE_SCOPES: tuple[str, ...] = (
     "4dayweek.io/job/",
     "jobs.workable.com/view/",
     "contentjobs.co/jobs/",
-    "jobspresso.co/job/",
     "euremotejobs.com/job/",
-    "remote.co/job-details/",
     "remoterocketship.com/company",
     "jobicy.com/jobs/",
     "remoteok.com/remote-jobs/",
