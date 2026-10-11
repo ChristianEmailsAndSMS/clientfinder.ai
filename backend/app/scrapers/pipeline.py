@@ -41,6 +41,8 @@ _ADVICE = re.compile(
 _ADVICE_TITLE = re.compile(
     r"\b(?:how to become|checklist for hiring|how to get hired|how can i get hired)\b"
     r"|^\s*seeking advice\b"
+    r"|^\s*what makes a (?:great|good)\b"
+    r"|\bfast[- ]growing job\b"
     r"|^\s*hiring an?\b[^?\n]{0,80}\?",
     re.I,
 )
