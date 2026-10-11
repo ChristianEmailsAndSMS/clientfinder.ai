@@ -28,6 +28,9 @@ log = logging.getLogger(__name__)
 # Advice, self-promotion, and careers indexes. "We're hiring" stays. "When I'm hiring, I look for" does not.
 _SELF_PROMO = re.compile(r"^\s*\[?\s*(for hire|hire me)\b", re.I)
 _CAREERS_INDEX = re.compile(r"^\s*(careers at|all open positions)\b", re.I)
+# "Copywriter Jobs Board" is a directory, not one opening. "post it on our jobs board" in a description stays.
+_DIRECTORY_TITLE = re.compile(r"\bjobs board\b", re.I)
+_DIRECTORY = re.compile(r"\b\d+\s+writer jobs\b|\bjobs exclusive to paid subscribers\b", re.I)
 _ADVICE = re.compile(
     r"\b(when i(?:'m| am) hiring|why you should hire|why i look for|what i look for when|the rise of the|"
     r"how to hire|how should \w+ hire|how i built|\d+ signs you(?:'re| are)? not)\b",
@@ -83,7 +86,8 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     """True when the search result is commentary, a person advertising themselves, or a careers index."""
     title = title or ""
     blob = f"{title}\n{snippet or ''}"
-    if _SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _ADVICE.search(blob) or _ADVICE_TITLE.search(title):
+    if (_SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _DIRECTORY_TITLE.search(title)
+            or _DIRECTORY.search(blob) or _ADVICE.search(blob) or _ADVICE_TITLE.search(title)):
         return True
     if (_FIRST_PERSON_YEARS.search(blob) or _FIRST_PERSON_INTRO.search(blob) or _JOB_SEEKER.search(blob)) and not _HIRING_SOMEONE.search(blob):
         return True
