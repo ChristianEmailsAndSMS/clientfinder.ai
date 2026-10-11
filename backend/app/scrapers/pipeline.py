@@ -33,8 +33,13 @@ _ADVICE = re.compile(
     r"how to hire|how should \w+ hire|how i built|\d+ signs you(?:'re| are)? not)\b",
     re.I,
 )
-# A company can be named "Funnel Builder" and be hiring an engineer. That is not the role.
-_ENGINEERING_ROLE = re.compile(r"\bsoftware engineers?\b|\bsoftware engineering\b", re.I)
+# A company can be named "Funnel Builder" (or use that phrase as a tagline) and be hiring an
+# engineer. Platform, backend, and fullstack titles are the same miss as "software engineer".
+_ENGINEERING_ROLE = re.compile(
+    r"\b(?:software|platform|fullstack|full[\s-]stack|backend|front[\s-]?end)\s+engineers?\b"
+    r"|\bsoftware engineering\b",
+    re.I,
+)
 # "I have 4+ years" under a #hiring tag is someone selling themselves. "We're hiring" plus that line is still a job.
 _FIRST_PERSON_YEARS = re.compile(r"\bi have \d+\+?\s*years\b", re.I)
 _HIRING_SOMEONE = re.compile(
@@ -51,7 +56,8 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "") -> bool:
         return True
     if _FIRST_PERSON_YEARS.search(blob) and not _HIRING_SOMEONE.search(blob):
         return True
-    if re.search(r"funnel builder", query or "", re.I) and _ENGINEERING_ROLE.search(blob):
+    # Title only. A real funnel-builder post can mention working with engineers in the body.
+    if re.search(r"funnel builder", query or "", re.I) and _ENGINEERING_ROLE.search(title):
         return True
     return False
 

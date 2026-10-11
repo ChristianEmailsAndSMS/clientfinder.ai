@@ -310,9 +310,21 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
     assert pipeline.not_a_hiring_post("3 signs you're not actually a creative strategist", "")
     assert pipeline.not_a_hiring_post(
         "BD Funnel Builder is hiring Software Engineering Manager", "Full-time", query='hiring "funnel builder"')
+    assert pipeline.not_a_hiring_post(
+        "Remote Senior Platform Engineer at Perspective",
+        "Perspective - #1 Mobile Funnel Builder.", query='hiring "funnel builder"')
+    assert pipeline.not_a_hiring_post(
+        "Perspective is hiring a remote Senior Fullstack Engineer to join the team",
+        "Perspective - #1 Mobile Funnel Builder.", query='hiring "funnel builder"')
+    assert pipeline.not_a_hiring_post(
+        "Remote Senior Backend Engineer (f/m/d) at Perspective",
+        "Perspective - #1 Mobile Funnel Builder.", query='hiring "funnel builder"')
     assert not pipeline.not_a_hiring_post(
         "Now hiring - GoFunnels is looking for a full-time Funnel Builder",
         "Expertise with ClickFunnels, Go High Level, Kajabi", query='hiring "funnel builder"')
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a funnel builder",
+        "You'll work with our backend engineers to ship the pages", query='hiring "funnel builder"')
     assert not pipeline.not_a_hiring_post(
         "We're hiring a copywriter", "for a software engineering company", query="hiring copywriter")
     assert pipeline.not_a_hiring_post(
