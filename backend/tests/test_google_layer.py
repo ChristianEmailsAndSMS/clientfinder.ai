@@ -700,6 +700,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "I've been applying to multiple companies via LinkedIn but never get any interview.",
         url="https://www.reddit.com/r/CreativeStrategists/comments/abc/how_to_get_into/")
     assert pipeline.not_a_hiring_post(
+        "How I Got a Remote Job from LinkedIn — You Don't Need Followers",
+        'Open the LinkedIn search bar and type "hiring email marketer".',
+        url="https://ritamichaeladegoke.com.ng/how-to-get-remote-jobs-on-linkedin-without-followers-and-connections/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring an email marketer",
+        "How I got a remote job is a story we tell candidates.",
+        url="https://example.com/jobs/email-marketer")
+    assert pipeline.not_a_hiring_post(
         "Is being an Email Copywriter still in demand in 2025?",
         "I'm planning to learn more about email copywriting as a beginner in the freelancer world.",
         url="https://www.reddit.com/r/copywriting/comments/1l3zo0n/is_being_an_email_copywriter_still_in_demand_in/")
