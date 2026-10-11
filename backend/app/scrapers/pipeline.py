@@ -196,6 +196,9 @@ _NEAR_ME_LISTING = re.compile(r"\bnear me\s*\(\s*id\s*:", re.I)
 _AD_ARCHIVE = re.compile(r"\bthis professional campaign titled\b", re.I)
 # "All Job Posts" is a category of many wanted ads. Title only.
 _ALL_JOB_POSTS = re.compile(r"^\s*all job posts\b", re.I)
+# "A Funnel Builder is a specialized role within a marketing agency" explains the job.
+# A post that is also hiring someone stays.
+_ROLE_DEFINITION = re.compile(r"\bis a specialized role\b", re.I)
 # "Cost to build a funnel? I checked Fiverr already" is a price question, not an opening.
 _PRICE_QUESTION = re.compile(r"^\s*cost to build\b|\bi checked fiverr\b", re.I)
 # Remote OK says this when the listing is dead. City jobs says the vacancy has expired.
@@ -316,6 +319,8 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     if _COPYWRITING_SERVICES.search(blob) and not _HIRING_SOMEONE.search(blob):
         return True
     if _HIRING_SOFTWARE.search(blob) and not _HIRING_SOMEONE.search(blob):
+        return True
+    if _ROLE_DEFINITION.search(blob) and not _HIRING_SOMEONE.search(blob):
         return True
     # On Reddit the role often appears only in the related-posts snippet of a different thread.
     # LinkedIn titles are the author's name, so this check stays on reddit.com.

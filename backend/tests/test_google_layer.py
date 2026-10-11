@@ -679,6 +679,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We are looking for a Funnel Builder to join our marketing team. See the job description template in the doc.",
         url="https://www.multiplymii.com/job-description/funnel-builder")
     assert pipeline.not_a_hiring_post(
+        "Funnel Builder",
+        "A Funnel Builder is a specialized role within a marketing agency responsible for creating sales funnels.",
+        url="https://www.multiplymii.com/job-description/funnel-builder")
+    assert not pipeline.not_a_hiring_post(
+        "Funnel Builder",
+        "A Funnel Builder is a specialized role. We are looking for a Funnel Builder to join our marketing team.",
+        url="https://www.multiplymii.com/job-description/funnel-builder")
+    assert pipeline.not_a_hiring_post(
         "Audience & Connections Strategist at Wpromote",
         "Creative Strategist. Rocket Money. Browse Marketing jobs.")
     assert not pipeline.not_a_hiring_post(
