@@ -69,9 +69,10 @@ _DATED_JOBS_INDEX = re.compile(
     r"october|november|december)\s+20\d\d\s*\)",
     re.I,
 )
-# "Creative Strategist Jobs in Atlanta" and "Creative Strategist jobs in New York" are city lists.
+# "Creative Strategist Jobs in Atlanta" and "Viral Marketing Copywriter Jobs in Greenville" are city lists.
+# The role does not have to be the first words. A single opening titled as the role stays.
 _JOBS_IN_PLACE = re.compile(
-    r"^\s*(?:remote\s+)?(?:copywriters?|copywriting|creative strategists?|funnel builders?|"
+    r"\b(?:copywriters?|copywriting|creative strategists?|funnel builders?|"
     r"email marketers?|email copywriters?|landing pages?)\s+jobs\s+in\b",
     re.I,
 )

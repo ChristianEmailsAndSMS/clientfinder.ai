@@ -421,6 +421,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Creative Strategist jobs in New York",
         "Discover the latest Creative Strategist jobs at the fastest growing startups in New York.",
         url="https://startup.jobs/locations/new-york/creative-strategist")
+    assert pipeline.not_a_hiring_post(
+        "Viral Marketing Copywriter Jobs in Greenville NC",
+        "Copywriter Jobs in Greenville NC, Jobs in Film, TV, Music, VFX and more.",
+        url="https://www.entertainmentcareers.net/jobs/s/viral-marketing-copywriter/545-greenville-nc/")
+    assert not pipeline.not_a_hiring_post(
+        "Viral Marketing Copywriter",
+        "As the Copywriter, you'll bring a strong verbal and narrative lens. Full time in Greenville, NC.",
+        url="https://www.entertainmentcareers.net/mrbeast/viral-marketing-copywriter/job/528861/")
     assert not pipeline.not_a_hiring_post(
         "Creative Strategist",
         "We are hiring a Creative Strategist in New York. 1,000+ brands in the category.",
