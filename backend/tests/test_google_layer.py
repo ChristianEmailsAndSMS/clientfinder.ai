@@ -643,6 +643,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We're hiring a creative strategist",
         "8 mistakes DTC brands make when hiring a creative strategist are listed in the brief.",
         url="https://careers.example.com/creative-strategist")
+    assert pipeline.not_a_hiring_post(
+        "Hiring Email Marketer: Scope the Role Properly",
+        "eCommerce Recruiting Agency | Global",
+        url="https://www.linkedin.com/posts/katarina-perisic_hiring-an-email-marketer-for-your-ecom-brand-activity-7462120573469577216-d36G")
+    assert not pipeline.not_a_hiring_post(
+        "Email Marketer",
+        "Scope the role properly with the hiring manager. We are hiring an email marketer.",
+        url="https://jobs.example.com/email-marketer")
     assert not pipeline.not_a_hiring_post(
         "Landing page builder",
         "We are hiring someone to build landing pages. We compared 9 best tools first.",

@@ -117,6 +117,7 @@ _ADVICE_TITLE = re.compile(
     r"|^\s*best\b.{0,40}\bjobs\b"
     r"|^\s*\d+\s+best\b"
     r"|^\s*\d+\s+mistakes\b"
+    r"|\bscope the role\b"
     r"|^\s*best practices\b"
     r"|\beasy guide\b"
     r"|\bpsa to anyone hiring\b"
