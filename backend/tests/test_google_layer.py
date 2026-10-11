@@ -559,6 +559,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "The Best Funnel Builder for Recruiting in 2026",
         "Streamline your candidate acquisition with Heyflow's funnel builder.")
     assert pipeline.not_a_hiring_post(
+        "Best Copywriter Jobs 2026",
+        "Search for the best copywriter jobs",
+        url="https://builtin.com/jobs/content/search/copywriter")
+    assert not pipeline.not_a_hiring_post(
+        "Copywriter",
+        "We are hiring a copywriter. Search for the best copywriter jobs is how candidates find us.",
+        url="https://builtin.com/job/copywriter/senior-copywriter")
+    assert pipeline.not_a_hiring_post(
         "Hire a GoHighLevel Funnel Builder Expert: Easy Guide",
         "A GoHighLevel funnel builder expert helps design and structure your sales process.")
     assert pipeline.not_a_hiring_post(
