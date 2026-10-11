@@ -194,6 +194,13 @@ def balance(env, uid):
         return db.scalar(select(User.balance_micro).where(User.id == uid))
 
 
+def test_funnel_builder_is_quoted_so_it_does_not_match_the_company():
+    assert live_search.clean_query("hiring funnel builder") == 'hiring "funnel builder"'
+    assert live_search.clean_query("Hiring Funnel Builder") == 'Hiring "Funnel Builder"'
+    assert live_search.clean_query('hiring "funnel builder"') == 'hiring "funnel builder"'
+    assert live_search.clean_query("hiring copywriter") == "hiring copywriter"
+
+
 def test_live_search_is_off_until_keys_exist(env):
     c = member(env, balance_usd=5)
     assert c.get("/searches/config").json()["ready"] is False

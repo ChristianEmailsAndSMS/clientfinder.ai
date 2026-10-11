@@ -42,7 +42,7 @@ TERMS: tuple[str, ...] = (
     "email copywriter jobs",
     "creative strategy jobs",
     "creative strategist jobs",
-    "funnel builder jobs",
+    '"funnel builder" jobs',
     "landing page jobs",
 )
 # Posts. "creative strategist jobs" on X and Reddit is commentary. Hiring language is the post.

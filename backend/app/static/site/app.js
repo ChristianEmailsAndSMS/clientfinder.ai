@@ -405,7 +405,14 @@
   const SERVICES = ["copywriting", "copywriter", "email marketing", "email copywriter", "creative strategy", "creative strategist", "funnel builder"];
   const WINDOWS = { d: "Past day", w: "Past week", m: "Past month", m3: "Past 3 months", m6: "Past 6 months", m9: "Past 9 months", y: "Past year" };
   // The customer sells a service; the web search looks for people HIRING for it.
-  const asSearch = (service) => { const t = service.trim(); return /\b(hiring|hire|looking for|need|needs|wanted|seeking)\b/i.test(t) ? t : (t ? "hiring " + t : ""); };
+  const asSearch = (service) => {
+    const t = service.trim();
+    if (/\b(hiring|hire|looking for|need|needs|wanted|seeking)\b/i.test(t)) return t;
+    if (!t) return "";
+    // Quoted so it does not match the company Builder Funnel.
+    const role = /^funnel builder$/i.test(t) ? '"funnel builder"' : t;
+    return "hiring " + role;
+  };
 
   async function openSearch(prefill) {
     const cfg = await api("GET", "/searches/config");

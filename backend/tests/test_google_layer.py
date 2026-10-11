@@ -60,6 +60,8 @@ def test_plan_has_open_web_and_site_scoped_queries_without_duplicates():
     assert 'site:reddit.com/r/forhire/comments "hiring" "creative strategist"' in texts
     assert 'site:reddit.com/r/hiring/comments "hiring" copywriter' in texts
     assert "site:dynamitejobs.com/company copywriter jobs" in texts
+    assert 'site:linkedin.com/jobs/view "funnel builder" jobs' in texts
+    assert 'site:linkedin.com/posts "hiring" "funnel builder"' in texts
     assert "site:himalayas.app/companies copywriter jobs" in texts
     assert "site:remotive.com/remote/jobs/ creative strategist jobs" in texts
     assert not any("tryremotely.com" in t or "creatorjobboard.com" in t for t in texts)
