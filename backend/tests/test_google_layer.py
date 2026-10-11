@@ -380,6 +380,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Overview We're looking for a high-level funnel builder who understands both conversion and design.",
         url="https://www.ziprecruiter.com/Jobs/Funnel")
     assert pipeline.not_a_hiring_post(
+        "Email Marketing Jobs in New Jersey (NOW HIRING)",
+        "Email Marketer/Copywriter. Our Marketing Department is looking to add a full-time Email Marketer.",
+        url="https://www.ziprecruiter.com/Jobs/Email-Marketing/--in-New-Jersey")
+    assert not pipeline.not_a_hiring_post(
+        "Email Marketer",
+        "Our Marketing Department is looking to add a full-time Email Marketer. Now hiring.",
+        url="https://www.ziprecruiter.com/c/acme/Job/Email-Marketer/-in-Iselin,NJ")
+    assert pipeline.not_a_hiring_post(
         "Remote Copywriter Jobs ($69K to $103K)",
         "Search 216 copywriter remote jobs. 26 added this week.",
         url="https://www.remoterocketship.com/jobs/copywriter/")

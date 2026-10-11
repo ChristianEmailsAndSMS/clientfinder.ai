@@ -50,8 +50,9 @@ _JOB_COUNT_SUFFIX = re.compile(
     r"\bjobs\b.{0,60}\(\s*(?:\d{1,3}(?:,\d{3})+|(?!20\d\d\b)\d{3,})\s*\)\s*$",
     re.I,
 )
-# "$20-$72/hr Funnel Jobs (NOW HIRING)" is the same kind of list. Title only.
-_AGGREGATOR_TITLE = re.compile(r"\bjobs\s*\(\s*now hiring\s*\)", re.I)
+# "$20-$72/hr Funnel Jobs (NOW HIRING)" and "Email Marketing Jobs in New Jersey (NOW HIRING)"
+# are lists. A place can sit between jobs and the parenthesis. Title only.
+_AGGREGATOR_TITLE = re.compile(r"\bjobs\b.{0,40}\(\s*now hiring\s*\)", re.I)
 # "Remote Copywriter Jobs ($69K to $103K)" / "Search 216 copywriter remote jobs" is a list.
 # "$26-$54/hr No Experience Copywriting Jobs in Royal Oak" is the same list with the pay first.
 _SALARY_JOBS_INDEX = re.compile(
