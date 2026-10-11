@@ -35,6 +35,13 @@ _DIRECTORY = re.compile(r"\b\d+\s+writer jobs\b|\bjobs exclusive to paid subscri
 # "Remote-First Marketing Jobs" and a snippet of "Browse Marketing jobs" are category pages.
 _JOBS_INDEX_TITLE = re.compile(r"\bremote-first\b.{0,40}\bjobs\s*$", re.I)
 _BROWSE_JOBS = re.compile(r"\bbrowse\b.{0,40}\bjobs\b", re.I)
+# "Freelance and remote Copywriters jobs" / "Browse the latest ... jobs" is a board index.
+# "Browse Marketing jobs" is already covered above. A single freelance copywriter opening stays.
+_BROWSE_LATEST_JOBS = re.compile(
+    r"^\s*freelance and remote\b.{0,60}\bjobs\b"
+    r"|\bbrowse the latest\b.{0,80}\bjobs\b",
+    re.I,
+)
 # "9000+ Copywriter jobs in United States" is a search-results page, not one opening.
 _JOB_COUNT_INDEX = re.compile(r"^\s*\d[\d,]*\+?\s+.{0,80}\bjobs\b", re.I)
 # "Creative Strategist Jobs in Manhattan, NY (3403)" is the same list with the count at the end.
@@ -234,6 +241,7 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
             or _OPEN_ROLES_TITLE.search(title) or _JOBS_IN_PLACE.search(title)
             or _TOP_N_JOBS.search(title) or _REDUCED_HOURS_INDEX.search(title)
             or _DIRECTORY.search(blob) or _BROWSE_JOBS.search(blob)
+            or _BROWSE_LATEST_JOBS.search(blob)
             or _ADVICE.search(blob) or _ADVICE_TITLE.search(title) or _PRICE_QUESTION.search(blob)
             or _CLOSED_JOB.search(blob) or _NOT_A_JOB_PAGE.search(blob)):
         return True

@@ -422,6 +422,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "As the email copywriter, you help grow the clients. This role is remote.",
         url="https://jobs.smartrecruiters.com/InstantEmailCopy/743999692475726-email-copywriter")
     assert pipeline.not_a_hiring_post(
+        "Freelance and remote Copywriters jobs - Twine",
+        "Browse the latest freelance and remote Copywriters jobs, newest first.",
+        url="https://www.twine.net/jobs/copywriters")
+    assert not pipeline.not_a_hiring_post(
+        "Freelance copywriter",
+        "We are hiring a freelance and remote copywriter. Browse the latest work in the portfolio.",
+        url="https://www.twine.net/jobs/copywriters/123")
+    assert pipeline.not_a_hiring_post(
         "Creative Strategist Jobs in Atlanta Metropolitan Area ...",
         "1,000+ Creative Strategist Jobs in Atlanta Metropolitan Area. Senior Manager, Creative Strategy.",
         url="https://www.linkedin.com/jobs/creative-strategist-jobs-atlanta-metropolitan-area")
