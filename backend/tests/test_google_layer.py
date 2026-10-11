@@ -311,6 +311,12 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Expertise with ClickFunnels, Go High Level, Kajabi", query='hiring "funnel builder"')
     assert not pipeline.not_a_hiring_post(
         "We're hiring a copywriter", "for a software engineering company", query="hiring copywriter")
+    assert pipeline.not_a_hiring_post(
+        "#hiring | Marina Aghbalyan",
+        "AI FUNNEL BUILDER I have 4+ years of hands-on experience with GoHighLevel")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a funnel builder",
+        "I have 8 years running this studio and we need a builder")
 
 
 # ---------- pipeline ----------

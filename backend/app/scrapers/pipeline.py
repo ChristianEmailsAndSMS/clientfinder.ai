@@ -35,6 +35,12 @@ _ADVICE = re.compile(
 )
 # A company can be named "Funnel Builder" and be hiring an engineer. That is not the role.
 _ENGINEERING_ROLE = re.compile(r"\bsoftware engineers?\b|\bsoftware engineering\b", re.I)
+# "I have 4+ years" under a #hiring tag is someone selling themselves. "We're hiring" plus that line is still a job.
+_FIRST_PERSON_YEARS = re.compile(r"\bi have \d+\+?\s*years\b", re.I)
+_HIRING_SOMEONE = re.compile(
+    r"\b(we(?:'re| are) hiring|we(?:'re| are) looking|looking for (?:a|someone)|now hiring|is hiring)\b",
+    re.I,
+)
 
 
 def not_a_hiring_post(title: str, snippet: str = "", query: str = "") -> bool:
@@ -42,6 +48,8 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "") -> bool:
     title = title or ""
     blob = f"{title}\n{snippet or ''}"
     if _SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _ADVICE.search(blob):
+        return True
+    if _FIRST_PERSON_YEARS.search(blob) and not _HIRING_SOMEONE.search(blob):
         return True
     if re.search(r"funnel builder", query or "", re.I) and _ENGINEERING_ROLE.search(blob):
         return True
