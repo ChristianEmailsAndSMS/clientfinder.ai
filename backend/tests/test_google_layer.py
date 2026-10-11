@@ -338,6 +338,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Email Copywriter",
         "We are hiring an email copywriter. The last hire started 5 years ago.",
         url="https://example.com/jobs/email-copywriter")
+    assert pipeline.not_a_hiring_post(
+        "WNBA hiring creative director : r/wnba",
+        "Archived post. New comments cannot be posted and votes cannot be cast.",
+        url="https://www.reddit.com/r/wnba/comments/1i2v7tw/wnba_hiring_creative_director/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a creative director",
+        "The old thread was archived. Apply on the careers page.",
+        url="https://example.com/jobs/creative-director")
     assert not pipeline.not_a_hiring_post(
         "We're hiring a copywriter",
         "Please do not apply unless you have a portfolio of live emails.")

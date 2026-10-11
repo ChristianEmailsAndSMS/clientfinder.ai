@@ -199,11 +199,13 @@ _ALL_JOB_POSTS = re.compile(r"^\s*all job posts\b", re.I)
 # "Cost to build a funnel? I checked Fiverr already" is a price question, not an opening.
 _PRICE_QUESTION = re.compile(r"^\s*cost to build\b|\bi checked fiverr\b", re.I)
 # Remote OK says this when the listing is dead. City jobs says the vacancy has expired.
-# Freelancer says "Closed. Posted almost 5 years ago." "Please do not apply unless..." on a live post stays.
+# Freelancer says "Closed. Posted almost 5 years ago." Reddit says the thread is archived.
+# "Please do not apply unless..." on a live post stays.
 _CLOSED_JOB = re.compile(
     r"\bjob post is closed\b|\bposition is probably filled\b|\bno longer accepting applications\b"
     r"|\bvacancy has now expired\b"
-    r"|\bclosed\.\s*posted\b|\bposted almost \d+\s+years ago\b",
+    r"|\bclosed\.\s*posted\b|\bposted almost \d+\s+years ago\b"
+    r"|\barchived post\b|\bnew comments cannot be posted\b",
     re.I,
 )
 # These titles are a different job. A title that also names the searched role still stays.
