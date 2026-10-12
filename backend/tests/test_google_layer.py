@@ -810,6 +810,18 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We're hiring a junior copywriter",
         "Job searches for beginning copywriters are welcome. Apply if you are starting out.",
         url="https://example.com/jobs/junior-copywriter")
+    assert pipeline.not_a_hiring_post(
+        "7 Smart Questions to Ask Before You Hire a Copywriter",
+        "My advice: Clarify your goals and needs before approaching a writer.",
+        url="https://www.christinelellis.com/hire-a-copywriter/")
+    assert pipeline.not_a_hiring_post(
+        "The 9 Things You Need to Know About Hiring a Copywriter",
+        "Have a realistic schedule. Not all copywriters write the same thing.",
+        url="https://sarahwayte.com/copywriting/the-9-things-you-need-to-know-about-hiring-a-copywriter/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "Here are 7 smart questions to ask before you hire, listed in the brief.",
+        url="https://example.com/jobs/copywriter-questions")
     assert pipeline.not_a_hiring_post("How should brands hire creative strategists?!", "")
     assert pipeline.not_a_hiring_post("3 signs you're not actually a creative strategist", "")
     assert pipeline.not_a_hiring_post("Ultimate checklist for hiring a copywriting genius", "Secret checklist for a pro copywriter")
