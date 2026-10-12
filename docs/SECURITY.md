@@ -205,3 +205,28 @@ text is stripped of the API key; unlimited accounts still obey the daily caps.
 - **Payment amount:** we credit the amount Whop reports as paid. If Whop's field includes tax the customer gets slightly more than the base price. Check the first real payment in `/admin/payments`.
 - **Screenshots** are sent to Anthropic's API to be read and are not stored by us. They may contain other people's private details; the UI says so.
 - **Not verified against the live services:** Whop's payload field names, Google's 3/6/9-month date filter.
+
+
+## 10. Full-product audit by nine independent auditors (2026-10-12)
+
+The owner reported inaccurate behaviour. Nine auditors (money, job data, web UI, docs vs code, API, payments, live search, security,
+migrations) each had to reproduce every finding and write a tested fix; nine skeptics then tried to refute each one. 63 findings, all confirmed
+as real by the skeptics. Fixed in this commit series (each is its own commit, tagged `pre-swarm` before the first):
+
+- **Critical:** with only a Serper key (or provider=serpapi but no SerpApi key) customers were charged for searches that never ran; fixed so an
+  unconfigured provider refuses the search and bills nothing.
+- **High:** two simultaneous searches by one customer could both start (now a database rule: one queued/running search per user); a search
+  slower than the 10-minute timeout was marked "not charged" and then charged; `/health` said ok when the database was behind the code (it now
+  returns 503 and the API refuses to start unless `SCHEMA_CHECK_STRICT=0`); long-prompt pricing was applied to the SUM of a search's tokens instead of per call;
+  place names matched ordinary words ("Join us", "or", "in"); Google-found jobs were filed under the wrong platform (wix.com counted as X);
+  "On-site" and "has pay" filters included unknown/DOE jobs; Lever monthly pay was stored as yearly; stale price quotes could show "Free" for the wrong window.
+- **Medium and below:** refunds could be turned into credit by the admin button; odd webhook amounts returned 500; any payment by a customer's email
+  was credited even for another Whop product (now only our credit packs unless the payment carries our account id); chunked requests bypassed the body cap;
+  account enumeration; audit-log flooding; admin Payments tab added; many stale statements in the docs corrected, and a test now fails when `.env.example` drifts from `config.py`.
+
+**Deliberately not done yet:** JD-15 (deduplicating the same job under http/https, www, x.com/twitter.com needs a migration that recomputes
+every `dedupe_hash` and merges duplicates; do it as one reviewed change), proper token accounting on `scrape_runs` (cost_report now labels extraction
+spend as a lower bound).
+
+**After deploying, run once:** `POST /admin/regions/rebuild` (Admin), `python scripts/backfill_tags.py`, `python scripts/recompute_platforms.py --apply`,
+and delete Lever jobs whose `pay_period='year'` and `pay_max < 20000` so the next run re-adds them with the right pay.

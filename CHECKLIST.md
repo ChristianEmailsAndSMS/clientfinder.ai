@@ -11,6 +11,7 @@ limits, sources, payments, margin), Whop checkout and webhook, daily local backu
 **Not yet proven with the real services:** a real Whop payment end to end, a live SerpApi + Claude search on the server, Google's 3/6/9-month date filters.
 
 ### Do next, in this order
+0. [ ] **After pulling the swarm fixes (2026-10-12):** `alembic upgrade head` BEFORE restarting (the API now refuses to start on an old database), then `scripts/backfill_tags.py`, `scripts/recompute_platforms.py --apply`, Admin > regions rebuild. See `docs/SECURITY.md` section 10.
 1. [ ] **Deploy the latest** (`git pull`, `pip install`, `alembic upgrade head`, restart) and copy the new Caddy `request_body` block so screenshots work.
 2. [ ] **Real test purchase:** sign up as a customer, buy $27 on Whop, confirm the balance rises and the payment shows in `/admin/payments`. Fix field names if it is held.
 3. [ ] **Real test search** on the server (give yourself unlimited credits first); check SerpApi shows one search used and the dashboard margin reads about 1.50x.
