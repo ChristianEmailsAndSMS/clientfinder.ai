@@ -29,6 +29,7 @@ def test_every_freshness_window_reaches_both_providers(monkeypatch, provider, f)
     monkeypatch.setattr(httpx, "post", lambda url, **kw: seen.update(kw["json"]) or R())
     monkeypatch.setattr(settings, "serpapi_api_key", "a"); monkeypatch.setattr(settings, "serper_api_key", "b")
     monkeypatch.setattr(settings, "google_search_provider", provider)
+    monkeypatch.setattr(settings, "dev_fixtures", False)             # dev mode returns canned results and never calls a provider
     google_search.search("hiring x", freshness=f)
     assert seen["tbs"] == f"qdr:{f}"
 
