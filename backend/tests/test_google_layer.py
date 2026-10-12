@@ -992,6 +992,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We are hiring a senior copywriter. Clients hire us for campaigns.",
         url="https://jobs.example.com/senior-copywriter-agency")
     assert pipeline.not_a_hiring_post(
+        "Apply As A Copywriter - Optimate",
+        "We're a top international hiring agency that hires skilled copywriters for online work with client companies of ours in the US and Europe.",
+        url="https://optimate.co/apply-copywriter/")
+    assert not pipeline.not_a_hiring_post(
+        "Copywriter",
+        "We are hiring a copywriter. The client is a hiring agency that hires for other brands.",
+        url="https://example.com/jobs/copywriter")
+    assert pipeline.not_a_hiring_post(
         "Creative Strategist freelancers - Hire",
         "Write down these goals clearly. This will help the creative strategist understand the brief.")
     assert not pipeline.not_a_hiring_post(
