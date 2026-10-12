@@ -76,6 +76,8 @@ class Settings(BaseSettings):
     whop_webhook_secret: str = ""
     whop_amount_unit: str = "dollars"          # "dollars" or "cents": how Whop's payment amount field is expressed
     whop_max_topup_usd: float = 500.0          # a single payment above this is held for review instead of auto-credited
+    # A payment with no account id on it (so matched only by the buyer's email) is auto-credited only if it equals a credit pack ($27/$47/$97).
+    whop_email_match_bundles_only: bool = True
     # The job feed needs a signed-in account (otherwise anyone could read or scrape the whole product for free).
     # The home page shows only a small, redacted preview. Set JOBS_REQUIRE_LOGIN=0 only for local development.
     jobs_require_login: bool = True

@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from . import credits
+from . import credits, whop_api
 from .config import settings
 from .models import PaymentEvent, User
 
@@ -77,7 +77,7 @@ def extract_user_id(data) -> int | None:
     """The account id our own server put in the checkout's metadata (signed webhook, so a buyer cannot forge it)."""
     for path in (("metadata", "cf_user_id"), ("checkout_configuration", "metadata", "cf_user_id"), ("plan", "metadata", "cf_user_id")):
         v = _dig(data, *path)
-        if isinstance(v, (str, int)) and str(v).isdigit() and len(str(v)) <= 9:
+        if isinstance(v, (str, int)) and not isinstance(v, bool) and str(v).isascii() and str(v).isdigit() and len(str(v)) <= 9:
             return int(v)
     return None
 
@@ -97,11 +97,16 @@ def extract_amount_micro(data) -> tuple[int | None, str]:
             return None, f"{field} is not a number"
         if not d.is_finite() or d <= 0:
             return None, f"{field} is not a positive amount"
+        if d > credits.MAX_USD * 100:
+            return None, f"{field} is implausibly large"
         if settings.whop_amount_unit == "cents":
             d = d / 100
         if cur is None and field not in ("usd_total",):
             return None, "no currency in the payload"
-        return int((d * credits.MICRO).to_integral_value()), field
+        micro = int((d * credits.MICRO).to_integral_value())
+        if micro <= 0:
+            return None, f"{field} is below one micro-dollar"
+        return micro, field
     return None, "no amount field found"
 
 
@@ -119,6 +124,7 @@ def process(db: Session, event_id: str, body: dict) -> PaymentEvent:
         ev.amount_micro = amount
         uid = extract_user_id(data)
         user = db.get(User, uid) if uid else None
+        tagged = user is not None                              # our own checkout put this account id on the payment
         if user is None and ev.email:
             user = db.scalar(select(User).where(User.email == ev.email))
         ev.email = ev.email or (user.email if user else None)
@@ -128,6 +134,10 @@ def process(db: Session, event_id: str, body: dict) -> PaymentEvent:
             ev.status, ev.note = "review", f"over the ${settings.whop_max_topup_usd:,.0f} auto-credit limit"
         elif not user or not user.is_active:
             ev.status, ev.note = "unmatched", "no account matches this payment (no account id or email we recognise)"
+        elif not tagged and settings.whop_email_match_bundles_only and amount not in {credits.usd_to_micro(b) for b in whop_api.BUNDLES}:
+            # Matched by email only: it may be a different Whop product the same person bought. Only our own credit packs are auto-credited.
+            ev.status, ev.user_id = "review", user.id
+            ev.note = "paid by the same email but not one of our credit packs, and no account id on the payment: confirm it is a credit purchase"
         else:
             ev.status, ev.user_id = "credited", user.id
     elif any(w in etype for w in ("refund", "dispute", "chargeback")):
@@ -156,6 +166,8 @@ def resolve(db: Session, ev: PaymentEvent, user_id: int, actor_id: int) -> Payme
     """Owner decision for a held payment: credit it to this account (only once, only if it carried a usable amount)."""
     if ev.status not in ("unmatched", "review") or not ev.amount_micro or ev.amount_micro <= 0:
         raise ValueError("this payment cannot be credited")
+    if ev.event_type not in CREDIT_TYPES:
+        raise ValueError("only a payment can be credited, not a refund or dispute")
     credits.apply(db, user_id, ev.amount_micro, "topup", "Whop payment (resolved by owner)", ref=f"whop:{ev.event_id}",
                   actor_user_id=actor_id, meta={"payment_event_id": ev.id, "email": ev.email})
     ev.status, ev.user_id, ev.note = "credited", user_id, "resolved by owner"

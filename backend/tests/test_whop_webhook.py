@@ -23,6 +23,7 @@ def env(monkeypatch):
     e = authkit.make_env(monkeypatch)
     monkeypatch.setattr(settings, "whop_webhook_secret", SECRET)
     monkeypatch.setattr(settings, "whop_amount_unit", "dollars")
+    monkeypatch.setattr(settings, "whop_email_match_bundles_only", False)         # most tests pay $20 by email; the bundle guard has its own tests
     yield e
     app.dependency_overrides.clear()
 
@@ -293,3 +294,44 @@ def test_oversized_request_bodies_are_refused_before_they_are_read(env):
     assert c.post("/webhooks/whop", content=big).status_code == 413
     ok = c.post("/auth/login", content=b"{}", headers={**authkit.CSRF, "content-type": "application/json"})
     assert ok.status_code != 413
+
+
+# =============== swarm audit fixes ===============
+def test_refund_dispute_not_creditable(env):
+    user(env); c = TestClient(app)
+    for i, t in enumerate(("refund.created", "dispute.opened")):
+        assert post(c, {"type": t, "data": {"user": {"email": "buyer@example.com"}, "currency": "usd", "total": 20}}, msg_id=f"r{i}").json()["status"] == "review"
+    with env.scope() as db:
+        _, secret = authkit.make_user(db, "christian@emailsandsms.com", admin=True)
+        uid = db.scalar(select(User.id).where(User.email == "buyer@example.com"))
+        ids = list(db.scalars(select(PaymentEvent.id)))
+    a = TestClient(app)
+    assert authkit.login(env, a, "christian@emailsandsms.com", secret=secret).status_code == 200
+    for eid in ids:
+        assert a.post(f"/admin/payments/{eid}/credit", json={"user_id": uid}, headers=authkit.CSRF).status_code == 409
+    assert bal(env) == 0
+
+
+@pytest.mark.parametrize("amt", ["0.0000001", "1e999999", "1e20", "1e-400"])
+def test_extreme_amounts_are_held_not_a_500(env, amt):
+    user(env); c = TestClient(app, raise_server_exceptions=False)
+    r = post(c, pay(total=amt))
+    assert r.status_code == 200 and r.json()["status"] == "review" and bal(env) == 0
+
+
+def test_non_ascii_digits_in_the_account_id_do_not_crash(env):
+    user(env); c = TestClient(app, raise_server_exceptions=False)
+    r = post(c, pay(metadata={"cf_user_id": "\u00b2"}))
+    assert r.status_code == 200 and bal(env) == 20_000_000                      # falls back to the email
+
+
+def test_payment_matched_only_by_email_is_credited_only_if_it_is_one_of_our_packs(env, monkeypatch):
+    monkeypatch.setattr(settings, "whop_email_match_bundles_only", True)
+    user(env); c = TestClient(app)
+    other = post(c, pay(total=15), msg_id="other-product")                       # same person bought something else on Whop
+    assert other.json()["status"] == "review" and bal(env) == 0
+    assert post(c, pay(total=47), msg_id="pack").json()["status"] == "credited" and bal(env) == 47_000_000
+    with env.scope() as db:
+        uid = db.scalar(select(User.id).where(User.email == "buyer@example.com"))
+    tagged = post(c, pay(total=15, metadata={"cf_user_id": str(uid)}), msg_id="tagged")     # our own checkout proves it is a credit purchase
+    assert tagged.json()["status"] == "credited" and bal(env) == 62_000_000
