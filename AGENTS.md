@@ -1,4 +1,4 @@
-# Clientfinder.ai: instructions for AI coding agents (Cursor, Claude Code, others)
+# Clientfinder.ai: instructions for AI coding agents (Claude Code is the agent in use; Cursor is not)
 
 Read this first. The README is older than the code; this file and `docs/` are current.
 
@@ -21,7 +21,7 @@ you / agent  --push-->  GitHub (ChristianEmailsAndSMS/clientfinder.ai)  --manual
   Say in your final message when a change needs `alembic upgrade head`, new `.env` settings, or a Caddy change.
 - Agents have no access to the server, its database or its `.env`. Never ask for keys in chat; tell the owner which setting to add.
 - Working branch today: `claude/quirky-edison-h61hvc` (the server pulls this). `main` is behind. Do not push to `main` without being asked.
-  Work on one branch at a time, and commit small. Do not open a pull request unless asked.
+  Claude Code is the only agent working on this repo now. If another tool or person pushes, `git fetch` and merge (never force-push) before pushing. Never edit files by hand on the server: change the repo, push, then `git pull` there. Commit small. Do not open a pull request unless asked.
 
 ## Layout (`backend/` is the whole app; `docs/`, `deploy/`, `CHECKLIST.md` and this file are at the repo root)
 - `app/api/` routers: `auth`, `account` (credits, prefs, profile, checkout), `jobs` (filters, facets), `searches` (live search), `assist` (Pitch help),

@@ -139,3 +139,10 @@ def test_logo_and_icons_are_served_and_every_page_uses_them(env):
         assert '/assets/favicon.png' in html and '/assets/logo.png' in html and 'og:image' in html
     admin = env.client.get("/admin")
     assert admin.status_code == 200 and "/assets/logo.png" in admin.text and "/assets/favicon.png" in admin.text
+
+
+def test_robots_txt_keeps_private_areas_out_of_search_engines(env):
+    r = env.client.get("/robots.txt")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/plain")
+    for path in ("/app", "/admin", "/auth/", "/account/", "/jobs", "/assist", "/webhooks/"):
+        assert f"Disallow: {path}" in r.text, path

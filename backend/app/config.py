@@ -98,8 +98,6 @@ class Settings(BaseSettings):
     resend_api_key: str = ""
     email_from: str = "noreply@clientfinder.ai"
 
-    whop_api_key: str = ""
-    whop_webhook_secret: str = ""
 
 
 settings = Settings()

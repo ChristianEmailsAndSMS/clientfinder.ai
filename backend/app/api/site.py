@@ -19,6 +19,11 @@ def home():
     return FileResponse(_DIR / "home.html", media_type="text/html")
 
 
+@router.get("/robots.txt")
+def robots():
+    return FileResponse(_DIR / "robots.txt", media_type="text/plain")
+
+
 @router.get("/login")
 def login_page():
     return FileResponse(_DIR / "login.html", media_type="text/html")

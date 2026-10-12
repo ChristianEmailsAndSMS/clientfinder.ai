@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /app
+Disallow: /admin
+Disallow: /auth/
+Disallow: /account/
+Disallow: /searches
+Disallow: /jobs
+Disallow: /assist
+Disallow: /webhooks/
