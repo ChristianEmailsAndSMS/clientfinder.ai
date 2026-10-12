@@ -864,6 +864,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         url="https://example.com/jobs/copywriter")
     assert pipeline.not_a_hiring_post("How should brands hire creative strategists?!", "")
     assert pipeline.not_a_hiring_post("3 signs you're not actually a creative strategist", "")
+    assert pipeline.not_a_hiring_post(
+        "10 Signs You Desperately Need a Copywriter",
+        "You hate writing, you write super slow, and sales are behind.",
+        url="https://www.amandacopy.com/client-guide-to-hiring-a-copywriter/signs-you-need-to-hire-a-copywriter")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "10 signs you desperately need a copywriter is why this role is open.",
+        url="https://example.com/jobs/copywriter")
     assert pipeline.not_a_hiring_post("Ultimate checklist for hiring a copywriting genius", "Secret checklist for a pro copywriter")
     assert pipeline.not_a_hiring_post("How to become a creative strategist as a copywriter", "More brands are hiring creative strategists")
     assert pipeline.not_a_hiring_post("Here's how to get hired as a copywriter at storyarb.", "Our acceptance rate is less than 0.5%.")
