@@ -1067,6 +1067,18 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
     assert not pipeline.not_a_hiring_post(
         "Hiring a Senior Creative Strategist / Copywriter for a fast-growing brand",
         "Remote, apply here")
+    assert pipeline.not_a_hiring_post(
+        "How I'd become a $150k creative strategist in 2026",
+        "My goal: i'm on $2k with one client atm, learning creative strategy.",
+        url="https://www.youtube.com/watch?v=KsVuc6RQ1L8")
+    assert pipeline.not_a_hiring_post(
+        "How I would become a creative strategist",
+        "A career plan for next year.",
+        url="https://www.youtube.com/watch?v=example")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a creative strategist",
+        "How I'd become a $150k creative strategist is a question in the interview, not the job.",
+        url="https://example.com/jobs/creative-strategist")
     assert not pipeline.not_a_hiring_post(
         "We're hiring a copywriter",
         "A checklist for your first week, and how to become comfortable with the brand voice")
