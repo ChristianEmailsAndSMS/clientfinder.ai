@@ -802,6 +802,15 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Audience & Connections Strategist at Wpromote",
         "Creative Strategist. Rocket Money. Browse Marketing jobs.")
     assert not pipeline.not_a_hiring_post(
+        "[Hiring] Email Copywriter @Acentecom",
+        "Acentecom is hiring a remote Email Copywriter. Check it out and browse more remote jobs on remotive.com!",
+        query='"hiring email copywriter"',
+        url="https://remotive.com/remote/jobs/writing/email-copywriter-6044692")
+    assert pipeline.not_a_hiring_post(
+        "Writing jobs",
+        "Browse more remote jobs on remotive.com.",
+        url="https://remotive.com/remote/jobs/writing")
+    assert not pipeline.not_a_hiring_post(
         "Paid Social Creative Strategist at Suno",
         "Proven experience as a creative strategist in a high-volume environment.")
     assert not pipeline.not_a_hiring_post(

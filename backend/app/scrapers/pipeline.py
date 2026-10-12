@@ -277,6 +277,15 @@ def _flat(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", (text or "").lower()).strip()
 
 
+def _remotive_opening(url: str) -> bool:
+    """One Remotive job is /remote/jobs/category/slug. The category path is shorter."""
+    marker = "remotive.com/remote/jobs/"
+    if marker not in url:
+        return False
+    path = url.split(marker, 1)[1].split("?", 1)[0].strip("/")
+    return "/" in path
+
+
 def _marketplace_index(url: str) -> bool:
     """Category and search pages on hire marketplaces, not one opening."""
     u = (url or "").lower()
@@ -368,6 +377,9 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     # LinkedIn and Equip how-to-hire pages are sample descriptions, not openings.
     if "how-to-hire" in (url or "").lower() or _JOB_TEMPLATE.search(title):
         return True
+    # Remotive puts "browse more remote jobs" under a single opening. A category page still drops.
+    if _BROWSE_JOBS.search(blob) and not _remotive_opening(low_url):
+        return True
     if (_SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _DIRECTORY_TITLE.search(title)
             or _FIND_JOBS_TITLE.search(title)
             or _JOBS_INDEX_TITLE.search(title) or _JOB_COUNT_INDEX.search(title)
@@ -375,7 +387,7 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
             or _AGGREGATOR_TITLE.search(title) or _SALARY_JOBS_INDEX.search(blob)
             or _OPEN_ROLES_TITLE.search(title) or _JOBS_IN_PLACE.search(title)
             or _TOP_N_JOBS.search(title) or _REDUCED_HOURS_INDEX.search(title)
-            or _DIRECTORY.search(blob) or _BROWSE_JOBS.search(blob)
+            or _DIRECTORY.search(blob)
             or _BROWSE_LATEST_JOBS.search(blob)
             or _ADVICE.search(blob) or _ADVICE_TITLE.search(title) or _PRICE_QUESTION.search(blob)
             or _CLOSED_JOB.search(blob) or _NOT_A_JOB_PAGE.search(blob)):
