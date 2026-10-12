@@ -802,6 +802,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We're hiring a copywriter",
         "Advice on hiring is in the brief. Apply if you write ads.",
         url="https://example.com/jobs/copywriter")
+    assert pipeline.not_a_hiring_post(
+        "Job searches for beginning copywriters",
+        "I got my start as a writer by emailing local marketing agencies to see if they were hiring writers.",
+        url="https://www.reddit.com/r/copywriting/comments/sef4al/job_searches_for_beginning_copywriters/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a junior copywriter",
+        "Job searches for beginning copywriters are welcome. Apply if you are starting out.",
+        url="https://example.com/jobs/junior-copywriter")
     assert pipeline.not_a_hiring_post("How should brands hire creative strategists?!", "")
     assert pipeline.not_a_hiring_post("3 signs you're not actually a creative strategist", "")
     assert pipeline.not_a_hiring_post("Ultimate checklist for hiring a copywriting genius", "Secret checklist for a pro copywriter")
