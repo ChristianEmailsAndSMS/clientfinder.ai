@@ -32,9 +32,10 @@ def test_public_pages_are_served(env):
 
 def test_home_page_has_the_account_panel_built_in(env):
     html = env.client.get("/").text
-    for needed in ('id="auth-panel"', 'id="form-up"', 'id="form-in"', 'id="tab-up"', 'id="tab-in"', 'id="v-2fa"', 'id="form-2fa"'):
+    for needed in ('id="auth-panel"', 'id="form-up"', 'id="form-in"', 'id="tab-up"', 'id="tab-in"'):
         assert needed in html, needed
     assert html.index("/assets/common.js") < html.index("/assets/login.js") < html.index("/assets/home.js")    # script order matters
+    assert 'v-2fa' not in html and 'id="qr"' not in html and 'form-2fa' not in html                           # no unfinished 2FA screen on the public page
     assert 'href="#signup"' in html and 'href="#signin"' in html                                              # nav buttons open the panel
     assert not re.search(r"href=\"/login", html)                      # no link on the home page sends you elsewhere to sign in
     assert 'data-page="home"' in html and 'data-page="login"' in env.client.get("/login").text
@@ -45,7 +46,7 @@ def test_every_element_id_the_account_script_needs_exists_on_both_pages():
     ids = set(re.findall(r'\$\("([a-z0-9\-]+)"\)', js))
     for page in ("home.html", "login.html"):
         html = (SITE / page).read_text()
-        missing = [i for i in ids if f'id="{i}"' not in html and not (page == "login.html" and i in ("auth-panel", "auth-title"))]
+        missing = [i for i in ids if f'id="{i}"' not in html and not (page == "login.html" and i in ("auth-panel", "auth-title", "auth-sub"))]
         assert not missing, (page, missing)
 
 

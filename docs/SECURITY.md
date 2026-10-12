@@ -242,3 +242,18 @@ posts as "web" (it now uses the page URL that Google returned), the Reddit/open-
 customer words, hybrid roles, employers who mention a keyword), the monthly search budget being checked once instead of before every Google search,
 old rows (or rows kept as not-a-real-job) being attached to a customer's search, partial searches being handed out free from the cache, and
 platform labels missing for X, Mastodon and others. Remaining low-priority filter findings (F5 to F7) are not fixed.
+
+## 12. Welcome credit, password help and the public pages (2026-10-12)
+
+- **Welcome credit (`SIGNUP_BONUS_USD`, off by default).** Without email verification, throwaway sign-ups could farm free searches, which cost real money.
+  Limits: one grant per real mailbox (`name+tag@`, gmail dots and googlemail.com count as the same mailbox; enforced by the ledger `ref` `welcome:<mailbox>`),
+  and a site-wide cap `SIGNUP_BONUS_DAILY_CAP` (default 25) per rolling 24 hours. When the cap is used up the offer disappears from the pages and no credit is
+  given. Residual risk: someone with many real mailboxes (different domains) can still collect it; worst case per day is cap x one search cost. Add email
+  verification (Resend) before raising the cap.
+- **Forgot password.** There is no self-serve reset yet (no email sender). The sign-in form tells the customer to email the owner, who runs
+  `admin_cli.py reset-user EMAIL` (new password, signed out everywhere, never makes the account an admin; `reset-admin` would). The owner must be
+  reasonably sure the request comes from the account's own address.
+- **Public pages.** The two-factor screen is no longer in the public HTML (it is built in the browser only when an admin needs it). `/auth/status` now says
+  `signed_in` so visitors do not trigger a 401 from `/auth/me`. Error lines start hidden and silent.
+- **Cloudflare Web Analytics.** The strict CSP (no third-party scripts) correctly blocks Cloudflare's auto-injected beacon. The CSP stays as it is; to stop the
+  console message, turn off automatic Web Analytics for the site in the Cloudflare dashboard.

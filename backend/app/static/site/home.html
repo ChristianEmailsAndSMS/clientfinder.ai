@@ -43,24 +43,24 @@
       <div class="card auth glass inhero" id="auth-panel">
         <div id="v-main">
           <h2 class="authtitle" id="auth-title">Create your free account</h2>
-          <p class="muted authsub">No card needed. Browsing the database is free.</p>
-          <p id="notice" class="error" role="alert" hidden></p>
+          <p class="muted authsub" id="auth-sub">No card needed. Browsing the database is free.</p>
+          <p id="notice" class="error" hidden></p>
           <div class="tabs2" role="tablist">
             <button id="tab-up" role="tab" type="button" class="on">Create account</button>
             <button id="tab-in" role="tab" type="button">Sign in</button>
           </div>
 
-          <form id="form-up" autocomplete="on">
+          <form id="form-up" autocomplete="on" novalidate>
             <label class="field">Email<input class="input" name="email" type="email" required autocomplete="username"></label>
             <label class="field">Password
-              <span class="pwrow"><input class="input" name="password" type="password" required minlength="12" autocomplete="new-password" maxlength="256"><button type="button" class="link" data-show>Show</button></span>
+              <span class="pwrow"><input class="input" name="password" type="password" minlength="12" autocomplete="new-password" maxlength="256"><button type="button" class="link" data-show>Show</button></span>
               <span class="hint">At least 12 characters. A few random words works well.</span>
             </label>
-            <p class="error" id="err-up" role="alert"></p>
+            <p class="error" id="err-up" hidden></p>
             <button class="btn primary" type="submit" id="btn-up">Create my account</button>
           </form>
 
-          <form id="form-in" autocomplete="on" hidden>
+          <form id="form-in" autocomplete="on" novalidate hidden>
             <label class="field">Email<input class="input" name="email" type="email" required autocomplete="username"></label>
             <label class="field">Password
               <span class="pwrow"><input class="input" name="password" type="password" required autocomplete="current-password" maxlength="256"><button type="button" class="link" data-show>Show</button></span>
@@ -68,21 +68,10 @@
             <label class="field" id="row-code" hidden>6-digit code from your authenticator app
               <input class="input" name="totp_code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="123456">
             </label>
-            <p class="error" id="err-in" role="alert"></p>
+            <p class="error" id="err-in" hidden></p>
             <button class="btn primary" type="submit" id="btn-in">Sign in</button>
-          </form>
-        </div>
-
-        <div id="v-2fa" hidden>
-          <h2 class="authtitle">Turn on two-factor sign-in</h2>
-          <p class="muted">Admin accounts need a second step. Scan this with an authenticator app (1Password, Authy, Google Authenticator), then enter the 6-digit code it shows.</p>
-          <img id="qr" alt="Two-factor QR code" width="200" height="200">
-          <p class="hint">Cannot scan? Enter this key by hand:</p>
-          <div class="keybox" id="totp-key"></div>
-          <form id="form-2fa" autocomplete="off">
-            <label class="field">6-digit code<input class="input" name="totp_code" inputmode="numeric" required autocomplete="one-time-code" maxlength="7"></label>
-            <p class="error" id="err-2fa" role="alert"></p>
-            <button class="btn primary" type="submit">Turn on and continue</button>
+            <p class="hint mt12"><button type="button" class="link" id="btn-forgot">Forgot password?</button></p>
+            <p class="hint" id="forgot-note" hidden>Email <a href="mailto:christian@emailsandsms.com?subject=Reset%20my%20Clientfinder%20password">christian@emailsandsms.com</a> from the address you signed up with and we will reset it for you.</p>
           </form>
         </div>
       </div>
@@ -92,7 +81,7 @@
       <div class="window" aria-label="Preview of the latest jobs">
         <div class="chrome"><i></i><i></i><i></i><span>Fresh in the database right now</span></div>
         <div id="preview"><div class="prow"><div class="skel h44"></div></div></div>
-        <div class="lock"><span id="lock-ico"></span><span>Company, full post and the apply link unlock when you sign in.</span></div>
+        <div class="lock"><span id="lock-ico"></span><span>Click any job to create your free account. The company, full post and apply link unlock when you sign in.</span></div>
       </div>
     </section>
 

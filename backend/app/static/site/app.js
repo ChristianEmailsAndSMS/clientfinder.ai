@@ -4,7 +4,7 @@
   const $ = (id) => document.getElementById(id);
   const PAGE = 30;
 
-  const state = { q: "", posted: "", types: new Set(), platforms: new Set(), tags: new Set(), roles: new Set(), regions: new Set(), kinds: new Set(), location: "", worldwide: true, remote: "", hasPay: false, payPeriod: "", minPay: "", sort: "newest", offset: 0, total: 0, loading: false };
+  const state = { q: "", posted: "", types: new Set(), platforms: new Set(), tags: new Set(), roles: new Set(), regions: new Set(), kinds: new Set(), location: "", worldwide: true, unspecified: true, remote: "", hasPay: false, payPeriod: "", minPay: "", sort: "newest", offset: 0, total: 0, loading: false };
   let me = null, facets = null, loadToken = 0;
 
   const SORTS = [["newest", "Newest first"], ["oldest", "Oldest first"], ["pay_high", "Highest pay"], ["pay_low", "Lowest pay"]];
@@ -90,8 +90,9 @@
     loc.addEventListener("input", debounce(() => { state.location = loc.value.trim(); loadJobs(true); }, 350));
     const regs = (facets.regions || []).filter((r) => r.count > 0 || state.regions.has(r.value));
     if (regs.length) root.appendChild(section("Location & time zone", loc,
-      h("div", { class: "mt12" }, regs.map((r) => check(r.label + (r.offset ? `  (${r.offset})` : ""), (state.worldwide && r.count_with_worldwide != null && r.value !== "worldwide" && r.value !== "unspecified") ? r.count_with_worldwide : r.count, state.regions.has(r.value), () => toggle(state.regions, r.value)))),
+      h("div", { class: "mt12" }, regs.map((r) => check(r.label + (r.offset ? `  (${r.offset})` : ""), regionShown(r), state.regions.has(r.value), () => toggle(state.regions, r.value)))),
       check("Also show worldwide / anywhere jobs", null, state.worldwide, (on) => { state.worldwide = on; buildFilters(); loadJobs(true); }),
+      check("Also show posts that do not say where", unspecifiedCount(), state.unspecified, (on) => { state.unspecified = on; buildFilters(); loadJobs(true); }),
       h("p", { class: "hint", text: "Worked out from the location written in each post, so it is approximate. Many posts name no place." })));
 
     const topics = facets.tags.filter((t) => !ATTR_TAGS.has(t.value));
@@ -124,7 +125,7 @@
     paint(); return wrap;
   }
   function resetFilters() {
-    Object.assign(state, { posted: "", remote: "", hasPay: false, payPeriod: "", minPay: "", q: "", location: "", worldwide: true });
+    Object.assign(state, { posted: "", remote: "", hasPay: false, payPeriod: "", minPay: "", q: "", location: "", worldwide: true, unspecified: true });
     state.types.clear(); state.platforms.clear(); state.tags.clear(); state.roles.clear(); state.regions.clear(); state.kinds.clear();
     const q = $("q"); if (q) q.value = "";
   }
@@ -140,6 +141,7 @@
     for (const v of state.regions) p.append("region", v);
     for (const v of state.kinds) p.append("kind", v);
     if (state.regions.size && !state.worldwide) p.set("include_worldwide", "false");
+    if (state.regions.size && !state.unspecified) p.set("include_unspecified", "false");
     if (state.location) p.set("location", state.location);
     if (state.remote) p.set("remote", state.remote);
     if (state.hasPay) p.set("has_pay", "true");
@@ -158,7 +160,7 @@
     state.minPay = state.payPeriod && /^\d+(\.\d+)?$/.test(p.get("min_pay") || "") ? p.get("min_pay") : "";
     state.posted = ["1", "7", "30"].includes(p.get("posted_within_days")) ? p.get("posted_within_days") : "";
     state.sort = SORTS.some(([v]) => v === p.get("sort")) ? p.get("sort") : "newest";
-    state.location = (p.get("location") || "").slice(0, 60); state.worldwide = p.get("include_worldwide") !== "false";
+    state.location = (p.get("location") || "").slice(0, 60); state.worldwide = p.get("include_worldwide") !== "false"; state.unspecified = p.get("include_unspecified") !== "false";
     for (const [key, set] of [["platform", state.platforms], ["type", state.types], ["tag", state.tags], ["any_tag", state.roles], ["region", state.regions], ["kind", state.kinds]]) for (const v of p.getAll(key)) if (/^[\w\-]{1,40}$/.test(v)) set.add(v);
   }
 
@@ -237,6 +239,12 @@
   }
 
   // ---------------------------------------------------------------- onboarding
+  // What the list returns for a region right now, given the two "also show" switches.
+  const unspecifiedCount = () => ((facets.regions || []).find((r) => r.value === "unspecified") || {}).count || 0;
+  const regionShown = (r, ww = state.worldwide, un = state.unspecified) => {
+    if (r.value === "worldwide" || r.value === "unspecified") return r.count;
+    return (ww && r.count_with_worldwide != null ? r.count_with_worldwide : r.count) + (un ? unspecifiedCount() : 0);
+  };
   function applyPrefs(p) {
     p = p || {};
     state.roles = new Set(p.roles || []); state.regions = new Set(p.regions || []); state.kinds = new Set(p.kinds || []);
@@ -253,8 +261,8 @@
     const steps = [
       { title: "What kind of work do you do?", sub: "Pick everything you sell. We will show the jobs and posts that need it.",
         body: () => h("div", { class: "tiles" }, ROLES.map(([k, l]) => tile(l, null, draft.roles.has(k), flip(draft.roles, k)))), ok: () => draft.roles.size > 0, why: "Pick at least one so we know what to look for." },
-      { title: "Where do you want your clients to be based?", sub: "Pick the time zones you want to work with. Leave all unselected if clients anywhere are fine.",
-        body: () => h("div", {}, h("div", { class: "tiles" }, (facets.regions || []).filter((r) => r.value !== "unspecified" && r.value !== "worldwide").map((r) => tile(r.label, r.offset, draft.regions.has(r.value), flip(draft.regions, r.value)))),
+      { title: "Where do you want your clients to be based?", sub: "Pick the time zones you want to work with. Posts that do not say where are still shown. Leave all unselected if clients anywhere are fine.",
+        body: () => h("div", {}, h("div", { class: "tiles" }, (facets.regions || []).filter((r) => r.value !== "unspecified" && r.value !== "worldwide").map((r) => tile(r.label, [r.offset, `${num(regionShown(r, true, true))} jobs`].filter(Boolean).join(" · "), draft.regions.has(r.value), flip(draft.regions, r.value)))),
           h("div", { class: "mt16" }, h("div", { class: "hint", text: "On-site or remote?" }), (() => { const wrap = h("div", { class: "seg" }); const paint = () => { for (const b of wrap.children) b.classList.toggle("on", b.dataset.v === draft.remote); };
             for (const [v, l] of [["", "Either"], ["true", "Remote only"], ["false", "On-site"]]) wrap.appendChild(h("button", { type: "button", "data-v": v, text: l, onclick: () => { draft.remote = v; paint(); } })); paint(); return wrap; })())) },
       { title: "Where should we look?", sub: "Job boards list real openings. Social posts are people asking for help, often before a job is formally posted.",
@@ -292,7 +300,7 @@
       const picked = [...draft.roles].map((r) => (ROLE[r] || {}).label || r).join(", ") || "any role";
       const firstQuery = (ROLE[[...draft.roles][0]] || {}).query || "";           // the service name, e.g. "email marketer"
       body.append(h("h3", { class: "wtitle", text: "You are all set" }), h("p", { class: "muted", text: `Looking for: ${picked}.` }),
-        h("div", { class: "sresult" }, h("strong", { text: "Want the freshest posts?" }), h("p", { class: "muted", text: "Our database updates through the day. For something brand new, run your own live search: we search the web right now and add what we find. It costs a little credit; browsing is always free." })),
+        h("div", { class: "sresult" }, h("strong", { text: "Want the freshest posts?" }), h("p", { class: "muted", text: "Our database updates through the day. For something brand new, run your own live search: we search the web right now and add what we find. " + (me.balance_usd > 0 || me.unlimited ? (me.unlimited ? "Your searches are free on this account." : `You have ${money(me.balance_usd)} in credit.`) : "It costs a little credit; browsing is always free.") })),
         foot);
       foot.append(h("button", { class: "btn", type: "button", text: "Show my matches", onclick: async () => { if (await save(false)) { applyPrefs(me.prefs); closeModal(); buildFilters(); loadJobs(true); } } }),
         h("span", { class: "grow" }),

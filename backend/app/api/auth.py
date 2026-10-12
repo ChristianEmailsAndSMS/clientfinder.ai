@@ -10,16 +10,16 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .. import credits
 from ..config import settings
 from ..db import get_db
-from ..models import User
+from ..models import CreditEntry, User
 from ..security import (LOCKOUT_AFTER, LOCKOUT_MINUTES, _ph, admin_emails, aware, check_totp, clear_session_cookie, client_ip,
-                        csrf_guard, current_user, encrypt_secret, hash_password, ip_throttled, issue_enrol_token, loggable_email, log_event,
+                        csrf_guard, current_user, session_user, encrypt_secret, hash_password, ip_throttled, issue_enrol_token, loggable_email, log_event,
                         new_totp_secret, normalize_email, password_problem, qr_data_uri, read_enrol_token, require_secrets,
                         secrets_ready, set_session_cookie, signup_throttle_reason, totp_uri, utcnow, verify_password)
 
@@ -55,9 +55,32 @@ def _me(user: User) -> dict:
 
 
 @router.get("/status")
-def status() -> dict:
+def status(user: User | None = Depends(session_user)) -> dict:
     ok, why = secrets_ready()
-    return {"auth_configured": ok, "problem": None if ok else why}
+    # signed_in lets the pages skip /auth/me for visitors (that call is a 401 in their browser console)
+    return {"auth_configured": ok, "problem": None if ok else why, "signed_in": user is not None}
+
+
+# ---------- welcome credit ----------
+def mailbox_key(email: str) -> str:
+    """One key per real mailbox: a+promo@x.com, gmail dots and googlemail.com are the same inbox as the plain address."""
+    local, _, domain = email.strip().lower().rpartition("@")
+    local = local.split("+", 1)[0]
+    if domain in ("gmail.com", "googlemail.com"):
+        local, domain = local.replace(".", ""), "gmail.com"
+    return f"{local}@{domain}"
+
+
+def welcome_bonus_available(db: Session) -> bool:
+    """Is the welcome credit switched on and the site-wide daily cap not yet used up?"""
+    if settings.signup_bonus_usd <= 0:
+        return False
+    cap = settings.signup_bonus_daily_cap
+    if cap <= 0:
+        return True
+    since = utcnow() - timedelta(hours=24)
+    given = db.scalar(select(func.count(CreditEntry.id)).where(CreditEntry.reason == "Welcome credit", CreditEntry.created_at >= since)) or 0
+    return given < cap
 
 
 # ---------- sign up ----------
@@ -89,8 +112,8 @@ def signup(body: SignupBody, request: Request, response: Response, db: Session =
     except IntegrityError:                       # two sign-ups for the same address raced
         db.rollback()
         reject(409, "An account with this email already exists. Sign in instead.")
-    if settings.signup_bonus_usd > 0:
-        credits.apply(db, user.id, credits.usd_to_micro(settings.signup_bonus_usd), "grant", "Welcome credit")
+    if welcome_bonus_available(db):
+        credits.apply(db, user.id, credits.usd_to_micro(settings.signup_bonus_usd), "grant", "Welcome credit", ref="welcome:" + mailbox_key(email))
     user.last_login_at = utcnow()
     log_event(db, "signup", request, user=user)
     db.commit()

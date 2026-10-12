@@ -3,6 +3,7 @@
 create or recover an admin account.
 
     python scripts/admin_cli.py create-admin [EMAIL]      create the owner account (prompts for a password; EMAIL must be in ADMIN_EMAILS)
+    python scripts/admin_cli.py reset-user   [EMAIL]      a customer forgot their password: new password, signed out everywhere (NOT made admin)
     python scripts/admin_cli.py reset-admin  [EMAIL]      lost password or phone: new password, 2FA cleared, all sessions ended
     python scripts/admin_cli.py list-admins
     python scripts/admin_cli.py unlock EMAIL              clear a login lockout
@@ -98,6 +99,31 @@ def cmd_reset(args) -> int:
     return 0
 
 
+def cmd_reset_user(args) -> int:
+    """Forgot-password help for a CUSTOMER: new password, signed out everywhere, and NOT made an admin (reset-admin would)."""
+    email = _email(args.email)
+    if not email:
+        return 1
+    with session_scope() as db:
+        u = db.scalar(select(User).where(User.email == email))
+        if u is None:
+            print("No such account.")
+            return 1
+        if u.is_admin:
+            print("That is an admin account: use reset-admin for it.")
+            return 1
+    pw = _ask_password(email)
+    if not pw:
+        return 1
+    with session_scope() as db:
+        u = db.scalar(select(User).where(User.email == email))
+        u.password_hash = hash_password(pw)
+        u.session_version += 1                                   # ends every open session
+        u.locked_until, u.failed_logins = None, 0
+    print(f"{email}: password changed and signed out everywhere. Tell the customer the new password (they can keep using it).")
+    return 0
+
+
 def cmd_list(args) -> int:
     with session_scope() as db:
         rows = db.execute(select(User.email, User.is_active, User.totp_enabled, User.last_login_at, User.locked_until)
@@ -140,6 +166,7 @@ def main() -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name, fn in (("create-admin", cmd_create), ("reset-admin", cmd_reset)):
         p = sub.add_parser(name); p.add_argument("email", nargs="?"); p.set_defaults(fn=fn)
+    p = sub.add_parser("reset-user"); p.add_argument("email", nargs="?"); p.set_defaults(fn=cmd_reset_user)
     sub.add_parser("list-admins").set_defaults(fn=cmd_list)
     p = sub.add_parser("unlock"); p.add_argument("email"); p.set_defaults(fn=cmd_unlock)
     p = sub.add_parser("grant"); p.add_argument("email"); p.add_argument("amount"); p.add_argument("--reason", default="manual"); p.set_defaults(fn=cmd_grant)

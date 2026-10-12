@@ -22,8 +22,10 @@
   api("GET", "/public/preview").then((r) => {
     const box = clear(document.getElementById("preview"));
     if (!r.ok || !r.data.length) { box.appendChild(h("div", { class: "prow" }, h("div", { class: "muted", text: "The first jobs will appear here shortly." }))); return; }
+    const openSignup = () => { document.getElementById("tab-up").click(); document.getElementById("auth-panel").scrollIntoView({ behavior: "smooth", block: "center" }); };
     for (const j of r.data) {
-      box.appendChild(h("div", { class: "prow" },
+      box.appendChild(h("div", { class: "prow", role: "link", tabindex: "0", title: "Create a free account to open this post", onclick: openSignup,
+        onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSignup(); } } },
         h("div", {}, h("div", { class: "t", text: j.title }),
           h("div", { class: "m" }, CF.platformBadge(j.platform),
             j.type && CF.TYPE[j.type] ? h("span", { class: "chip type", text: CF.TYPE[j.type] }) : null,
@@ -33,8 +35,12 @@
     }
   });
 
-  api("GET", "/public/config").then((r) => {
+  (CF.publicConfig || api("GET", "/public/config")).then((r) => {
     if (!r.ok) return;
+    if (r.data.signup_bonus_usd > 0) {                                      // only while the welcome credit is really on
+      const li = document.querySelector(".ticks li:nth-child(2)");
+      if (li) li.textContent = r.data.signup_bonus_usd >= r.data.search_price_usd ? "Run your own search for the exact role you sell: your first one is free" : "Run your own search for the exact role you sell: free credit to start";
+    }
     const line = document.getElementById("price-line");
     line.textContent = `About ${CF.money(r.data.search_price_usd)} per search, billed from credits`;
     if (!r.data.live_search) {

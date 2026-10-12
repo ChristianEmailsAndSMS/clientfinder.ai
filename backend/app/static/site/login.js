@@ -9,9 +9,14 @@
   let setupToken = null;
 
   const go = () => location.replace(next);
+  // An error line is hidden (and silent for screen readers) until it has something to say.
+  const say = (el, msg) => { el.textContent = msg || ""; el.hidden = !msg; if (msg) el.setAttribute("role", "alert"); else el.removeAttribute("role"); };
+  CF.publicConfig = CF.publicConfig || api("GET", "/public/config");        // home.js reads the same answer
 
   // ---------- already signed in? ----------
-  api("GET", "/auth/me").then((r) => {
+  // /auth/status says whether there is a session, so a visitor never triggers a 401 from /auth/me (it shows up red in the console).
+  const status = api("GET", "/auth/status");
+  status.then((r) => (r.ok && r.data.signed_in ? api("GET", "/auth/me") : { ok: false })).then((r) => {
     if (!r.ok) return;
     if (!onHome) { go(); return; }                       // /login: skip the form
     const panel = clear($("auth-panel"));                 // home: replace the form with a welcome panel
@@ -23,7 +28,7 @@
       h("button", { class: "btn", type: "button", text: "Sign out", onclick: async () => { await api("POST", "/auth/logout"); location.reload(); } })));
   });
 
-  api("GET", "/auth/status").then((r) => {
+  status.then((r) => {
     if (r.ok && !r.data.auth_configured && $("notice")) {
       const n = $("notice"); n.hidden = false;
       n.textContent = "Sign-in is not switched on yet: the server is missing JWT_SECRET (see docs/SECURITY.md).";
@@ -36,8 +41,16 @@
     $("tab-in").classList.toggle("on", !up); $("tab-up").classList.toggle("on", up);
     $("form-in").hidden = up; $("form-up").hidden = !up;
     if ($("auth-title")) $("auth-title").textContent = up ? "Create your free account" : "Welcome back";
+    if ($("auth-sub")) $("auth-sub").textContent = up ? signupLine : "Sign in to pick up where you left off.";
     if (focus) (up ? $("form-up") : $("form-in")).elements.email.focus({ preventScroll: false });
   }
+  let signupLine = "No card needed. Browsing the database is free.";
+  CF.publicConfig.then((r) => {                                               // advertise the welcome credit only while it is really on
+    if (!r.ok || !(r.data.signup_bonus_usd > 0)) return;
+    const b = r.data.signup_bonus_usd;
+    signupLine = `No card needed. ${b >= r.data.search_price_usd ? "Your first live search is on us" : `You get $${b.toFixed(2)} in free credit`}, and browsing is always free.`;
+    if (!$("form-up").hidden && $("auth-sub")) $("auth-sub").textContent = signupLine;
+  });
   $("tab-in").addEventListener("click", () => { tab("in", true); setHash("#signin"); });
   $("tab-up").addEventListener("click", () => { tab("up", true); setHash("#signup"); });
   function setHash(hash) { history.replaceState(null, "", location.pathname + location.search + hash); }
@@ -66,17 +79,29 @@
     });
   }
 
+  $("btn-forgot").addEventListener("click", () => { $("forgot-note").hidden = !$("forgot-note").hidden; });
+
+  // The site's own messages instead of the browser's "Please fill out this field" bubble.
+  function missing(f, needPassword = true) {
+    if (!f.elements.email.value.trim()) { f.elements.email.focus(); return "Enter your email address."; }
+    if (!f.elements.email.value.includes("@")) { f.elements.email.focus(); return "Enter a valid email address."; }
+    if (needPassword && !f.elements.password.value) { f.elements.password.focus(); return "Enter your password."; }
+    return "";
+  }
+
   function busy(btn, on, label) { btn.disabled = on; btn.textContent = on ? "One moment…" : label; }
 
   // ---------- create account ----------
   $("form-up").addEventListener("submit", async (e) => {
     e.preventDefault();
     const f = e.target, err = $("err-up"), btn = $("btn-up");
-    err.textContent = ""; busy(btn, true);
+    say(err, missing(f) || (f.elements.password.value.length < 12 ? "Your password needs at least 12 characters. A few random words works well." : ""));
+    if (!err.hidden) return;
+    busy(btn, true);
     const r = await api("POST", "/auth/signup", { email: f.elements.email.value, password: f.elements.password.value });
     if (r.ok) { go(); return; }
     busy(btn, false, "Create my account");
-    err.textContent = detail(r);
+    say(err, detail(r));
     if (r.status === 409) { $("form-in").elements.email.value = f.elements.email.value; }
   });
 
@@ -84,33 +109,46 @@
   $("form-in").addEventListener("submit", async (e) => {
     e.preventDefault();
     const f = e.target, err = $("err-in"), btn = $("btn-in");
-    err.textContent = ""; busy(btn, true);
+    say(err, missing(f));
+    if (!err.hidden) return;
+    busy(btn, true);
     const r = await api("POST", "/auth/login", { email: f.elements.email.value, password: f.elements.password.value, totp_code: f.elements.totp_code.value || null });
     if (r.ok) { go(); return; }
     busy(btn, false, "Sign in");
     const d = r.data && r.data.detail;
     if (r.status === 401 && d === "totp_required") {
-      $("row-code").hidden = false; f.elements.totp_code.focus(); err.textContent = "Enter the 6-digit code from your authenticator app."; return;
+      $("row-code").hidden = false; f.elements.totp_code.focus(); say(err, "Enter the 6-digit code from your authenticator app."); return;
     }
     if (r.status === 401 && d === "totp_setup_required") { startEnrol(r.data.setup_token); return; }
-    err.textContent = detail(r);
+    say(err, detail(r));
   });
 
   // ---------- admin: first sign-in turns on 2FA ----------
+  // Built here, only when an admin account needs it, so the public pages carry none of this markup.
+  function enrolScreen(qr, key) {
+    const err = h("p", { class: "error", hidden: true });
+    const code = h("input", { class: "input", name: "totp_code", inputmode: "numeric", required: "", autocomplete: "one-time-code", maxlength: "7" });
+    const form = h("form", { autocomplete: "off" }, h("label", { class: "field" }, "6-digit code", code), err, h("button", { class: "btn primary", type: "submit", text: "Turn on and continue" }));
+    const box = h("div", { id: "v-2fa" },
+      h("h2", { class: "authtitle", text: "Turn on two-factor sign-in" }),
+      h("p", { class: "muted", text: "Admin accounts need a second step. Scan this with an authenticator app (1Password, Authy, Google Authenticator), then enter the 6-digit code it shows." }),
+      h("img", { src: qr, alt: "Two-factor QR code", width: "200", height: "200" }),
+      h("p", { class: "hint", text: "Cannot scan? Enter this key by hand:" }), h("div", { class: "keybox", text: key }), form);
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault(); say(err, "");
+      const r = await api("POST", "/auth/2fa/confirm", { setup_token: setupToken, totp_code: code.value });
+      if (r.ok) { location.replace(next === "/app" ? "/admin" : next); return; }
+      say(err, detail(r));
+      if (r.status === 401) { box.remove(); $("v-main").hidden = false; say($("err-in"), detail(r)); }
+    });
+    return { box, code };
+  }
   async function startEnrol(token) {
     setupToken = token;
     const r = await api("POST", "/auth/2fa/start", { setup_token: token });
-    if (!r.ok) { $("err-in").textContent = detail(r); return; }
-    $("qr").src = r.data.qr; $("totp-key").textContent = r.data.totp_secret;
-    $("v-main").hidden = true; $("v-2fa").hidden = false;
-    $("form-2fa").elements.totp_code.focus();
+    if (!r.ok) { say($("err-in"), detail(r)); return; }
+    const { box, code } = enrolScreen(r.data.qr, r.data.totp_secret);
+    $("v-main").hidden = true; $("v-main").parentElement.appendChild(box);
+    code.focus();
   }
-  $("form-2fa").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const err = $("err-2fa"); err.textContent = "";
-    const r = await api("POST", "/auth/2fa/confirm", { setup_token: setupToken, totp_code: e.target.elements.totp_code.value });
-    if (r.ok) { location.replace(next === "/app" ? "/admin" : next); return; }
-    err.textContent = detail(r);
-    if (r.status === 401) { $("v-2fa").hidden = true; $("v-main").hidden = false; $("err-in").textContent = detail(r); }
-  });
 })();

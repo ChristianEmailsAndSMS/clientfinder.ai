@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     # Free credit given to a new account. Keep 0 until sign-up requires a verified email: otherwise throwaway
     # accounts can farm free credit (live searches cost real money).
     signup_bonus_usd: float = 0.0
+    # Safety net for the welcome credit: at most this many are given in any 24 hours across the whole site (0 = no limit), and each
+    # real mailbox gets one (name+tag@ and gmail dots count as the same mailbox). Bounds what throwaway sign-ups can cost.
+    signup_bonus_daily_cap: int = 25
     # Where customers pay for credits (your Whop checkout page). Shown as a "Buy credits" button. Until the Whop webhook exists,
     # YOU add the credits after you see the payment (dashboard > Customers > Manage, or `admin_cli.py grant`).
     whop_checkout_url: str = ""

@@ -67,7 +67,9 @@ def public_preview(db: Session = Depends(get_db)) -> list[dict]:
 
 
 @router.get("/config")
-def public_config() -> dict:
+def public_config(db: Session = Depends(get_db)) -> dict:
     from ..live_search import estimated_user_price_usd, live_search_ready
     ready, _ = live_search_ready()
-    return {"live_search": ready, "search_price_usd": estimated_user_price_usd(), "signup_bonus_usd": settings.signup_bonus_usd}
+    from .auth import welcome_bonus_available
+    bonus = settings.signup_bonus_usd if welcome_bonus_available(db) else 0.0         # not advertised once today's cap is used
+    return {"live_search": ready, "search_price_usd": estimated_user_price_usd(), "signup_bonus_usd": bonus}

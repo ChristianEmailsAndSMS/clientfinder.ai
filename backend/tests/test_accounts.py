@@ -122,7 +122,7 @@ def test_customers_never_get_admin_access(env):
 
 
 def test_auth_status_reports_configuration(env, monkeypatch):
-    assert env.client.get("/auth/status").json() == {"auth_configured": True, "problem": None}
+    assert env.client.get("/auth/status").json() == {"auth_configured": True, "problem": None, "signed_in": False}
     monkeypatch.setattr(settings, "jwt_secret", "short")
     s = env.client.get("/auth/status").json()
     assert s["auth_configured"] is False and "JWT_SECRET" in s["problem"]

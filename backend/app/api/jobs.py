@@ -73,6 +73,7 @@ def list_jobs(
     kind: list[str] | None = Query(None, description="repeatable: board | social | web"),
     region: list[str] | None = Query(None, description="repeatable time-zone bands (see /jobs/facets); 'unspecified' = no place stated"),
     include_worldwide: bool = Query(True, description="with region: also show jobs that say worldwide / anywhere"),
+    include_unspecified: bool = Query(True, description="with region: also show jobs that do not say where (many social posts)"),
     location: str | None = Query(None, max_length=60, description="text in the job's location, e.g. a city or country"),
     posted_within_days: int | None = Query(None, ge=1, le=365),
     sort: str = Query("newest", pattern="^(newest|oldest|pay_high|pay_low)$"),
@@ -99,7 +100,9 @@ def list_jobs(
         wanted = [r for r in region if r in geo.REGION_KEYS]
         if include_worldwide and wanted and wanted != ["unspecified"]:
             wanted.append("worldwide")
-        parts = [Job.region.is_(None) if r == "unspecified" else Job.region.like(f"%{r}%") for r in dict.fromkeys(wanted)]
+        if include_unspecified and wanted:
+            wanted.append("unspecified")           # a post that names no place could be anywhere: show it rather than hide it
+        parts = [or_(Job.region.is_(None), Job.region == "") if r == "unspecified" else Job.region.like(f"%{r}%") for r in dict.fromkeys(wanted)]
         conds.append(or_(*parts) if parts else Job.id < 0)
     if location and location.strip():
         conds.append(Job.location.ilike(_like(location.strip()), escape="\\"))

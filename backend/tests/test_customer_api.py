@@ -527,8 +527,10 @@ def test_region_is_filled_in_when_a_job_is_saved(where, env):
 def test_filter_by_kind_region_and_location(where):
     assert found(where, "kind=board") == ["Copywriter A", "Funnel Builder C"]
     assert found(where, "kind=social") == ["Copywriter D", "Email Marketer B"]
-    assert found(where, "region=europe_west") == ["Copywriter A", "Email Marketer B"]                       # plus worldwide
-    assert found(where, "region=europe_west&include_worldwide=false") == ["Copywriter A"]
+    assert found(where, "region=europe_west") == ["Copywriter A", "Copywriter D", "Email Marketer B"]       # plus worldwide, plus posts that name no place
+    assert found(where, "region=europe_west&include_worldwide=false") == ["Copywriter A", "Copywriter D"]
+    assert found(where, "region=europe_west&include_unspecified=false") == ["Copywriter A", "Email Marketer B"]
+    assert found(where, "region=europe_west&include_worldwide=false&include_unspecified=false") == ["Copywriter A"]
     assert found(where, "region=unspecified") == ["Copywriter D"]
     assert found(where, "region=americas_west&kind=board") == ["Funnel Builder C"]
     assert found(where, "location=berlin") == ["Copywriter A"]
