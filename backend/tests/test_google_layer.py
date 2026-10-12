@@ -830,6 +830,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We're hiring a landing page expert",
         "Should I hire a landing page expert? Yes. Apply here.",
         url="https://example.com/jobs/landing-page-expert")
+    assert pipeline.not_a_hiring_post(
+        "High-Converting Landing Page: 7 Traits and Who to Hire",
+        "I need a high-converting landing page built, who should I hire?",
+        url="https://websitism.com/high-converting-landing-page-who-to-hire/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a landing page designer",
+        "Who to hire is in the brief. Apply if you design landers.",
+        url="https://example.com/jobs/landing-page-designer")
     assert pipeline.not_a_hiring_post("How should brands hire creative strategists?!", "")
     assert pipeline.not_a_hiring_post("3 signs you're not actually a creative strategist", "")
     assert pipeline.not_a_hiring_post("Ultimate checklist for hiring a copywriting genius", "Secret checklist for a pro copywriter")
