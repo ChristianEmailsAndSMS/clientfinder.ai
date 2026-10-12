@@ -262,7 +262,13 @@
     const desc = h("div", { class: "desc", hidden: true, text: (j.description || j.raw_snippet || "No description captured.").slice(0, 900) });
     const safe = /^https?:\/\//i.test(j.source_url || "");
     const pay = payText(j);
-    const titleBtn = h("button", { class: "title", type: "button", text: j.title, "aria-expanded": "false", onclick: () => { desc.hidden = !desc.hidden; titleBtn.setAttribute("aria-expanded", String(!desc.hidden)); } });
+    const toggle = () => {                                     // the title and the Details button open the same text; both say whether it is open
+      desc.hidden = !desc.hidden;
+      titleBtn.setAttribute("aria-expanded", String(!desc.hidden));
+      detailsBtn.setAttribute("aria-expanded", String(!desc.hidden)); detailsBtn.textContent = desc.hidden ? "Details" : "Hide details";
+    };
+    const titleBtn = h("button", { class: "title", type: "button", text: j.title, "aria-expanded": "false", onclick: toggle });
+    const detailsBtn = h("button", { class: "btn sm", type: "button", "aria-expanded": "false", text: "Details", onclick: toggle });
     return h("article", { class: "card job" },
       h("div", { class: "top" }, titleBtn, h("span", { class: "when", text: ago(j.posted_at || j.first_seen_at) })),
       h("div", { class: "meta" }, CF.platformBadge(j.platform),
@@ -276,7 +282,7 @@
       desc,
       h("div", { class: "actions" },
         safe ? h("a", { class: "btn sm primary", href: j.source_url, target: "_blank", rel: "noopener noreferrer nofollow" }, "Open post ", CF.icon("out", 14)) : null,
-        h("button", { class: "btn sm", type: "button", onclick: () => { desc.hidden = !desc.hidden; titleBtn.setAttribute("aria-expanded", String(!desc.hidden)); } }, desc.hidden ? "Details" : "Hide details"),
+        detailsBtn,
         h("button", { class: "btn sm", type: "button", title: "First message, cover letter, resume pitch and reply help for this job", onclick: () => openPitch(j) }, "Pitch help"),
         saveButton(j, onUnsave),
         safe ? h("button", { class: "btn sm icon", type: "button", "aria-label": "Copy link", onclick: () => CF.copy(j.source_url) }, CF.icon("copy", 14)) : null));
@@ -345,7 +351,7 @@
         body.append(h("h3", { class: "wtitle", text: st.title }), h("p", { class: "muted", text: st.sub }), st.body(), err, foot);
         CF.put(foot, first && step === 0 ? h("button", { class: "btn", type: "button", text: "Skip for now", onclick: async () => { if (await save(true)) closeModal(); } }) : step > 0 ? h("button", { class: "btn", type: "button", text: "Back", onclick: () => { step--; paint(); } }) : null,
           h("span", { class: "grow" }),
-          h("button", { class: "btn primary", type: "button", text: step === steps.length - 1 ? "See my matches" : "Next", onclick: () => { if (st.ok && !st.ok()) { err.textContent = st.why; err.hidden = false; return; } step++; paint(); } }));
+          h("button", { class: "btn primary", type: "button", text: step === steps.length - 1 ? "Finish" : "Next", onclick: () => { if (st.ok && !st.ok()) { err.textContent = st.why; err.hidden = false; return; } step++; paint(); } }));
         return;
       }
       const picked = [...draft.roles].map((r) => (ROLE[r] || {}).label || r).join(", ") || "any role";

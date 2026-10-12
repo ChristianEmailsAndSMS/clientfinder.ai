@@ -55,3 +55,21 @@ def test_pay_text_shows_commas_and_hides_non_amounts():
     out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=20)
     assert out.returncode == 0, out.stderr
     assert out.stdout.strip() == '["$255,000-$320,000","","","1,300 (rate not stated)","$50-70/hr","$120k",""]'
+
+
+def test_old_script_with_new_html_is_the_login_js_108_error_and_the_current_script_cannot_do_it():
+    """A cached pre-change login.js called $("form-2fa").addEventListener on line 108; the new HTML has no such element. Every id the CURRENT
+    script looks up at load time must exist on both pages (guards against re-introducing the mismatch), and nothing may be wired to a missing element."""
+    js = (SITE / "login.js").read_text()
+    for page in ("home.html", "login.html"):
+        html = (SITE / page).read_text()
+        for el_id in re.findall(r'\$\("([a-z0-9\-]+)"\)\.addEventListener', js):
+            assert f'id="{el_id}"' in html, (page, el_id)
+    assert "form-2fa" not in js and "form-2fa" not in (SITE / "home.html").read_text()
+
+
+def test_accessibility_labels_from_the_retest():
+    app_js, app_html = (SITE / "app.js").read_text(), (SITE / "app.html").read_text()
+    assert 'id="sort" aria-label="Sort jobs"' in app_html
+    assert 'detailsBtn.setAttribute("aria-expanded"' in app_js and 'desc.hidden ? "Details" : "Hide details"' in app_js
+    assert '"See my matches" : "Next"' not in app_js                      # the wizard's last button no longer repeats the name of the next screen's button
