@@ -1201,6 +1201,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "This article is for you if you want the brief. We are hiring a copywriter.",
         url="https://example.com/jobs/copywriter-article")
     assert pipeline.not_a_hiring_post(
+        "Need copywriting work? Try these 3 simple ways to get noticed",
+        "Mine asks the reader to forward the message to other people who might need a copywriter.",
+        url="https://www.linkedin.com/pulse/need-copywriting-work-fast-try-3-simple-ways-get-noticed-joe-jeffries")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "Need copywriting work? Send samples. We are hiring.",
+        url="https://example.com/jobs/copywriter-work")
+    assert pipeline.not_a_hiring_post(
         "Writer jobs - Get A Copywriter",
         "We provide copywriting services for a wide range of industries.",
         url="https://jobs.getacopywriter.com/")

@@ -115,6 +115,7 @@ _ADVICE = re.compile(
 _ADVICE_TITLE = re.compile(
     r"\b(?:how to become|how i(?:'d| would) become|checklist for hiring|how to get hired|how can i get hired)\b"
     r"|^\s*how to find\b.{0,80}\bjobs?\b"
+    r"|^\s*need\b.{0,40}\bwork\?"
     r"|\byou do(?:n't| not) need to hire\b"
     r"|^\s*do you hire\b"
     r"|^\s*seeking advice\b"
