@@ -31,10 +31,20 @@ _CAREERS_INDEX = re.compile(r"^\s*(careers at|all open positions)\b", re.I)
 # "Copywriter Jobs Board" and "Creative Strategist Job Board" are directories, not one opening.
 # "post it on our job board" in a description stays.
 _DIRECTORY_TITLE = re.compile(r"\bjobs? board\b", re.I)
+# "Hire a Copywriter | Find Copywriting Jobs" is a talent-agency index.
+# A hiring post can say "find copywriting jobs" in the description.
+_FIND_JOBS_TITLE = re.compile(r"\bfind\b.{0,40}\bjobs\b", re.I)
 _DIRECTORY = re.compile(r"\b\d+\s+writer jobs\b|\bjobs exclusive to paid subscribers\b", re.I)
 # "Remote-First Marketing Jobs" and a snippet of "Browse Marketing jobs" are category pages.
 _JOBS_INDEX_TITLE = re.compile(r"\bremote-first\b.{0,40}\bjobs\s*$", re.I)
 _BROWSE_JOBS = re.compile(r"\bbrowse\b.{0,40}\bjobs\b", re.I)
+# "Freelance and remote Copywriters jobs" / "Browse the latest ... jobs" is a board index.
+# "Browse Marketing jobs" is already covered above. A single freelance copywriter opening stays.
+_BROWSE_LATEST_JOBS = re.compile(
+    r"^\s*freelance and remote\b.{0,60}\bjobs\b"
+    r"|\bbrowse the latest\b.{0,80}\bjobs\b",
+    re.I,
+)
 # "9000+ Copywriter jobs in United States" is a search-results page, not one opening.
 _JOB_COUNT_INDEX = re.compile(r"^\s*\d[\d,]*\+?\s+.{0,80}\bjobs\b", re.I)
 # "Creative Strategist Jobs in Manhattan, NY (3403)" is the same list with the count at the end.
@@ -43,8 +53,9 @@ _JOB_COUNT_SUFFIX = re.compile(
     r"\bjobs\b.{0,60}\(\s*(?:\d{1,3}(?:,\d{3})+|(?!20\d\d\b)\d{3,})\s*\)\s*$",
     re.I,
 )
-# "$20-$72/hr Funnel Jobs (NOW HIRING)" is the same kind of list. Title only.
-_AGGREGATOR_TITLE = re.compile(r"\bjobs\s*\(\s*now hiring\s*\)", re.I)
+# "$20-$72/hr Funnel Jobs (NOW HIRING)" and "Email Marketing Jobs in New Jersey (NOW HIRING)"
+# are lists. A place can sit between jobs and the parenthesis. Title only.
+_AGGREGATOR_TITLE = re.compile(r"\bjobs\b.{0,40}\(\s*now hiring\s*\)", re.I)
 # "Remote Copywriter Jobs ($69K to $103K)" / "Search 216 copywriter remote jobs" is a list.
 # "$26-$54/hr No Experience Copywriting Jobs in Royal Oak" is the same list with the pay first.
 _SALARY_JOBS_INDEX = re.compile(
@@ -76,11 +87,11 @@ _JOBS_IN_PLACE = re.compile(
     r"email marketers?|email copywriters?|landing pages?)\s+jobs\s+in\b",
     re.I,
 )
-# "Copywriter Jobs in Miami (492 Open Roles)" and a title that is only "Creative strategist jobs"
-# or "Remote Copywriting Jobs". A single remote copywriter opening stays.
+# "Copywriter Jobs in Miami (492 Open Roles)" and a title that is only "Creative strategist jobs",
+# "Remote Copywriting Jobs", or "Email Copywriter Remote Jobs". A single opening stays.
 _OPEN_ROLES_TITLE = re.compile(
     r"\(\s*\d[\d,]*\s+open roles\s*\)"
-    r"|^\s*(?:remote\s+)?(?:copywriter|copywriting|creative strategist|funnel builder|email marketer|email copywriter|landing page)\s+jobs\s*$",
+    r"|^\s*(?:remote\s+)?(?:copywriter|copywriting|creative strategist|funnel builder|email marketer|email copywriter|landing page)\s+(?:remote\s+)?jobs\s*$",
     re.I,
 )
 # Title only. A real post can mention a template in the description.
@@ -98,22 +109,47 @@ _ADVICE = re.compile(
     r"\d+ signs you(?:'re| are)? not)\b",
     re.I,
 )
-# Title only. A real job can say "how to become" in the description. These headlines are articles.
+# Title only. A real job can say "how to become" or "how to find ... jobs" in the description.
+# "How to find freelance email copywriting jobs?" is a person looking for work. These headlines are articles.
 # "Hiring a creative strategist?" is a question about the work, not an opening. "Hiring a strategist for a brand" is.
 _ADVICE_TITLE = re.compile(
-    r"\b(?:how to become|checklist for hiring|how to get hired|how can i get hired)\b"
+    r"\b(?:how to become|how i(?:'d| would) become|checklist for hiring|how to get hired|how can i get hired)\b"
+    r"|^\s*how to find\b.{0,80}\bjobs?\b"
+    r"|^\s*need\b.{0,40}\bwork\?"
+    r"|\bfree course\b"
+    r"|^\s*what is\b"
+    r"|\bwhat is it and why\b"
+    r"|\bvs\.?\s*creative director\b"
+    r"|\byou do(?:n't| not) need to hire\b"
+    r"|^\s*do you hire\b"
     r"|^\s*seeking advice\b"
+    r"|^\s*advice on hiring\b"
+    r"|^\s*job searches for\b"
+    r"|^\s*should i hire\b"
+    r"|^\s*best platform to\b"
+    r"|\bwho to hire\b"
+    r"|^\s*(?:the\s+)?\d+\s+(?:smart\s+)?(?:questions|things)\b.{0,60}\bhir(?:e|ing)\b"
     r"|^\s*what makes a (?:great|good)\b"
     r"|\bfast[- ]growing job\b"
     r"|^\s*the best\b.{0,80}\b20\d\d\b"
     r"|^\s*best\b.{0,40}\bjobs\b"
+    r"|^\s*\d+\s+best\b"
+    r"|^\s*(?:the\s+)?\d+\+?\s+(?:the\s+)?best\b"
+    r"|^\s*\d+\s+signs\b"
+    r"|^\s*\d+\s+mistakes\b"
+    r"|\bscope the role\b"
+    r"|^\s*best practices\b"
     r"|\beasy guide\b"
     r"|\bpsa to anyone hiring\b"
     r"|^\s*how to make a\b"
     r"|^\s*how to get into\b"
+    r"|^\s*how i got\b"
+    r"|^\s*strategy to hire\b"
+    r"|\band other job listings\b"
+    r"|^\s*is\b.{0,80}\bstill in demand\b"
     r"|^\s*what to look for when hiring\b"
     r"|\bexamples:\s*what works\b"
-    r"|^\s*what does (?:a|an)\b.{0,60}\bdo\b"
+    r"|^\s*(?:q:\s*)?what does (?:a|an)\b.{0,60}\bdo\b"
     r"|\bfreelancers?\s*-\s*hire\b"
     r"|^\s*hiring an?\b[^?\n]{0,80}\?",
     re.I,
@@ -134,6 +170,39 @@ _FUNNEL_PRODUCT_PAGE = re.compile(
     r"|\bfunnel builder at your fingertips\b",
     re.I,
 )
+# Recruit Rooster and Teamdash sell software that builds job-ad landing pages.
+# A post that is also hiring someone stays.
+_LANDING_PAGE_TOOL = re.compile(
+    r"\bcapture job seeker information\b"
+    r"|\bwithout a designer or developer\b"
+    r"|\blanding page setup wizard\b"
+    r"|\bgrow your leads and sales with unbounce\b"
+    r"|\bleading landing page platform\b",
+    re.I,
+)
+# "Find freelance funnel builder jobs" is a signup for people offering services.
+# "We're hiring a freelance funnel builder" stays.
+_FREELANCE_DIRECTORY = re.compile(
+    r"^\s*find freelance\b.{0,80}\bjobs\b"
+    r"|\blooking for clients as a freelance\b",
+    re.I,
+)
+# Scribers Hub asks "are you freelance copywriters?" and says create a profile now.
+# A post that is also hiring someone stays.
+_FREELANCER_SIGNUP = re.compile(
+    r"\bare you\b.{0,80}\bfreelance copywriters\b"
+    r"|\bcreate a profile now\b",
+    re.I,
+)
+# "We provide copywriting services" on a writer-jobs page is the agency selling work.
+# A post that is also hiring someone stays.
+_COPYWRITING_SERVICES = re.compile(r"\bwe provide copywriting services\b", re.I)
+# Spearlance sells hiring software. "Google for Jobs schema" and "Own Your Hiring Pipeline"
+# are the product, not an opening. A post that is also hiring someone stays.
+_HIRING_SOFTWARE = re.compile(
+    r"\bgoogle for jobs schema\b|\bown your hiring pipeline\b",
+    re.I,
+)
 # "I have 4+ years" under a #hiring tag is someone selling themselves. "We're hiring" plus that line is still a job.
 _FIRST_PERSON_YEARS = re.compile(r"\bi have \d+\+?\s*years\b", re.I)
 # "Hi, I'm a copywriter" is the same ad. "Hi, I'm a founder and we're hiring" is not, and neither is
@@ -150,13 +219,62 @@ _HIRING_SOMEONE = re.compile(
 _JOB_SEEKER = re.compile(r"\bis anyone hiring\b", re.I)
 # An agency selling "we help founders hire a creative strategist" is not an opening.
 _RECRUITER_PITCH = re.compile(r"\bwe help\b.{0,80}\b(?:founders|brands|companies)\s+hire\b", re.I)
+# "Copywriter Recruitment Agency – Hire ..." sells hiring. A job at an agency stays
+# when the title does not also say hire. Title only, so a description mention stays.
+_RECRUITMENT_AGENCY_TITLE = re.compile(r"\brecruitment agency\b", re.I)
+_HIRE_IN_TITLE = re.compile(r"\bhire\b", re.I)
+# "We're a hiring agency that hires skilled copywriters for client companies" is a talent pool.
+# A post that is also hiring someone stays.
+_HIRING_AGENCY_POOL = re.compile(r"\bhiring agency that hires\b", re.I)
+# "Why should I hire a copywriter?" is advice. A post that is also hiring someone stays.
+_WHY_HIRE = re.compile(r"\bwhy should i hire\b", re.I)
+# "This article is for you" is an explainer. A post that is also hiring someone stays.
+_ARTICLE_FOR_YOU = re.compile(r"\bthis article is for you\b", re.I)
+# Write Jobs Plus locks the listing: "unlock this post", "becoming a patron",
+# "join Patreon today", and "access this whole post".
+# A post that is also hiring someone stays.
+_PATRON_PAYWALL = re.compile(
+    r"\bunlock this post\b|\bbecoming a patron\b"
+    r"|\bjoin patreon today\b|\baccess this whole post\b",
+    re.I,
+)
+# "Here are today's opportunities" lists several gigs in one post.
+# A post that is also hiring someone stays.
+_TODAYS_OPPORTUNITIES = re.compile(
+    r"\bhere are today['’]?s opportunities\b",
+    re.I,
+)
+# "Copywriter Hiring • 500+ reels on Instagram" is a topic page. Title only.
+_INSTAGRAM_REEL_INDEX = re.compile(r"\breels on instagram\b", re.I)
+# "Free and customizable copywriting templates" is a design gallery. Title only.
+_TEMPLATE_GALLERY = re.compile(r"\bcustomizable\b.{0,60}\btemplates\b", re.I)
+# "Copywriter Near Me (ID:1608474)" is a generated listing. Title only.
+_NEAR_ME_LISTING = re.compile(r"\bnear me\s*\(\s*id\s*:", re.I)
+# Ads of the World describes an old ad, not an opening.
+_AD_ARCHIVE = re.compile(r"\bthis professional campaign titled\b", re.I)
+# "All Job Posts" is a category of many wanted ads. Title only.
+_ALL_JOB_POSTS = re.compile(r"^\s*all job posts\b", re.I)
+# "A Funnel Builder is a specialized role within a marketing agency" explains the job.
+# A post that is also hiring someone stays.
+_ROLE_DEFINITION = re.compile(r"\bis a specialized role\b", re.I)
+# MultiplyMii offers a free Google Doc and a salary guide for hiring. Not an opening.
+# A post that is also hiring someone stays.
+_SALARY_GUIDE = re.compile(
+    r"\bfree editable google doc\b"
+    r"|\bsalary guide to start hiring\b",
+    re.I,
+)
 # "Cost to build a funnel? I checked Fiverr already" is a price question, not an opening.
 _PRICE_QUESTION = re.compile(r"^\s*cost to build\b|\bi checked fiverr\b", re.I)
 # Remote OK says this when the listing is dead. City jobs says the vacancy has expired.
+# Freelancer says "Closed. Posted almost 5 years ago." Reddit says the thread is archived.
 # "Please do not apply unless..." on a live post stays.
 _CLOSED_JOB = re.compile(
     r"\bjob post is closed\b|\bposition is probably filled\b|\bno longer accepting applications\b"
-    r"|\bvacancy has now expired\b",
+    r"|\bvacancy has now expired\b"
+    r"|\bthis position is now closed\b"
+    r"|\bclosed\.\s*posted\b|\bposted almost \d+\s+years ago\b"
+    r"|\barchived post\b|\bnew comments cannot be posted\b",
     re.I,
 )
 # These titles are a different job. A title that also names the searched role still stays.
@@ -182,6 +300,30 @@ def _role_needles(query: str) -> list[str]:
     return [w for w in re.findall(r"[a-z0-9']+", bare) if w not in _ROLE_STOPWORDS and len(w) >= 4]
 
 
+def _flat(text: str) -> str:
+    """Letters and numbers only, so "[HIRING] Copywriter" matches "hiring copywriter"."""
+    return re.sub(r"[^a-z0-9]+", " ", (text or "").lower()).strip()
+
+
+def _needle_in_title(needle: str, title_flat: str) -> bool:
+    """True when the query phrase is in the title. "email marketer" also matches "email marketing"."""
+    flat = _flat(needle)
+    forms = [flat]
+    marketing = flat.replace(" marketer", " marketing")
+    if marketing != flat:
+        forms.append(marketing)
+    return any(f" {form} " in title_flat for form in forms)
+
+
+def _remotive_opening(url: str) -> bool:
+    """One Remotive job is /remote/jobs/category/slug. The category path is shorter."""
+    marker = "remotive.com/remote/jobs/"
+    if marker not in url:
+        return False
+    path = url.split(marker, 1)[1].split("?", 1)[0].strip("/")
+    return "/" in path
+
+
 def _marketplace_index(url: str) -> bool:
     """Category and search pages on hire marketplaces, not one opening."""
     u = (url or "").lower()
@@ -189,7 +331,15 @@ def _marketplace_index(url: str) -> bool:
         return True
     if "fiverr.com" in u and "/cat/" in u:
         return True
-    if "freelancer.com/job-search/" in u:
+    if "freelancer.com/job-search/" in u or "freelancer.com/jobs/" in u:
+        return True
+    # PeoplePerHour /freelance-…-jobs is a category. A project URL has more path after it.
+    if "peopleperhour.com" in u:
+        path = u.split("peopleperhour.com", 1)[1].split("?", 1)[0].strip("/")
+        if path.startswith("freelance-") and path.endswith("-jobs") and "/" not in path:
+            return True
+    # Toptal /freelance-jobs/ is a network signup, not one opening.
+    if "toptal.com/freelance-jobs/" in u:
         return True
     if "roberthalf.com" in u and "/jobs/all/" in u:
         return True
@@ -210,18 +360,79 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     # Quora is people asking where to hire, not an employer posting an opening.
     if "quora.com" in (url or "").lower():
         return True
+    # Instagram /popular and /explore are reel indexes, not one post.
+    low_url = (url or "").lower()
+    if "instagram.com/popular/" in low_url or "instagram.com/explore/" in low_url or _INSTAGRAM_REEL_INDEX.search(title):
+        return True
+    if "canva.com/templates" in low_url or "venngage.com/templates" in low_url or _TEMPLATE_GALLERY.search(title):
+        return True
+    if "vitacv.com" in low_url or "job-near-me" in low_url or _NEAR_ME_LISTING.search(title):
+        return True
+    # Vaia reprints a title plus "largest job board for Gen-Z" chrome.
+    if "vaia.com" in low_url:
+        return True
+    # Emerging Blue /tag/ pages list many staffing posts, not one opening.
+    if "emergingblue.com" in low_url and "/tag/" in low_url:
+        return True
+    if "adsoftheworld.com" in low_url or _AD_ARCHIVE.search(blob):
+        return True
+    # A LinkedIn profile is a person, not an opening. Job pages are /jobs/view.
+    if "linkedin.com/in/" in low_url or "linkedin.com/pub/" in low_url:
+        return True
+    # LinkedIn's hiring product explains a landing-page wizard. It is not an opening.
+    if "business.linkedin.com/hire/landing-pages" in low_url:
+        return True
+    if "moderncopywriter.com/category" in low_url or _ALL_JOB_POSTS.search(title):
+        return True
+    # Expertini reprints one opening across city domains, plus a roles index.
+    if "expertini.com" in low_url:
+        return True
+    # BeBee puts several jobs in one result. The title is often a different role.
+    if "bebee.com" in low_url:
+        return True
+    # Builder Funnel is a remodeler agency. The site and company profiles are not a funnel-builder opening.
+    # A post on their site that is also hiring someone stays.
+    if "builderfunnel.com" in low_url and not _HIRING_SOMEONE.search(blob):
+        return True
+    if ("indeed.com/cmp/builder-funnel" in low_url
+            or "glassdoor.com/overview/working-at-builder-funnel" in low_url
+            or "instagram.com/builder_funnel" in low_url):
+        return True
+    # ZipRecruiter /e/ pages explain a job title. They are not openings.
+    if "ziprecruiter.com/e/" in low_url:
+        return True
+    # Unbounce's homepage sells the landing page builder. A job elsewhere on the site stays.
+    if "unbounce.com" in low_url and low_url.split("unbounce.com", 1)[1].split("?", 1)[0].strip("/") == "":
+        return True
     if "recruitment-agency" in (url or "").lower() or _RECRUITER_PITCH.search(blob):
         return True
-    # LinkedIn's how-to-hire guides are sample descriptions, not openings.
-    if "how-to-hire-guide" in (url or "").lower() or _JOB_TEMPLATE.search(title):
+    if _RECRUITMENT_AGENCY_TITLE.search(title) and _HIRE_IN_TITLE.search(title):
+        return True
+    if _HIRING_AGENCY_POOL.search(blob) and not _HIRING_SOMEONE.search(blob):
+        return True
+    if _WHY_HIRE.search(blob) and not _HIRING_SOMEONE.search(blob):
+        return True
+    if _ARTICLE_FOR_YOU.search(blob) and not _HIRING_SOMEONE.search(blob):
+        return True
+    if _PATRON_PAYWALL.search(blob) and not _HIRING_SOMEONE.search(blob):
+        return True
+    if _TODAYS_OPPORTUNITIES.search(blob) and not _HIRING_SOMEONE.search(blob):
+        return True
+    # LinkedIn and Equip how-to-hire pages are sample descriptions, not openings.
+    if "how-to-hire" in (url or "").lower() or _JOB_TEMPLATE.search(title):
+        return True
+    # Remotive puts "browse more remote jobs" under a single opening. A category page still drops.
+    if _BROWSE_JOBS.search(blob) and not _remotive_opening(low_url):
         return True
     if (_SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _DIRECTORY_TITLE.search(title)
+            or _FIND_JOBS_TITLE.search(title)
             or _JOBS_INDEX_TITLE.search(title) or _JOB_COUNT_INDEX.search(title)
             or _JOB_COUNT_SUFFIX.search(title) or _DATED_JOBS_INDEX.search(title)
             or _AGGREGATOR_TITLE.search(title) or _SALARY_JOBS_INDEX.search(blob)
             or _OPEN_ROLES_TITLE.search(title) or _JOBS_IN_PLACE.search(title)
             or _TOP_N_JOBS.search(title) or _REDUCED_HOURS_INDEX.search(title)
-            or _DIRECTORY.search(blob) or _BROWSE_JOBS.search(blob)
+            or _DIRECTORY.search(blob)
+            or _BROWSE_LATEST_JOBS.search(blob)
             or _ADVICE.search(blob) or _ADVICE_TITLE.search(title) or _PRICE_QUESTION.search(blob)
             or _CLOSED_JOB.search(blob) or _NOT_A_JOB_PAGE.search(blob)):
         return True
@@ -235,12 +446,29 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
         return True
     if _FUNNEL_PRODUCT_PAGE.search(blob) and not _HIRING_SOMEONE.search(blob):
         return True
+    if _LANDING_PAGE_TOOL.search(blob) and not _HIRING_SOMEONE.search(blob):
+        return True
+    if _FREELANCE_DIRECTORY.search(blob):
+        return True
+    if _FREELANCER_SIGNUP.search(blob) and not _HIRING_SOMEONE.search(blob):
+        return True
+    if _COPYWRITING_SERVICES.search(blob) and not _HIRING_SOMEONE.search(blob):
+        return True
+    if _HIRING_SOFTWARE.search(blob) and not _HIRING_SOMEONE.search(blob):
+        return True
+    if _ROLE_DEFINITION.search(blob) and not _HIRING_SOMEONE.search(blob):
+        return True
+    if _SALARY_GUIDE.search(blob) and not _HIRING_SOMEONE.search(blob):
+        return True
     # On Reddit the role often appears only in the related-posts snippet of a different thread.
+    # "[HIRING] Copywriter" is the same phrase as "hiring copywriter" once the bracket is ignored.
     # LinkedIn titles are the author's name, so this check stays on reddit.com.
     # A "Freelance Writer" title can still be a copywriter job, so other roles are an explicit list.
+    # "Hiring Email Marketing Specialist" is the same role as "hiring email marketer".
     needles = _role_needles(query)
-    if "reddit.com" in (url or "").lower():
-        if needles and not all(needle in title.lower() for needle in needles):
+    if "reddit.com" in low_url:
+        title_flat = f" {_flat(title)} "
+        if needles and not all(_needle_in_title(needle, title_flat) for needle in needles):
             return True
     if (_OTHER_ROLE_TITLE.search(title) and needles
             and not all(needle in title.lower() for needle in needles)):

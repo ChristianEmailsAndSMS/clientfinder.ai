@@ -323,6 +323,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Marketing Copywriter - BIS Safety Software",
         "This job post is closed and the position is probably filled. Please do not apply.")
     assert pipeline.not_a_hiring_post(
+        "We are hiring: Creative Director",
+        "We are hiring: Creative Director. This position is now closed.",
+        url="https://theblacksheepagency.com/blog/we-are-hiring-creative-director")
+    assert not pipeline.not_a_hiring_post(
+        "We are hiring: Creative Director",
+        "We are hiring a creative director. The last opening closed last year.",
+        url="https://example.com/jobs/creative-director")
+    assert pipeline.not_a_hiring_post(
         "Creative Strategist | City of New York Jobs",
         "This vacancy has now expired. Minimum Qualifications.",
         url="https://cityjobs.nyc.gov/job/creative-strategist-in-manhattan-jid-32088")
@@ -330,6 +338,22 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Creative Strategist | City of New York Jobs",
         "The Creative Strategist will develop creative ideas for the agency.",
         url="https://cityjobs.nyc.gov/job/creative-strategist-in-manhattan-jid-32088")
+    assert pipeline.not_a_hiring_post(
+        "Hiring Email Copywriter",
+        "Hiring Email Copywriter. $8-15 AUD / hour. Closed. Posted almost 5 years ago.",
+        url="https://www.freelancer.com/projects/articles/hiring-email-copywriter")
+    assert not pipeline.not_a_hiring_post(
+        "Email Copywriter",
+        "We are hiring an email copywriter. The last hire started 5 years ago.",
+        url="https://example.com/jobs/email-copywriter")
+    assert pipeline.not_a_hiring_post(
+        "WNBA hiring creative director : r/wnba",
+        "Archived post. New comments cannot be posted and votes cannot be cast.",
+        url="https://www.reddit.com/r/wnba/comments/1i2v7tw/wnba_hiring_creative_director/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a creative director",
+        "The old thread was archived. Apply on the careers page.",
+        url="https://example.com/jobs/creative-director")
     assert not pipeline.not_a_hiring_post(
         "We're hiring a copywriter",
         "Please do not apply unless you have a portfolio of live emails.")
@@ -380,6 +404,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Overview We're looking for a high-level funnel builder who understands both conversion and design.",
         url="https://www.ziprecruiter.com/Jobs/Funnel")
     assert pipeline.not_a_hiring_post(
+        "Email Marketing Jobs in New Jersey (NOW HIRING)",
+        "Email Marketer/Copywriter. Our Marketing Department is looking to add a full-time Email Marketer.",
+        url="https://www.ziprecruiter.com/Jobs/Email-Marketing/--in-New-Jersey")
+    assert not pipeline.not_a_hiring_post(
+        "Email Marketer",
+        "Our Marketing Department is looking to add a full-time Email Marketer. Now hiring.",
+        url="https://www.ziprecruiter.com/c/acme/Job/Email-Marketer/-in-Iselin,NJ")
+    assert pipeline.not_a_hiring_post(
         "Remote Copywriter Jobs ($69K to $103K)",
         "Search 216 copywriter remote jobs. 26 added this week.",
         url="https://www.remoterocketship.com/jobs/copywriter/")
@@ -413,6 +445,22 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Copywriter at a remote studio",
         "We are hiring a copywriter. This listing is also on the remote copywriting jobs page.",
         url="https://www.workingnomads.com/job/go/copywriter")
+    assert pipeline.not_a_hiring_post(
+        "Email Copywriter Remote Jobs",
+        "Find Email Copywriter Remote Jobs that allow telecommuting, part-time, or freelance contracts.",
+        url="https://www.virtualvocations.com/q-email-copywriter-remote-jobs.html")
+    assert not pipeline.not_a_hiring_post(
+        "Email Copywriter",
+        "As the email copywriter, you help grow the clients. This role is remote.",
+        url="https://jobs.smartrecruiters.com/InstantEmailCopy/743999692475726-email-copywriter")
+    assert pipeline.not_a_hiring_post(
+        "Freelance and remote Copywriters jobs - Twine",
+        "Browse the latest freelance and remote Copywriters jobs, newest first.",
+        url="https://www.twine.net/jobs/copywriters")
+    assert not pipeline.not_a_hiring_post(
+        "Freelance copywriter",
+        "We are hiring a freelance and remote copywriter. Browse the latest work in the portfolio.",
+        url="https://www.twine.net/jobs/copywriters/123")
     assert pipeline.not_a_hiring_post(
         "Creative Strategist Jobs in Atlanta Metropolitan Area ...",
         "1,000+ Creative Strategist Jobs in Atlanta Metropolitan Area. Senior Manager, Creative Strategy.",
@@ -501,6 +549,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Landing Pages | Hiring on LinkedIn",
         "Learn how to build a Landing Page and attract talent.")
     assert pipeline.not_a_hiring_post(
+        "Landing Pages | Hiring on LinkedIn",
+        "A more robust hiring strategy. A screenshot of the landing page setup wizard that asks you to gather your content.",
+        url="https://business.linkedin.com/hire/landing-pages")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a landing page builder",
+        "You'll use the landing page setup wizard in the brief.",
+        url="https://example.com/jobs/landing-page-builder")
+    assert pipeline.not_a_hiring_post(
         "Recruitment Landing Page Examples: What Works + Best",
         "Recruitment landing page best practices. Match your ad to your headline.")
     assert not pipeline.not_a_hiring_post(
@@ -518,6 +574,26 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Sales funnel builder Jobs, Employment",
         "Search for jobs related to Sales funnel builder or hire on the world's largest freelancing marketplace.",
         url="https://www.freelancer.com/job-search/sales-funnel-builder/")
+    assert pipeline.not_a_hiring_post(
+        "Landing Pages Jobs for October 2026",
+        "World's largest website for Landing Pages Jobs. Find Landing Pages Jobs or hire a Landing Page Expert.",
+        url="https://www.freelancer.com/jobs/landing-pages")
+    assert pipeline.not_a_hiring_post(
+        "Freelance Landing Page Design Projects",
+        "Find Freelance Landing Page Design Jobs. 1000's of freelance jobs that pay.",
+        url="https://www.peopleperhour.com/freelance-landing-page-design-jobs")
+    assert pipeline.not_a_hiring_post(
+        "Remote Freelance Landing Page Designer Jobs [Oct 2026]",
+        "Join the Toptal network and find freelance landing page designer jobs with top companies.",
+        url="https://www.toptal.com/freelance-jobs/designers/landing-page")
+    assert not pipeline.not_a_hiring_post(
+        "Landing page designer",
+        "We are hiring a landing page designer for one project.",
+        url="https://www.freelancer.com/projects/design/landing-page-designer")
+    assert not pipeline.not_a_hiring_post(
+        "Landing page designer",
+        "We are hiring a landing page designer. This project is also on the freelance jobs page.",
+        url="https://www.peopleperhour.com/freelance-jobs/design/landing-page-designer-123")
     assert pipeline.not_a_hiring_post(
         "Copywriter Jobs",
         "Search and apply to our open Copywriter jobs.",
@@ -543,16 +619,197 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Where can I hire one? Apply on the careers page.",
         url="https://example.com/jobs/email-marketer")
     assert pipeline.not_a_hiring_post(
+        "Copywriter Hiring • 500+ reels on Instagram",
+        "Today, we're spotlighting one of the hottest jobs on Creatively.",
+        url="https://www.instagram.com/popular/copywriter-hiring/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "500+ reels on Instagram taught us the brief. Apply if you write ads.",
+        url="https://www.instagram.com/p/AbC123/")
+    assert pipeline.not_a_hiring_post(
+        "Page 17 - Free and customizable copywriting templates",
+        "Black and Yellow Simple We",
+        url="https://www.canva.com/templates/s/copywriting/?continuation=800")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "You'll make customizable templates for the brand.",
+        url="https://example.com/jobs/copywriter")
+    assert pipeline.not_a_hiring_post(
+        "Black Dark We Are Hiring Copywriter",
+        "The purpose of creating a Black Dark We Are Hiring Copywriter is to attract candidates.",
+        url="https://venngage.com/templates/posters/black-dark-we-are-hiring-copywriter-6cc4b9b3-0d23-46a1-b4ec-999e37afa014")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "Use a Venngage template for the hiring poster.",
+        url="https://example.com/jobs/copywriter-poster")
+    assert pipeline.not_a_hiring_post(
+        "Hiring: Copywriter Near Me (ID:1608474)",
+        "Join a top company hiring Copywriter Near Me. Apply now via Vita CV!",
+        url="https://www.vitacv.com/jobs/copywriter-job-near-me/1608474")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter near me",
+        "Apply if you are local.",
+        url="https://example.com/jobs/copywriter-local")
+    assert pipeline.not_a_hiring_post(
+        "Red Antler is hiring : Creative Strategist - Remote in Houston",
+        "Kick-start your career. Easily apply on the largest job board for Gen-Z!",
+        url="https://talents.vaia.com/companies/red-antler/houston/red-antler-is-hiring-creative-strategist-remote-in-houston-65557143/")
+    assert not pipeline.not_a_hiring_post(
+        "Creative Strategist",
+        "We are hiring. This role was also listed on the largest job board for Gen-Z.",
+        url="https://example.com/jobs/creative-strategist")
+    assert pipeline.not_a_hiring_post(
+        "Creative Director — Staffing | Fashion Home & Beauty",
+        "Now Hiring: Creative Director · Taylor Williamson · August 6, 2026. Now Hiring: Creative Director · Scott Gibree · June 3, 2026.",
+        url="https://www.emergingblue.com/blog-page-1/tag/Creative+Director")
+    assert not pipeline.not_a_hiring_post(
+        "Now Hiring: Creative Director",
+        "We're hiring a creative director. This post is also listed on the staffing tag.",
+        url="https://www.emergingblue.com/blog/now-hiring-creative-director")
+    assert pipeline.not_a_hiring_post(
+        "Copywriter wanted - Pirana",
+        "This professional campaign titled 'Copywriter wanted' was published in United Arab Emirates in April, 2008.",
+        url="https://www.adsoftheworld.com/campaigns/copywriter-wanted-74b2bca9-5c22-4abf-9e85-3edee846ecb3")
+    assert not pipeline.not_a_hiring_post(
+        "Copywriter wanted",
+        "We're hiring a copywriter for a brand campaign.",
+        url="https://example.com/jobs/copywriter-wanted")
+    assert pipeline.not_a_hiring_post(
+        "Shienna Marie Javier - HR Manager at Imperium",
+        "HR Manager at Imperium. Lipa, Calabarzon, Philippines.",
+        url="https://ph.linkedin.com/in/shienna-marie-javier-0250b3381")
+    assert not pipeline.not_a_hiring_post(
+        "Landing Page Builder",
+        "We are hiring a landing page builder. See the hiring manager's LinkedIn profile.",
+        url="https://www.linkedin.com/jobs/view/landing-page-builder-at-personalize-pro-4430425557")
+    assert pipeline.not_a_hiring_post(
+        "All Job Posts",
+        "Copywriter Wanted: Infantree · Senior Copywriter Wanted: 160over90, Philadelphia",
+        url="https://www.moderncopywriter.com/category/cws-wanted/")
+    assert pipeline.not_a_hiring_post(
+        "Philadelphia",
+        "Senior Copywriter Wanted: 160over90, Philadelphia · Mid-level Copywriters Wanted",
+        url="https://www.moderncopywriter.com/category/location/philadelphia/")
+    assert not pipeline.not_a_hiring_post(
+        "Senior Copywriter Wanted",
+        "We're hiring a senior copywriter. See all job posts on the blog.",
+        url="https://example.com/jobs/senior-copywriter")
+    assert pipeline.not_a_hiring_post(
+        "323+ Hiring Landing Page Builder Ecommerce Vijayawada Oak Media",
+        "323+ roles in Vijayawada, India. Local salary data, AI resume match.",
+        url="https://vijayawada.in.expertini.com/jobs/in/hiring-landing-page-builder-ecommerce-vijayawada-oak-media/")
+    assert pipeline.not_a_hiring_post(
+        "Hiring: Landing Page Builder (Ecommerce) — OAK Media",
+        "View requirements, salary and apply today on Expertini.",
+        url="https://kozhikode.in.expertini.com/job/hiring-landing-page-builder-ecommerce-kozhikode-oak-media-636478425691064827/")
+    assert pipeline.not_a_hiring_post(
+        "Landing Page Developer & Cro Specialist - Vysta Paid",
+        "Cro Specialist. Mangaluru. Vysta Paid Media Group. Hiring: Landing Page Builder (Ecommerce). Mangaluru. OAK Media.",
+        url="https://bebee.com/in/jobs/landing-page-developer-cro-specialist-vysta-paid-media-group-mangaluru--talent-637301585873602645")
+    assert not pipeline.not_a_hiring_post(
+        "Landing Page Builder",
+        "We are hiring a landing page builder. This role was also listed on BeBee.",
+        url="https://example.com/jobs/landing-page-builder")
+    assert pipeline.not_a_hiring_post(
+        "Careers @ Builder Funnel | The Remodeler Marketing Agency",
+        "Builder Funnel is a fully remote digital marketing agency that helps builders and remodelers grow.",
+        url="https://www.builderfunnel.com/careers")
+    assert pipeline.not_a_hiring_post(
+        "Builder Funnel | The Marketing Agency for Remodelers",
+        "Builder Funnel isn't a marketing agency. We're a strategic growth partner for remodelers.",
+        url="https://www.builderfunnel.com/")
+    assert pipeline.not_a_hiring_post(
+        "Builder Funnel Careers and Employment",
+        "Find out what works well at Builder Funnel from the people who know best.",
+        url="https://www.indeed.com/cmp/Builder-Funnel")
+    assert pipeline.not_a_hiring_post(
+        "Working at Builder Funnel",
+        "See what employees say it's like to work at Builder Funnel.",
+        url="https://www.glassdoor.com/Overview/Working-at-Builder-Funnel-EI_IE1679924.11,25.htm")
+    assert pipeline.not_a_hiring_post(
+        "Marketing Agency for Remodelers (@builder_funnel)",
+        "We help remodelers and custom builders grow.",
+        url="https://www.instagram.com/builder_funnel/?hl=en")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a funnel builder",
+        "Builder Funnel is hiring a funnel builder for a client brand.",
+        url="https://www.builderfunnel.com/careers/funnel-builder")
+    assert not pipeline.not_a_hiring_post(
+        "Landing Page Builder",
+        "We are hiring a landing page builder. Apply today on Expertini if you prefer.",
+        url="https://example.com/jobs/landing-page-builder")
+    assert pipeline.not_a_hiring_post(
+        "Landing page builder",
+        "Easily create your own recruitment campaign landing pages to capture job seeker information with Recruit Rooster's Landing Page Builder.",
+        url="https://recruitrooster.com/landing-page-builder/")
+    assert pipeline.not_a_hiring_post(
+        "Easy job ad landing page builder",
+        "Use Teamdash's page builder to create charming landing pages and job ads without a designer or developer.",
+        url="https://www.teamdash.com/job-ad-landing-pages-tool/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a landing page builder",
+        "You'll build pages without a designer or developer.",
+        url="https://example.com/jobs/landing-page-builder")
+    assert pipeline.not_a_hiring_post(
+        "Unbounce: The Best Landing Page Builder and CRO platform",
+        "Grow your leads and sales with Unbounce. Easily create, test, and optimize landing pages.",
+        url="https://unbounce.com/")
+    assert pipeline.not_a_hiring_post(
+        "Unbounce: The Best Landing Page Builder and CRO platform",
+        "Unbounce, the leading landing page platform built for marketers and agencies.",
+        url="https://unbounce.com/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a landing page builder",
+        "You'll use the leading landing page platform. Grow your leads and sales with Unbounce.",
+        url="https://example.com/jobs/unbounce-builder")
+    assert not pipeline.not_a_hiring_post(
+        "Copywriter",
+        "We are hiring a copywriter.",
+        url="https://unbounce.com/careers/copywriter")
+    assert pipeline.not_a_hiring_post(
         "Email Marketer Job Description Template",
         "As an email marketer, you will develop, implement and optimise email marketing strategies for our company.",
         url="https://business.linkedin.com/hire/resources/how-to-hire-guides/email-marketer-job-description")
+    assert pipeline.not_a_hiring_post(
+        "Strategy to Hire a Skilled Email Marketer | Equip",
+        "Includes what to look for while hiring an email marketer, skills to test, and sample questions.",
+        url="https://equip.co/resources/how-to-hire-email-marketer-mugie/")
+    assert not pipeline.not_a_hiring_post(
+        "Email Marketer",
+        "Strategy to hire a skilled email marketer is in the brief. We are hiring an email marketer.",
+        url="https://jobs.example.com/email-marketer")
     assert not pipeline.not_a_hiring_post(
         "Funnel Builder",
         "We are looking for a Funnel Builder to join our marketing team. See the job description template in the doc.",
         url="https://www.multiplymii.com/job-description/funnel-builder")
     assert pipeline.not_a_hiring_post(
+        "Funnel Builder",
+        "A Funnel Builder is a specialized role within a marketing agency responsible for creating sales funnels.",
+        url="https://www.multiplymii.com/job-description/funnel-builder")
+    assert not pipeline.not_a_hiring_post(
+        "Funnel Builder",
+        "A Funnel Builder is a specialized role. We are looking for a Funnel Builder to join our marketing team.",
+        url="https://www.multiplymii.com/job-description/funnel-builder")
+    assert pipeline.not_a_hiring_post(
+        "Funnel Builder",
+        "Download Your FREE Editable Google Doc. Now it's time to explore our comprehensive salary guide to start hiring your ideal candidate!",
+        url="https://www.multiplymii.com/job-description/funnel-builder")
+    assert not pipeline.not_a_hiring_post(
+        "Funnel Builder",
+        "We are looking for a Funnel Builder. The salary guide to start hiring is attached.",
+        url="https://www.multiplymii.com/job-description/funnel-builder")
+    assert pipeline.not_a_hiring_post(
         "Audience & Connections Strategist at Wpromote",
         "Creative Strategist. Rocket Money. Browse Marketing jobs.")
+    assert not pipeline.not_a_hiring_post(
+        "[Hiring] Email Copywriter @Acentecom",
+        "Acentecom is hiring a remote Email Copywriter. Check it out and browse more remote jobs on remotive.com!",
+        query='"hiring email copywriter"',
+        url="https://remotive.com/remote/jobs/writing/email-copywriter-6044692")
+    assert pipeline.not_a_hiring_post(
+        "Writing jobs",
+        "Browse more remote jobs on remotive.com.",
+        url="https://remotive.com/remote/jobs/writing")
     assert not pipeline.not_a_hiring_post(
         "Paid Social Creative Strategist at Suno",
         "Proven experience as a creative strategist in a high-volume environment.")
@@ -562,8 +819,68 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
     assert not pipeline.not_a_hiring_post("We're hiring a copywriter", "1-3 years into their career")
     assert not pipeline.not_a_hiring_post("[HIRING] Creative Strategist (Fully Remote)", "full-time")
     assert pipeline.not_a_hiring_post("How to hire a creative strategist: 3 signs and 3 skills", "")
+    assert pipeline.not_a_hiring_post(
+        "Advice on hiring a copywriter : r/agency",
+        "So hiring someone who has the most likelihood of getting you results is crucial. Shameless plug, I am a conversion copywriter.",
+        url="https://www.reddit.com/r/agency/comments/1cbf9q8/advice_on_hiring_a_copywriter/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "Advice on hiring is in the brief. Apply if you write ads.",
+        url="https://example.com/jobs/copywriter")
+    assert pipeline.not_a_hiring_post(
+        "Job searches for beginning copywriters",
+        "I got my start as a writer by emailing local marketing agencies to see if they were hiring writers.",
+        url="https://www.reddit.com/r/copywriting/comments/sef4al/job_searches_for_beginning_copywriters/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a junior copywriter",
+        "Job searches for beginning copywriters are welcome. Apply if you are starting out.",
+        url="https://example.com/jobs/junior-copywriter")
+    assert pipeline.not_a_hiring_post(
+        "7 Smart Questions to Ask Before You Hire a Copywriter",
+        "My advice: Clarify your goals and needs before approaching a writer.",
+        url="https://www.christinelellis.com/hire-a-copywriter/")
+    assert pipeline.not_a_hiring_post(
+        "The 9 Things You Need to Know About Hiring a Copywriter",
+        "Have a realistic schedule. Not all copywriters write the same thing.",
+        url="https://sarahwayte.com/copywriting/the-9-things-you-need-to-know-about-hiring-a-copywriter/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "Here are 7 smart questions to ask before you hire, listed in the brief.",
+        url="https://example.com/jobs/copywriter-questions")
+    assert pipeline.not_a_hiring_post(
+        "Should I hire a landing page expert for better conversions?",
+        "Hi business owners! I'd like to ask a genuine question, not here to sell anything.",
+        url="https://www.facebook.com/groups/2815042615255352/posts/5017882254971366/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a landing page expert",
+        "Should I hire a landing page expert? Yes. Apply here.",
+        url="https://example.com/jobs/landing-page-expert")
+    assert pipeline.not_a_hiring_post(
+        "High-Converting Landing Page: 7 Traits and Who to Hire",
+        "I need a high-converting landing page built, who should I hire?",
+        url="https://websitism.com/high-converting-landing-page-who-to-hire/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a landing page designer",
+        "Who to hire is in the brief. Apply if you design landers.",
+        url="https://example.com/jobs/landing-page-designer")
+    assert pipeline.not_a_hiring_post(
+        "Best platform to hiring a copywriter",
+        "Best platform to hiring a copywriter. Job Posting.",
+        url="https://www.reddit.com/r/copywriting/comments/vay8sp/best_platform_to_hiring_a_copywriter/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "The best platform to apply is this page.",
+        url="https://example.com/jobs/copywriter")
     assert pipeline.not_a_hiring_post("How should brands hire creative strategists?!", "")
     assert pipeline.not_a_hiring_post("3 signs you're not actually a creative strategist", "")
+    assert pipeline.not_a_hiring_post(
+        "10 Signs You Desperately Need a Copywriter",
+        "You hate writing, you write super slow, and sales are behind.",
+        url="https://www.amandacopy.com/client-guide-to-hiring-a-copywriter/signs-you-need-to-hire-a-copywriter")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "10 signs you desperately need a copywriter is why this role is open.",
+        url="https://example.com/jobs/copywriter")
     assert pipeline.not_a_hiring_post("Ultimate checklist for hiring a copywriting genius", "Secret checklist for a pro copywriter")
     assert pipeline.not_a_hiring_post("How to become a creative strategist as a copywriter", "More brands are hiring creative strategists")
     assert pipeline.not_a_hiring_post("Here's how to get hired as a copywriter at storyarb.", "Our acceptance rate is less than 0.5%.")
@@ -591,6 +908,56 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We are hiring a copywriter. Search for the best copywriter jobs is how candidates find us.",
         url="https://builtin.com/job/copywriter/senior-copywriter")
     assert pipeline.not_a_hiring_post(
+        "9 Best Recruiting Landing Page and Hiring Event Tools ...",
+        "A recruiting landing page is a standalone, single-purpose page built for one campaign.",
+        query='hiring "landing page"',
+        url="https://www.joveo.com/blog/recruiting-landing-page-builders/")
+    assert pipeline.not_a_hiring_post(
+        "The 7 best landing page builders in 2026",
+        "Apps like Carrd, Kit, Instapage, and Leadpages can get you to a complete landing page in a matter of hours.",
+        url="https://zapier.com/blog/best-landing-page-builders/")
+    assert pipeline.not_a_hiring_post(
+        "7+ The Best Landing Page Agencies in 2026 | Most Picked.",
+        "7+ landing page agencies that design engaging, high-performing pages.",
+        url="https://www.landingpageflow.com/blog/the-best-landing-page-agencies-to-drive-smarter")
+    assert pipeline.not_a_hiring_post(
+        "The 23 Best B2B Landing Page Agencies for 2026",
+        "1. Directive. 2. Apexure. 3. Linear.",
+        url="https://directiveconsulting.com/blog/blog-best-landing-page-agencies/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a landing page designer",
+        "We compared the 7 best agencies first. Apply if you build landers.",
+        url="https://example.com/jobs/landing-page-designer")
+    assert pipeline.not_a_hiring_post(
+        "8 Mistakes DTC Brands Make When Hiring a Creative Strategist",
+        "Over-indexing on beautiful portfolios is one of the most common mistakes hiring creative strategist candidates.",
+        url="https://www.constanthire.com/posts/8-mistakes-dtc-brands-make-when-hiring-a-creative-strategist")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a creative strategist",
+        "8 mistakes DTC brands make when hiring a creative strategist are listed in the brief.",
+        url="https://careers.example.com/creative-strategist")
+    assert pipeline.not_a_hiring_post(
+        "Hiring Email Marketer: Scope the Role Properly",
+        "eCommerce Recruiting Agency | Global",
+        url="https://www.linkedin.com/posts/katarina-perisic_hiring-an-email-marketer-for-your-ecom-brand-activity-7462120573469577216-d36G")
+    assert not pipeline.not_a_hiring_post(
+        "Email Marketer",
+        "Scope the role properly with the hiring manager. We are hiring an email marketer.",
+        url="https://jobs.example.com/email-marketer")
+    assert not pipeline.not_a_hiring_post(
+        "Landing page builder",
+        "We are hiring someone to build landing pages. We compared 9 best tools first.",
+        query='hiring "landing page"')
+    assert pipeline.not_a_hiring_post(
+        "Best Practices for Virtual Hiring Event Landing Pages",
+        "The most crucial details on your landing page should include the event's time, date, and location.",
+        query='hiring "landing page"',
+        url="https://www.b2match.com/blog/best-practices-for-virtual-hiring-event-landing-pages")
+    assert not pipeline.not_a_hiring_post(
+        "Landing page builder",
+        "We are hiring someone to build the hiring event landing page. Follow our best practices.",
+        query='hiring "landing page"')
+    assert pipeline.not_a_hiring_post(
         "Hire a GoHighLevel Funnel Builder Expert: Easy Guide",
         "A GoHighLevel funnel builder expert helps design and structure your sales process.")
     assert pipeline.not_a_hiring_post(
@@ -606,9 +973,41 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "What does a Creative Strategist do?",
         "This page details key information about the Creative Strategist role, salaries, and how to approach recruitment.")
     assert pipeline.not_a_hiring_post(
+        "Q: What does an urgently hiring email copywriter do?",
+        "A: An Urgently Hiring Email Copywriter is a professional responsible for quickly creating compelling email content.",
+        url="https://www.ziprecruiter.com/e/urgently-hiring-email-copywriter-what-does-an-urgently-hiring-email-copywriter-do")
+    assert not pipeline.not_a_hiring_post(
+        "Email Copywriter",
+        "Q: What does an email copywriter do? We are hiring one.",
+        url="https://example.com/jobs/email-copywriter")
+    assert pipeline.not_a_hiring_post(
         "How to get into Creative Strategist Job?",
         "I've been applying to multiple companies via LinkedIn but never get any interview.",
         url="https://www.reddit.com/r/CreativeStrategists/comments/abc/how_to_get_into/")
+    assert pipeline.not_a_hiring_post(
+        "How I Got a Remote Job from LinkedIn — You Don't Need Followers",
+        'Open the LinkedIn search bar and type "hiring email marketer".',
+        url="https://ritamichaeladegoke.com.ng/how-to-get-remote-jobs-on-linkedin-without-followers-and-connections/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring an email marketer",
+        "How I got a remote job is a story we tell candidates.",
+        url="https://example.com/jobs/email-marketer")
+    assert pipeline.not_a_hiring_post(
+        "Copywriter Wanted for Tinder and Other Job Listings",
+        "Wanted: Copywriter for tinder. Hourly: Intermediate.",
+        url="https://muffin.wow-womenonwriting.com/2021/07/copywriter-wanted-for-tinder-and-other.html")
+    assert not pipeline.not_a_hiring_post(
+        "Copywriter",
+        "We're hiring a copywriter for Tinder and other job listings are separate.",
+        url="https://example.com/jobs/copywriter-tinder")
+    assert pipeline.not_a_hiring_post(
+        "Is being an Email Copywriter still in demand in 2025?",
+        "I'm planning to learn more about email copywriting as a beginner in the freelancer world.",
+        url="https://www.reddit.com/r/copywriting/comments/1l3zo0n/is_being_an_email_copywriter_still_in_demand_in/")
+    assert not pipeline.not_a_hiring_post(
+        "Email Copywriter",
+        "Email copywriting is still in demand. We are hiring an email copywriter.",
+        url="https://jobs.smartrecruiters.com/InstantEmailCopy/743999692475726-email-copywriter")
     assert pipeline.not_a_hiring_post(
         "What to look for when hiring a creative strategist?",
         "I run a DTC beauty brand and I've never hired for this before.",
@@ -629,6 +1028,38 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Senior Creative Strategist Job | Lilo Social Careers",
         "Lilo Social is seeking a Senior Creative Strategist. We help founders grow. You'll hire no one on day one.",
         url="https://lilosocial.com/careers/senior-creative-strategist/")
+    assert pipeline.not_a_hiring_post(
+        "Copywriter Recruitment Agency – Hire Copywriters and Content Writers",
+        "Hire Copywriters and Hire Content writers, proof readers, writers, editors.",
+        url="https://www.80twenty.com/speciality/copywriting-content/")
+    assert not pipeline.not_a_hiring_post(
+        "Senior Copywriter",
+        "Join our recruitment agency. We are hiring a senior copywriter for a client brand.",
+        url="https://jobs.example.com/senior-copywriter")
+    assert not pipeline.not_a_hiring_post(
+        "Senior Copywriter at a recruitment agency",
+        "We are hiring a senior copywriter. Clients hire us for campaigns.",
+        url="https://jobs.example.com/senior-copywriter-agency")
+    assert pipeline.not_a_hiring_post(
+        "Apply As A Copywriter - Optimate",
+        "We're a top international hiring agency that hires skilled copywriters for online work with client companies of ours in the US and Europe.",
+        url="https://optimate.co/apply-copywriter/")
+    assert not pipeline.not_a_hiring_post(
+        "Copywriter",
+        "We are hiring a copywriter. The client is a hiring agency that hires for other brands.",
+        url="https://example.com/jobs/copywriter")
+    assert pipeline.not_a_hiring_post(
+        "Why Should I Hire a Copywriter?",
+        "Wondering why hire a copywriter? Good copywriters position your business.",
+        url="https://www.gravitatedesign.com/blog/why-should-i-hire-a-copywriter/")
+    assert pipeline.not_a_hiring_post(
+        "5 Reasons Why Hiring A Copywriter Can Be A Game Changer",
+        "Why should I hire a professional, full-time copywriter instead of someone who writes perfect English?",
+        url="https://www.candyboxmarketing.com/resources/5-reasons-why-hiring-a-copywriter-can-be-a-game-changer/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "Why should I hire you? Show the work in your portfolio.",
+        url="https://example.com/jobs/copywriter-why")
     assert pipeline.not_a_hiring_post(
         "Creative Strategist freelancers - Hire",
         "Write down these goals clearly. This will help the creative strategist understand the brief.")
@@ -653,6 +1084,54 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
     assert not pipeline.not_a_hiring_post(
         "Hiring a Senior Creative Strategist / Copywriter for a fast-growing brand",
         "Remote, apply here")
+    assert pipeline.not_a_hiring_post(
+        "How I'd become a $150k creative strategist in 2026",
+        "My goal: i'm on $2k with one client atm, learning creative strategy.",
+        url="https://www.youtube.com/watch?v=KsVuc6RQ1L8")
+    assert pipeline.not_a_hiring_post(
+        "How I would become a creative strategist",
+        "A career plan for next year.",
+        url="https://www.youtube.com/watch?v=example")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a creative strategist",
+        "How I'd become a $150k creative strategist is a question in the interview, not the job.",
+        url="https://example.com/jobs/creative-strategist")
+    assert pipeline.not_a_hiring_post(
+        "How to find freelance email copywriting jobs?",
+        "I am free and has been for sometime. Looking for new jobs.",
+        url="https://www.facebook.com/groups/copywritersclubhouse/posts/3455103341289563/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "How to find freelance email copywriting jobs is the wrong question. We are hiring one.",
+        url="https://example.com/jobs/copywriter")
+    assert pipeline.not_a_hiring_post(
+        "You don't need to hire a copywriter to write your stuff.",
+        "You need someone who researches manually and writes with strategy.",
+        url="https://www.linkedin.com/posts/matthewdrzymala_you-dont-need-to-hire-a-copywriter-to-write-activity-7406279419771764736-Q5Aw")
+    assert pipeline.not_a_hiring_post(
+        "You do not need to hire a copywriter",
+        "A post about writing it yourself.",
+        url="https://www.linkedin.com/posts/example")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "You don't need to hire a copywriter from an agency. We are hiring one in-house.",
+        url="https://example.com/jobs/in-house-copywriter")
+    assert pipeline.not_a_hiring_post(
+        "Do you hire a copywriter or work in the field of copywriting?",
+        "Do any of you hire a copywriter or work in the field of copywriting?",
+        url="https://www.facebook.com/groups/2815042615255352/posts/8260190204073872/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "Do you hire a copywriter? We do. Apply here.",
+        url="https://example.com/jobs/copywriter-hire")
+    assert pipeline.not_a_hiring_post(
+        "Hire a Copywriter | Find Copywriting Jobs",
+        "Need a Copywriter Job Description? If you need to hire a copywriter now, contact us.",
+        url="https://artisantalent.com/i-am-a-copywriter/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "Find copywriting jobs on other boards if you like. We are hiring one here.",
+        url="https://example.com/jobs/copywriter-opening")
     assert not pipeline.not_a_hiring_post(
         "We're hiring a copywriter",
         "A checklist for your first week, and how to become comfortable with the brand voice")
@@ -687,6 +1166,108 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We're hiring a funnel builder",
         "You'll have a funnel builder at your fingertips and a designer on the team.",
         query='hiring "funnel builder"')
+    assert pipeline.not_a_hiring_post(
+        "Hiring Funnel Builder | Spearlance",
+        "Create professional job listings with AI-generated descriptions and Google for Jobs schema. Paying $4,000+ Per Hire. Own Your Hiring Pipeline.",
+        query='hiring "funnel builder"',
+        url="https://my.hiringapp.io/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a funnel builder",
+        "You'll add a Google for Jobs schema to the career page and own your hiring pipeline.",
+        query='hiring "funnel builder"')
+    assert pipeline.not_a_hiring_post(
+        "Find freelance funnel builder jobs",
+        "Looking for clients as a freelance funnel builder? Sign up and offer your services.",
+        query='hiring "funnel builder"',
+        url="https://befreelancr.com/en/find-freelance-jobs/funnel-builder")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a freelance funnel builder",
+        "Looking for a freelance funnel builder to join the team.",
+        query='hiring "funnel builder"')
+    assert pipeline.not_a_hiring_post(
+        "Native English Copywriter Wanted",
+        "Are you native English freelance copywriters? Apply now. Create a profile now!",
+        url="https://scribershub.com/en/native-english-speaker-native-english-writer/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "Are you a freelance copywriter? Create a profile now and apply.",
+        url="https://example.com/jobs/copywriter")
+    assert pipeline.not_a_hiring_post(
+        "Help: I need a copywriter!",
+        "If you've ever screamed, I need a copywriter, then this article is for you.",
+        url="https://indeliblethink.co.uk/i-need-a-copywriter/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "This article is for you if you want the brief. We are hiring a copywriter.",
+        url="https://example.com/jobs/copywriter-article")
+    assert pipeline.not_a_hiring_post(
+        "Need copywriting work? Try these 3 simple ways to get noticed",
+        "Mine asks the reader to forward the message to other people who might need a copywriter.",
+        url="https://www.linkedin.com/pulse/need-copywriting-work-fast-try-3-simple-ways-get-noticed-joe-jeffries")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "Need copywriting work? Send samples. We are hiring.",
+        url="https://example.com/jobs/copywriter-work")
+    assert pipeline.not_a_hiring_post(
+        "How to Be an Expert Creative Strategist (FREE COURSE)",
+        "FREE Creative Strategist Course For Beginners.",
+        url="https://www.youtube.com/watch?v=RRvPd9rSIXM")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a creative strategist",
+        "The free course is optional onboarding. We are hiring.",
+        url="https://example.com/jobs/creative-strategist-course")
+    assert pipeline.not_a_hiring_post(
+        "Remote Copywriter wanted (real estate, finance)",
+        "Earn $40 to $65 per hour. INSTANTLY unlock this post and other writing opportunities by becoming a patron today!",
+        url="https://www.patreon.com/writejobsplus/posts/remote-wanted-40-66957319")
+    assert pipeline.not_a_hiring_post(
+        "Remote UX Writer wanted (product / marketing)",
+        "To access this whole post, join Patreon today.",
+        url="https://www.patreon.com/writejobsplus/posts/remote-ux-writer-64554164")
+    assert pipeline.not_a_hiring_post(
+        "Writer wanted (work, hiring, psychology, etc.)",
+        "Here are today's opportunities: Conversion Copywriter wanted | Writers wanted.",
+        url="https://www.patreon.com/writejobsplus/posts/writer-wanted-66957346")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "Here are today's opportunities on the team. We are hiring a copywriter.",
+        url="https://example.com/jobs/copywriter-today")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "Unlock this post on Patreon after you apply. We are hiring.",
+        url="https://example.com/jobs/copywriter-patron")
+    assert pipeline.not_a_hiring_post(
+        "What Is Creative Strategy? The Foundations Every Marketer Needs",
+        "What is creative strategy, and why does it matter for paid social?",
+        url="https://www.youtube.com/watch?v=DqFjak694PQ")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a creative strategist",
+        "What is creative strategy is covered in week one. We are hiring.",
+        url="https://example.com/jobs/creative-strategist-what")
+    assert pipeline.not_a_hiring_post(
+        "Creative strategist: What is it and why you [may] need it?",
+        "How popular is this role? Should apps consider this role?",
+        url="https://www.youtube.com/watch?v=b_wCaDhtVA0")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a creative strategist",
+        "What is it and why you need it comes up in the interview. We are hiring.",
+        url="https://example.com/jobs/creative-strategist-why")
+    assert pipeline.not_a_hiring_post(
+        "Creative Strategist vs.Creative Director | Do you know the difference",
+        "Explaining what each position actually does and which career path is right.",
+        url="https://www.youtube.com/watch?v=tM-MSynrXv0")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a creative strategist",
+        "Creative Strategist vs Creative Director is the career-path question. We are hiring.",
+        url="https://example.com/jobs/creative-strategist-vs")
+    assert pipeline.not_a_hiring_post(
+        "Writer jobs - Get A Copywriter",
+        "We provide copywriting services for a wide range of industries.",
+        url="https://jobs.getacopywriter.com/")
+    assert not pipeline.not_a_hiring_post(
+        "Copywriter",
+        "We are hiring a copywriter. We provide copywriting services for our clients.",
+        url="https://example.com/careers/copywriter")
     assert not pipeline.not_a_hiring_post(
         "NoDesk",
         "Perspective - #1 Mobile Funnel Builder.",
@@ -745,6 +1326,31 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Website pages and cold emails",
         query="site:reddit.com/r/forhire/comments hiring copywriter",
         url="https://www.reddit.com/r/forhire/comments/abc/copywriter/")
+    assert not pipeline.not_a_hiring_post(
+        "[Hiring] Copywriter, anyone interested?",
+        "I am looking for copywriters to join our team. Remote or freelance.",
+        query='"hiring copywriter"',
+        url="https://www.reddit.com/r/HireaWriter/comments/14htfp3/hiring_copywriter_anyone_interested/")
+    assert not pipeline.not_a_hiring_post(
+        "[HIRING] Email Marketer for Fast-Growing Ecommerce Brand",
+        "Commission-based email marketing for a store doing real revenue.",
+        query='"hiring email marketer"',
+        url="https://www.reddit.com/r/Emailmarketing/comments/1sji89w/hiring_email_marketer_for_fastgrowing_ecommerce/")
+    assert pipeline.not_a_hiring_post(
+        "[HIRING] TikTok Content Poster – Remote Side Job",
+        "hiring copywriter shows up in the related posts",
+        query='"hiring copywriter"',
+        url="https://www.reddit.com/r/hiring/comments/abc/tiktok/")
+    assert not pipeline.not_a_hiring_post(
+        "Hiring Email Marketing Specialist - Remote ($400-$500 Monthly)",
+        "",
+        query='"hiring email marketer"',
+        url="https://www.reddit.com/r/DigitalMarketing/comments/1sb5nsg/hiring_email_marketing_specialist_remote_400500/")
+    assert pipeline.not_a_hiring_post(
+        "Best email tools this month",
+        "hiring email marketer shows up in the related posts",
+        query='"hiring email marketer"',
+        url="https://www.reddit.com/r/Emailmarketing/comments/abc/tools/")
     assert not pipeline.not_a_hiring_post(
         "Carol Dasaro's Post",
         "Hi everyone, I'm hiring for a freelance copywriter.",
