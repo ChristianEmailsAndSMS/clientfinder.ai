@@ -102,6 +102,7 @@
     if (o.sources.failing.length) problems.push("Failing sources: " + o.sources.failing.join(", "));
     if (o.sources.stale.length) problems.push("No recent run: " + o.sources.stale.join(", "));
     if (o.backups.status !== "ok") problems.push("Backups are " + o.backups.status);
+    if (o.backups.offsite !== "ok") problems.push(o.backups.offsite === "none" ? "No off-server backup yet: a lost server would lose every customer balance (see docs/INFRA.md)." : "The off-server backup is " + o.backups.offsite + ". Run: systemctl status clientfinder-offsite");
     if (o.payments_waiting) problems.push(`${o.payments_waiting} payment${o.payments_waiting === 1 ? "" : "s"} need a decision (unmatched, refunded or disputed). Open the Payments tab.`);
     box.appendChild(h("h2", {}, "Needs attention"));
     box.appendChild(problems.length ? h("ul", {}, problems.map((p) => h("li", { class: "bad" }, p))) : h("p", { class: "good" }, "Nothing flagged."));

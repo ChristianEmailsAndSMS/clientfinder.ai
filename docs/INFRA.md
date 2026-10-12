@@ -142,9 +142,57 @@ systemctl start clientfinder-api clientfinder-scheduler
 
 What this does NOT cover:
 
-- **Losing the VPS or its disk loses the backups too.** They are on the same machine. Add an off-box copy
-  (rclone to Backblaze B2 / S3, encrypted) before real customers pay (Phase 11).
+- The local dumps alone do not survive losing the server: use the off-server copy below.
 - Up to 24h of new data between backups.
-- Secrets: `.env` files are deliberately not in the backup. Keep a copy of the keys in a password manager.
+- Secrets: the local backup does not include `.env`; the off-server copy does (encrypted). Also keep the keys in a password manager.
 - Redis holds nothing durable yet (no RQ jobs); it is not backed up.
 
+
+
+### Off-server backup (encrypted, Backblaze B2)
+
+Every night at 04:15 UTC `deploy/offsite_backup.sh` copies the new dumps and a copy of `backend/.env` to a Backblaze B2 bucket. rclone's **crypt**
+remote encrypts file names and contents on this server first, so B2 only holds scrambled files. It verifies the newest dump arrived at the right size,
+keeps 60 days of dumps and 30 days of `.env` copies, and writes `offsite.json` next to the dumps. The admin dashboard shows "Needs attention" until
+this has run, and `deploy/security_audit.sh` reports it.
+
+**Keep in a password manager (not on the server only): the B2 key, and the crypt password.** Without the crypt password the off-server files cannot be
+read, even by you.
+
+One-time setup (copy the commands; they ask for the secrets and never put them on the command line or in shell history):
+
+1. Backblaze: create an account, a **private** bucket (any unique name), and an **Application Key** limited to that bucket (Read and Write). Note the
+   keyID and the application key. In the bucket settings set Lifecycle Rules to **"Keep only the last version of the file"** (otherwise deleted old
+   dumps are kept and billed). Expect about $1 a month at this size.
+2. On the server:
+   ```bash
+   apt install -y rclone
+   read -r -p "B2 keyID: " KID; read -rs -p "B2 application key: " AK; echo
+   rclone config create cfb2 b2 account "$KID" key "$AK"
+   read -r -p "Bucket name: " BUCKET
+   read -rs -p "Choose a LONG encryption password (save it in your password manager): " P1; echo
+   rclone config create cfcrypt crypt remote "cfb2:$BUCKET/clientfinder" password "$(rclone obscure "$P1")"
+   unset KID AK P1; chmod 600 /root/.config/rclone/rclone.conf
+   ```
+3. First copy, by hand: `/root/clientfinder.ai/deploy/offsite_backup.sh` (expect `ok: clientfinder-....dump copied and verified`).
+   In the B2 website you should see only scrambled names.
+4. Switch on the nightly timer:
+   ```bash
+   cp /root/clientfinder.ai/deploy/clientfinder-offsite.{service,timer} /etc/systemd/system/
+   systemctl daemon-reload && systemctl enable --now clientfinder-offsite.timer
+   systemctl list-timers clientfinder-offsite.timer
+   ```
+
+Restore from the off-server copy (new server or after a loss): install rclone, run the `rclone config create` lines above with the SAME bucket and the
+SAME crypt password, then:
+
+```bash
+rclone lsf cfcrypt:db | tail -3                              # newest dumps
+rclone copy cfcrypt:db/clientfinder-YYYY-MM-DD_HHMMSS.dump /var/backups/clientfinder/
+rclone copy cfcrypt:env /root/env-backup/                    # the .env copies
+/root/clientfinder.ai/deploy/backup.sh --restore-test /var/backups/clientfinder/clientfinder-YYYY-MM-DD_HHMMSS.dump
+# then the "Disaster recovery onto the live database" steps above
+```
+
+Test the restore once now, before you need it. Limits: this protects against losing the server, not against someone who already controls the server
+(they would find the rclone config); keep the B2 key restricted to this one bucket.

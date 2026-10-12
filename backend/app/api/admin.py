@@ -191,7 +191,18 @@ def backups_info() -> dict:
         last = json.loads((d / "last_run.json").read_text())
     except (OSError, ValueError):
         pass
-    return {"status": status, "dir": str(d), "count": len(files), "latest": items, "last_run": last}
+    return {"status": status, "dir": str(d), "count": len(files), "latest": items, "last_run": last, "offsite": offsite_info(d, now)}
+
+
+def offsite_info(d: Path, now: float) -> dict:
+    """The encrypted off-server copy (deploy/offsite_backup.sh writes offsite.json): none / ok / failed / stale (older than 36h)."""
+    try:
+        last = json.loads((d / "offsite.json").read_text())
+        age = (now - datetime.fromisoformat(str(last["ts"]).replace("Z", "+00:00")).timestamp()) / 3600
+    except (OSError, ValueError, KeyError):
+        return {"status": "none", "last": None, "age_hours": None}
+    status = "failed" if not last.get("ok") else ("ok" if age <= 36 else "stale")
+    return {"status": status, "last": last, "age_hours": round(age, 1)}
 
 
 @router.get("/backups")
@@ -236,7 +247,7 @@ def overview(db: Session = Depends(get_db)) -> dict:
         "failed_urls_pending": pending_failed,
         "customers": {"count": users, "credit_liability_usd": credits.micro_to_usd(int(liability))},
         "search_budget": {"used": used, "budget": settings.serpapi_monthly_budget},
-        "backups": {"status": backups_info()["status"]},
+        "backups": {"status": (b := backups_info())["status"], "offsite": b["offsite"]["status"]},
         "security": {"admin_emails": sorted(admin_emails())},
     }
 

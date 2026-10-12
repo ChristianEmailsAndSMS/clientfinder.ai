@@ -1,0 +1,18 @@
+# Install: cp deploy/clientfinder-offsite.{service,timer} /etc/systemd/system/ && systemctl daemon-reload
+#          systemctl enable --now clientfinder-offsite.timer
+[Unit]
+Description=Clientfinder.ai off-server (encrypted) backup copy
+After=clientfinder-backup.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/root/clientfinder.ai/deploy/offsite_backup.sh
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true

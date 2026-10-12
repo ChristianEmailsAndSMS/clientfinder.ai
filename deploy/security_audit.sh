@@ -99,7 +99,11 @@ if [[ -d "$BACKUP_DIR" ]]; then
   newest=$(ls -1t "$BACKUP_DIR"/clientfinder-*.dump 2>/dev/null | head -1)
   if [[ -n "$newest" ]]; then age=$(( ( $(date +%s) - $(stat -c %Y "$newest") ) / 3600 )); (( age <= 36 )) && P "newest backup is ${age}h old" || F "newest backup is ${age}h old"; else F "no backups found"; fi
 else F "backup dir missing"; fi
-W "backups live on this server only: set up an encrypted off-server copy (docs/SECURITY.md)"
+if [[ -r "$BACKUP_DIR/offsite.json" ]] && grep -q '"ok":true' "$BACKUP_DIR/offsite.json" && (( $(( $(date +%s) - $(stat -c %Y "$BACKUP_DIR/offsite.json") )) / 3600 <= 36 )); then
+  P "encrypted off-server backup copy is current"
+else
+  W "no current off-server backup: set up the encrypted copy (docs/INFRA.md, Off-server backup)"
+fi
 
 sec "Public site ($SCHEME://$DOMAIN)"
 if have curl; then

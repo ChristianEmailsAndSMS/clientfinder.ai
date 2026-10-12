@@ -212,6 +212,6 @@ Walk-through for each is in `docs/SECURITY.md` section 4. Run `bash deploy/secur
 - [ ] **SSH key-only login** (two red FAILs in the audit). Owner uses the hosting browser console; do this before sharing the server password with anyone.
 - [ ] **Run the API and scheduler as a non-root user.**
 - [ ] **Least-privilege database login** (`deploy/db_least_privilege.sql`).
-- [ ] **Encrypted off-server backups** (today they live on the same server).
+- [ ] **Encrypted off-server backups**: code, timer and steps are in the repo (docs/INFRA.md "Off-server backup"); owner still has to do the Backblaze + rclone setup, then tick this.
 - [ ] Copy the new `request_body` block from `deploy/Caddyfile.security.snippet` into `/etc/caddy/Caddyfile` (screenshots in the pitch helper need the 6 MB allowance on `/assist`).
 - [ ] Turn admin 2FA back on (`ADMIN_REQUIRE_2FA=1`).

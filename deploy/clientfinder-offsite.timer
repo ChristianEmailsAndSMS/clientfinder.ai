@@ -1,0 +1,11 @@
+[Unit]
+Description=Copy the Clientfinder.ai backup off the server daily
+
+[Timer]
+# 04:15 UTC, 45 minutes after the local backup (03:30). Catches up after a reboot.
+OnCalendar=*-*-* 04:15:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
