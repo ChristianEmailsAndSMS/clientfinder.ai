@@ -1107,6 +1107,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We're hiring a copywriter",
         "You don't need to hire a copywriter from an agency. We are hiring one in-house.",
         url="https://example.com/jobs/in-house-copywriter")
+    assert pipeline.not_a_hiring_post(
+        "Do you hire a copywriter or work in the field of copywriting?",
+        "Do any of you hire a copywriter or work in the field of copywriting?",
+        url="https://www.facebook.com/groups/2815042615255352/posts/8260190204073872/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "Do you hire a copywriter? We do. Apply here.",
+        url="https://example.com/jobs/copywriter-hire")
     assert not pipeline.not_a_hiring_post(
         "We're hiring a copywriter",
         "A checklist for your first week, and how to become comfortable with the brand voice")
