@@ -84,7 +84,8 @@
   CF.cleanPay = (text) => {
     const t = String(text || "").trim();
     if (!/\d/.test(t)) return "";
-    return /^[\d.,\s]+$/.test(t) ? `${Number(t.replace(/[,\s]/g, "")).toLocaleString()} (rate not stated)` : t;
+    if (/^[\d.,\s]+$/.test(t)) return `${Number(t.replace(/[,\s]/g, "")).toLocaleString("en-US")} (rate not stated)`;
+    return t.replace(/\d{4,}/g, (m) => Number(m).toLocaleString("en-US"));            // "$255000-$320000" reads as "$255,000-$320,000"
   };
   // Sign out and make sure it stuck: confirm with the server, try once more if the session is still there.
   CF.signOut = async () => {

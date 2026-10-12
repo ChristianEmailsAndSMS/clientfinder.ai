@@ -62,7 +62,7 @@ def test_app_page_needs_a_session_and_redirects_back_after_login(env):
 def test_assets_are_allow_listed_and_cached_briefly(env):
     for name in ("site.css", "common.js", "home.js", "login.js", "app.js"):
         r = env.client.get(f"/assets/{name}")
-        assert r.status_code == 200 and "max-age=300" in r.headers["cache-control"], name
+        assert r.status_code == 200 and "max-age=60" in r.headers["cache-control"], name
     for bad in ("../main.py", "..%2fmain.py", "app.html", "home.html", "app.js.map", ".env", "%2e%2e/config.py"):
         assert env.client.get(f"/assets/{bad}").status_code == 404, bad
 
