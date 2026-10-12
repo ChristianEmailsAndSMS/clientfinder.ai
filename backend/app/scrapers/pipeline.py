@@ -106,10 +106,12 @@ _ADVICE = re.compile(
     r"\d+ signs you(?:'re| are)? not)\b",
     re.I,
 )
-# Title only. A real job can say "how to become" in the description. These headlines are articles.
+# Title only. A real job can say "how to become" or "how to find ... jobs" in the description.
+# "How to find freelance email copywriting jobs?" is a person looking for work. These headlines are articles.
 # "Hiring a creative strategist?" is a question about the work, not an opening. "Hiring a strategist for a brand" is.
 _ADVICE_TITLE = re.compile(
     r"\b(?:how to become|how i(?:'d| would) become|checklist for hiring|how to get hired|how can i get hired)\b"
+    r"|^\s*how to find\b.{0,80}\bjobs?\b"
     r"|^\s*seeking advice\b"
     r"|^\s*advice on hiring\b"
     r"|^\s*job searches for\b"

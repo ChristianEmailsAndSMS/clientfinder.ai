@@ -1079,6 +1079,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We're hiring a creative strategist",
         "How I'd become a $150k creative strategist is a question in the interview, not the job.",
         url="https://example.com/jobs/creative-strategist")
+    assert pipeline.not_a_hiring_post(
+        "How to find freelance email copywriting jobs?",
+        "I am free and has been for sometime. Looking for new jobs.",
+        url="https://www.facebook.com/groups/copywritersclubhouse/posts/3455103341289563/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "How to find freelance email copywriting jobs is the wrong question. We are hiring one.",
+        url="https://example.com/jobs/copywriter")
     assert not pipeline.not_a_hiring_post(
         "We're hiring a copywriter",
         "A checklist for your first week, and how to become comfortable with the brand voice")
