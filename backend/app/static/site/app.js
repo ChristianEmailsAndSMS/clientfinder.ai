@@ -23,7 +23,7 @@
     const r = await api("GET", "/auth/me");
     if (!r.ok) { location.replace("/login?next=" + encodeURIComponent("/app")); return; }
     me = r.data;
-    buildHeader(); readUrl(); buildSort();
+    readUrl(); buildHeader(); buildSort();
     if (me.onboarded && !location.search) applyPrefs(me.prefs);                      // returning customers land on their own setup
     $("btn-run").addEventListener("click", () => openSearch());
     $("btn-credits").addEventListener("click", openCredits);
@@ -263,7 +263,7 @@
           return h("div", { class: "tiles" },
             tile("All of them", "Search job boards, social media and other websites at once", all, () => { if (all) draft.kinds.clear(); else kindsAll.forEach((k) => draft.kinds.add(k)); paint(); return !all; }),
             (facets.kinds || []).map((k) => tile(k.label, `${num(k.count)} jobs · ${KIND_HELP[k.value]}`, draft.kinds.has(k.value), () => { flip(draft.kinds, k.value)(); paint(); return draft.kinds.has(k.value); }))); },
-        ok: () => draft.kinds.size > 0, why: "Pick at least one place to look." },
+        ok: () => kindsAll.length === 0 || draft.kinds.size > 0, why: "Pick at least one place to look." },
     ];
     const root = clear($("modal-root"));
     const body = h("div", { class: "body" }), foot = h("div", { class: "row end mt20" });
@@ -438,14 +438,15 @@
     input.addEventListener("input", debounce(estimate, 350));
     input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !runBtn.disabled) runBtn.click(); });
 
-    let quote = null;
+    let quote = null, estSeq = 0;
     async function estimate() {
+      const seq = ++estSeq;                                  // only the newest estimate may update the screen
       quote = null; runBtn.disabled = true;
       const q = asSearch(input.value);
       willSearch.textContent = q ? `We will search for: “${q}”` : "";
-      if (q.length < 3) { info.textContent = `Type the service you sell. You have ${c.left_today} new searches left today.`; runBtn.textContent = "Run search"; return; }
+      if (input.value.trim().length < 3) { info.textContent = `Type the service you sell. You have ${c.left_today} new searches left today.`; runBtn.textContent = "Run search"; return; }
       const r = await api("POST", "/searches/estimate", { query: q, freshness: s.freshness, site: null });
-      if (asSearch(input.value) !== q) return;
+      if (seq !== estSeq) return;
       if (!r.ok) { info.textContent = detail(r); return; }
       quote = r.data;
       if (!quote.ready) { info.textContent = quote.reason; return; }
@@ -460,6 +461,7 @@
       runBtn.disabled = false;
     }
     runBtn.addEventListener("click", async () => {
+      if (input.value.trim().length < 3) return;
       runBtn.disabled = true; const q = asSearch(input.value);
       const r = await api("POST", "/searches", { query: q, freshness: s.freshness, site: null });
       if (!r.ok) { clear(out).append(h("div", { class: "sresult fail", text: detail(r) })); runBtn.disabled = false; return; }
