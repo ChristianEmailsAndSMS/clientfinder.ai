@@ -73,6 +73,10 @@ def build_scheduler() -> BlockingScheduler:
 
 def main() -> None:
     setup_logging()
+    from . import schema_check
+    from .config import settings
+    from .db import engine
+    schema_check.require_current(engine, settings.schema_check_strict)      # systemd restarts us until the migration is applied
     sched = build_scheduler()
     for job in sched.get_jobs():
         log.info("scheduled %s every %s", job.id, job.trigger)

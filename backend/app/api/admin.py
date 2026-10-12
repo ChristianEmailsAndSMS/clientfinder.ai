@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..db import get_db
-from .. import credits, whop
+from .. import credits, schema_check, whop
 from ..models import AuthEvent, CreditEntry, FailedUrl, Job, PaymentEvent, ScrapeRun, SearchQuery, Source, User, UserSearch
 from ..security import aware, csrf_guard, current_admin, log_event
 from ..scrapers import pipeline, query_plan
@@ -218,6 +218,7 @@ def overview(db: Session = Depends(get_db)) -> dict:
             charged += meta.get("charged_micro", 0)
             ours += meta["our_cost_micro"]
     return {
+        "schema": schema_check.check(db.get_bind()),
         "payments_waiting": payments_waiting,
         "customer_searches_30d": {"count": n, "charged_usd": credits.micro_to_usd(charged), "our_cost_usd": credits.micro_to_usd(ours),
                                   "margin_x": round(charged / ours, 3) if ours else None},

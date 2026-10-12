@@ -13,6 +13,9 @@ class Settings(BaseSettings):
 
     dev_fixtures: bool = False
 
+    # Refuse to start the API/scheduler when the database is behind the code (a migration was not applied). 0 = log CRITICAL and carry on.
+    schema_check_strict: bool = True
+
     serpapi_api_key: str = ""
     serper_api_key: str = ""
     google_search_provider: str = "serpapi"

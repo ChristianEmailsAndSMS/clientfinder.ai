@@ -98,6 +98,7 @@
            o.customer_searches_30d.margin_x != null && o.customer_searches_30d.margin_x < 1.5 ? "bad" : "good"),
     ));
     const problems = [];
+    if (o.schema && o.schema.state === "behind") problems.push(`Database is out of date (at ${o.schema.current || "no revision"}, code expects ${o.schema.head}). Run: ${o.schema.fix}`);
     if (o.sources.failing.length) problems.push("Failing sources: " + o.sources.failing.join(", "));
     if (o.sources.stale.length) problems.push("No recent run: " + o.sources.stale.join(", "));
     if (o.backups.status !== "ok") problems.push("Backups are " + o.backups.status);

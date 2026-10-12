@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi.responses import JSONResponse
 from fastapi import FastAPI, Request
 from .api.account import router as account_router
@@ -6,7 +8,9 @@ from .api.webhooks import router as webhooks_router
 from .api.assist import router as assist_router
 from .api.auth import router as auth_router
 from .api.dashboard import router as dashboard_router
+from . import schema_check
 from .config import settings
+from .db import engine
 from .logging_setup import setup_logging
 from .api.jobs import router as jobs_router
 from .api.public import router as public_router
@@ -15,8 +19,17 @@ from .api.searches import router as searches_router
 
 setup_logging()
 
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # A skipped `alembic upgrade head` after a pull must stop the deploy here, not 500 on a customer's first request.
+    schema_check.require_current(engine, settings.schema_check_strict)
+    yield
+
+
 # Interactive docs and the schema are an attack map. Off unless ENABLE_DOCS=1 (local dev).
 app = FastAPI(
+    lifespan=lifespan,
     title="Clientfinder.ai API", version="0.1.0",
     docs_url="/docs" if settings.enable_docs else None,
     redoc_url=None,
@@ -71,4 +84,9 @@ app.include_router(assist_router)
 
 @app.get("/health")
 def health():
-    return {"ok": True, "service": "clientfinder.ai"}
+    """200 only when the database schema matches the code. 503 means a migration was not applied (see the server log).
+    Revisions are not shown here (public); the admin overview has them."""
+    r = schema_check.check(engine)
+    ok = r["state"] != "behind"
+    body = {"ok": ok, "service": "clientfinder.ai", "schema": "ok" if ok else "behind"}
+    return JSONResponse(status_code=200 if ok else 503, content=body)

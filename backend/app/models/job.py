@@ -43,7 +43,7 @@ class Job(Base):
     __tablename__ = "jobs"
     __table_args__ = (
         UniqueConstraint("dedupe_hash", name="uq_jobs_dedupe_hash"),
-        # ix_jobs_posted_at / ix_jobs_type / ix_jobs_platform come from index=True on the columns (matches 0001)
+        # ix_jobs_posted_at / ix_jobs_type / ix_jobs_platform / ix_jobs_region come from index=True on the columns (matches 0001)
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -68,7 +68,7 @@ class Job(Base):
     experience_level: Mapped[str | None] = mapped_column(String(32), nullable=True)
     location: Mapped[str | None] = mapped_column(String(128), nullable=True)
     remote: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    region: Mapped[str | None] = mapped_column(String(100), nullable=True)   # space-separated app/geo.py band keys, from the location text
+    region: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)   # space-separated app/geo.py band keys, from the location text
     skills: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
 
     # Dates
