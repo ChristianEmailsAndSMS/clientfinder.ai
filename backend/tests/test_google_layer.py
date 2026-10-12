@@ -1385,7 +1385,8 @@ def test_known_url_skips_fetch_and_claude_and_new_url_is_stored(db, monkeypatch)
     assert (stats["added"], stats["updated"], stats["tokens_in"], stats["tokens_out"], stats["searched"]) == (1, 1, 10, 5, True)
     with db() as s:
         job = s.scalar(select(Job).where(Job.source_url == "https://example.org/job/2"))
-        assert job.extra == {"usage": {"input_tokens": 10, "output_tokens": 5}, "page_fetched": True}
+        assert job.extra == {"usage": {"input_tokens": 10, "output_tokens": 5}, "page_fetched": True,
+                         "found_url": "https://example.org/job/2"}
 
 
 def test_second_run_costs_nothing(db, monkeypatch):

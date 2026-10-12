@@ -14,7 +14,7 @@ limits, sources, payments, margin), Whop checkout and webhook, daily local backu
 0. [ ] **After pulling the swarm fixes (2026-10-12):** `alembic upgrade head` BEFORE restarting (the API now refuses to start on an old database), then `scripts/backfill_tags.py`, `scripts/recompute_platforms.py --apply`, Admin > regions rebuild. See `docs/SECURITY.md` section 10.
 1. [ ] **Deploy the latest** (`git pull`, `pip install`, `alembic upgrade head`, restart) and copy the new Caddy `request_body` block so screenshots work.
 2. [ ] **Real test purchase:** sign up as a customer, buy $27 on Whop, confirm the balance rises and the payment shows in `/admin/payments`. Fix field names if it is held.
-3. [ ] **Real test search** on the server (give yourself unlimited credits first); check SerpApi shows one search used and the dashboard margin reads about 1.50x.
+3. [ ] **Real test search** on the server (give yourself unlimited credits first); check SerpApi shows about 20 searches used (a default customer search is 20 Google searches; aim it at one site to use 1) and the dashboard margin reads about 1.50x.
 4. [ ] **Save `backend/.env` in a password manager** (it is not in GitHub). Then the **off-server encrypted database backup** (Backblaze B2 via rclone).
 5. [ ] **Server hardening:** SSH key-only, run as a non-root user, least-privilege database login (list at the bottom of this file).
 6. [ ] **Resend emails:** verify email, forgot password, "low credits" at 20%, welcome. Then a small welcome credit if you want one.

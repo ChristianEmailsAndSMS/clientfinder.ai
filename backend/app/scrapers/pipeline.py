@@ -305,14 +305,17 @@ def _flat(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", (text or "").lower()).strip()
 
 
+def _stem(word: str) -> str:
+    """copywriter/copywriting -> copywrit, marketer/marketing -> market, strategist/strategy -> strateg, builder/building -> build."""
+    return re.sub(r"(?:ists?|ers?|ing|ors?|y)$", "", word) if len(word) > 5 else word
+
+
 def _needle_in_title(needle: str, title_flat: str) -> bool:
-    """True when the query phrase is in the title. "email marketer" also matches "email marketing"."""
-    flat = _flat(needle)
-    forms = [flat]
-    marketing = flat.replace(" marketer", " marketing")
-    if marketing != flat:
-        forms.append(marketing)
-    return any(f" {form} " in title_flat for form in forms)
+    """True when the role words of the query are in the title, in order, ignoring the ending of each word.
+    "email marketer", "email marketing" and "Email Marketing Specialist" are the same role; so are copywriter and copywriting."""
+    want = [_stem(w) for w in _flat(needle).split()]
+    have = [_stem(w) for w in title_flat.split()]
+    return bool(want) and any(have[i:i + len(want)] == want for i in range(len(have) - len(want) + 1))
 
 
 def _remotive_opening(url: str) -> bool:
@@ -540,7 +543,7 @@ def _upsert_job(db: Session, source: Source, result: SearchResult, extracted: Ex
         source_key=source.key,
         is_real_job=extracted.is_real_job,
         extraction_model=(settings.extraction_model if not settings.dev_fixtures else "heuristic-mock"),
-        extra={"usage": extracted.usage, "page_fetched": fetched},
+        extra={"usage": extracted.usage, "page_fetched": fetched, "found_url": result.url},      # source_url may be the apply link the model chose
     )
     sp = db.begin_nested()
     try:
@@ -587,6 +590,10 @@ def _resolve_failure(db: Session, result: SearchResult) -> None:
 def _process(db: Session, source: Source, result: SearchResult, seen: set[str], stats: dict) -> None:
     h = result_hash(result)
     known = db.scalar(select(Job).where(Job.dedupe_hash == h))
+    if known and not_a_hiring_post(result.title, result.snippet, result.source_query, result.url):
+        # Stored before today's skip rules existed. A customer must not be handed (and told they "found") a row we would now refuse.
+        stats["skipped"] += 1
+        return
     if known:  # already stored (maybe by a direct feed): no fetch, no Claude call
         if h not in seen:
             known.last_seen_at = datetime.now(timezone.utc)

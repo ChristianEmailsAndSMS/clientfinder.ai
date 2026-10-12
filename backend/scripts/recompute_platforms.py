@@ -3,7 +3,8 @@
 Twitter/X because 'x.com' appeared inside the address). Jobs from direct sources (RemoteOK, Greenhouse...) are left alone.
 
     .venv/bin/python scripts/recompute_platforms.py            show what would change
-    .venv/bin/python scripts/recompute_platforms.py --apply    change it"""
+    .venv/bin/python scripts/recompute_platforms.py --apply    change it
+    --allow-web   also let old rows (no stored found_url) become "web"; read the list first"""
 import sys
 from collections import Counter
 from pathlib import Path
@@ -17,14 +18,24 @@ from app.models import Job  # noqa: E402
 from app.scrapers.google_search import _platform_from_url  # noqa: E402
 
 apply = "--apply" in sys.argv
+downgrade = "--allow-web" in sys.argv        # see below
 changes: Counter = Counter()
+skipped: Counter = Counter()
 with session_scope() as db:
     for job in db.scalars(select(Job).where(Job.source_key.like("google:%") | (Job.source_key == "usersearch"))).all():
-        new = _platform_from_url(job.source_url)
+        found = (job.extra or {}).get("found_url")        # the page the job was found on (stored since the swarm-2 fix)
+        new = _platform_from_url(found or job.source_url)
         if new != job.platform:
+            # Older rows only have source_url, which is the APPLY link when the model gave one (a Reddit or LinkedIn post that says
+            # "apply at forms.gle/...") - not the page we found it on. Never turn such a row into "web" unless asked to.
+            if not found and new == "web" and not downgrade:
+                skipped[(job.platform, new)] += 1
+                continue
             changes[(job.platform, new)] += 1
             if apply:
                 job.platform = new
 for (old, new), n in changes.most_common():
     print(f"{n:5}  {old} -> {new}")
+for (old, new), n in skipped.most_common():
+    print(f"{n:5}  {old} -> {new}  NOT changed (old row, link may be an apply link); add --allow-web to change these too")
 print(("Changed " if apply else "Would change ") + f"{sum(changes.values())} jobs." + ("" if apply else "  Add --apply to do it."))

@@ -73,7 +73,8 @@
     problogger: "ProBlogger", reddit: "Reddit", linkedin: "LinkedIn", twitter: "X / Twitter", facebook: "Facebook", linkedin_jobs: "LinkedIn Jobs", dynamite: "Dynamite Jobs", indeed: "Indeed", upwork: "Upwork", web: "Web", mediabistro: "Mediabistro",
     himalayas: "Himalayas", remotely: "Remotely", nodesk: "NoDesk", workingnomads: "Working Nomads", fourdayweek: "4 Day Week", workable: "Workable",
     contentjobs: "Content Jobs", jobspresso: "Jobspresso", creatorjobboard: "Creator Job Board", euremotejobs: "EU Remote Jobs", remoteco: "Remote.co",
-    remoterocketship: "Remote Rocketship", jobicy: "Jobicy" };
+    remoterocketship: "Remote Rocketship", jobicy: "Jobicy",
+    instagram: "Instagram", threads: "Threads", tiktok: "TikTok", youtube: "YouTube", bluesky: "Bluesky", wellfound: "Wellfound", smartrecruiters: "SmartRecruiters" };
   CF.TYPE = { full_time: "Full-time", contract: "Contract", hourly: "Hourly", fixed: "Fixed price", social_post: "Social post", part_time: "Part-time" };
   CF.platformBadge = (p) => h("span", { class: "plat " + String(p).replace(/[^a-z]/g, ""), text: CF.PLATFORM[p] || p });
 

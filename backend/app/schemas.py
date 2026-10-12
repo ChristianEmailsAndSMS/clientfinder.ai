@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import Path
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 # Primary keys are 32-bit integers in Postgres. An id above this cannot exist, and asking the database for one raises an
 # error (a 500) instead of "not found", so every id that arrives from a client is bounded here.
@@ -36,8 +36,7 @@ class JobOut(BaseModel):
     is_real_job: bool
     tags: list[str] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ExtractedJob(BaseModel):

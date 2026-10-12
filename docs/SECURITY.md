@@ -173,10 +173,10 @@ why). Correct it with an adjustment; never edit the table by hand (the app role 
 |---|---|
 | Bots mass-create accounts | 5 per IP per hour, 200 per hour overall, password policy, $0 starting credit (nothing to farm) |
 | Someone registers the owner's email | Blocked for every address in `ADMIN_EMAILS` |
-| A customer runs up our SerpAPI / Claude bill | Needs credit first (balance must cover the estimate), 20 new searches per day, one running search per user, 3 at once site-wide, the monthly search budget still applies, and the price is charged from the ledger |
+| A customer runs up our SerpAPI / Claude bill | Needs credit first (balance must cover the estimate), 20 new searches per day, one running search per user, 3 at once site-wide, the monthly search budget still applies, and the price is charged from the ledger. One default customer search is 20 Google searches (about $0.30 to us, about $0.66 to the customer), so one customer at the daily limit can use 400 Google searches a day if they have the credit |
 | Cache poisoning / one customer's search showing another's data | Cached results are shared jobs only; a search record is visible only to its owner (404 for anyone else) |
 | Search text abused to hit our servers | The text only goes to Google as a query. Fetching the result pages goes through the SSRF guard |
-| Double-charging | One ledger entry per search, `ref=usersearch:<id>`; a retry cannot charge twice. Failed searches charge nothing |
+| Double-charging | One ledger entry per search, `ref=usersearch:<id>`; a retry cannot charge twice. A search where every Google search failed charges nothing; if only some failed, only the ones that ran are charged and the customer is told the list may be incomplete. A search that timed out stops running more Google searches |
 | A customer reads other accounts | Every `/searches` and `/account` call is scoped to the signed-in user; admin-only data stays behind the 2FA admin check |
 | Open redirect after sign-in | `next=` accepts only same-site relative paths (tested) |
 | Stored XSS from scraped text | The interface never uses `innerHTML`; every value is inserted as text; strict CSP (no inline script/style). Enforced by tests that scan all scripts |

@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from . import credits
 from .config import settings
 from .db import session_scope
-from .models import Job, User, UserSearch, UserSearchJob
+from .models import User, UserSearch, UserSearchJob
 from . import pricing
 from .pricing import CREDIT_MARKUP
 from .scrapers import pipeline, query_plan
@@ -63,10 +63,6 @@ def clean_query(raw: str) -> str:
 
 def query_key(query: str, freshness: str, site: str | None) -> str:
     return f"{query.lower()}|{freshness}|{site or ''}"[:300]
-
-
-def full_query(query: str, site: str | None) -> str:
-    return f"{query} site:{site}" if site else query
 
 
 # ---------- prices ----------
@@ -237,6 +233,12 @@ def extraction_totals(calls: list[tuple[int, int]]) -> tuple[int, int]:
     return charge, int(ours.to_integral_value(ROUND_CEILING))
 
 
+def _still_running(search_id: int) -> bool:
+    with session_scope() as db:
+        s = db.get(UserSearch, search_id)
+        return s is not None and s.status == "running"
+
+
 def run_search(search_id: int) -> None:
     with session_scope() as db:
         s = db.get(UserSearch, search_id)
@@ -250,7 +252,12 @@ def run_search(search_id: int) -> None:
     try:
         failures: list[str] = []
         exhausted: set[str] = set()
-        for text in targets:
+        for i, text in enumerate(targets):
+            if i and not _still_running(search_id):
+                # expire_stale() already told the customer "Timed out. You were not charged." and released their one-search lock.
+                # Spending more Google searches and model calls on it would be money nobody pays for.
+                log.warning("user search %s was expired after %d of %d Google searches; stopping", search_id, i, len(targets))
+                return
             stats = pipeline.run_pipeline_for_query(text, num=settings.user_search_results, freshness=fresh,
                                                     source_key=SOURCE_KEY, source_label=SOURCE_LABEL, exhausted=exhausted)
             if stats.get("searched") and not stats.get("search_error") and not stats.get("error"):
@@ -262,6 +269,7 @@ def run_search(search_id: int) -> None:
                                           new_jobs=stats.get("added", 0), provider=stats.get("provider"))
             else:
                 failures.append(redact(stats.get("search_error") or stats.get("error") or "Search did not run"))
+        combined["failed_searches"], combined["planned_searches"] = len(failures), len(targets)
         if combined["searches_ok"] == 0:
             combined["searched"] = True
             combined["search_error"] = failures[0] if failures else "Search did not run"
@@ -272,6 +280,14 @@ def run_search(search_id: int) -> None:
             s = db.get(UserSearch, search_id)
             if s and s.status in ("queued", "running"):
                 s.status, s.error, s.finished_at = "failed", redact(f"Search failed: {type(e).__name__}. You were not charged."), utcnow()
+
+
+def _partial_note(stats: dict, ok: int) -> str | None:
+    """A finished search where some of the Google searches failed is still 'done', but the customer must be told the list is incomplete."""
+    bad = int(stats.get("failed_searches") or 0)
+    if not bad:
+        return None
+    return f"Only {ok} of {ok + bad} Google searches could run, so this list may be incomplete. You were charged only for the {ok} that ran."
 
 
 def _finish(search_id: int, user_id: int, stats: dict) -> None:
@@ -307,6 +323,7 @@ def _finish(search_id: int, user_id: int, stats: dict) -> None:
             for jid in ids:
                 db.add(UserSearchJob(search_id=search_id, job_id=jid))
             s.status, s.results_count, s.new_jobs, s.cost_micro = "done", len(ids), stats.get("added", 0), 0
+            s.error = _partial_note(stats, ok)
             return
         if total > 0:                                                  # a search that really cost nothing has no ledger row (apply() refuses 0)
             credits.apply(db, user_id, -total, "usage", f"Search: {s.query}"[:200], ref=f"usersearch:{search_id}", allow_negative=True,
@@ -316,3 +333,4 @@ def _finish(search_id: int, user_id: int, stats: dict) -> None:
         for jid in ids:
             db.add(UserSearchJob(search_id=search_id, job_id=jid))
         s.status, s.results_count, s.new_jobs, s.cost_micro = "done", len(ids), stats.get("added", 0), total
+        s.error = _partial_note(stats, ok)

@@ -479,8 +479,8 @@
   }
 
   async function follow(id, out, btn) {
-    clear(out).append(h("div", { class: "sresult mt16" }, h("span", { class: "spinner" }), " Searching the web and reading posts. This takes about a minute…"));
-    for (let i = 0; i < 120; i++) {
+    clear(out).append(h("div", { class: "sresult mt16" }, h("span", { class: "spinner" }), " Searching the web and reading posts. The searches run one after another, so this can take several minutes."));
+    for (let i = 0; i < 400; i++) {                        // about 10 minutes: the server gives up on a search after that (STALE_AFTER)
       const r = await api("GET", "/searches/" + id);
       if (!r.ok) { clear(out).append(h("div", { class: "sresult fail", text: detail(r) })); if (btn) btn.disabled = false; return; }
       if (r.data.status === "done" || r.data.status === "failed") { await showResult(r.data, out); if (btn) btn.disabled = false; refreshBalance(); return; }
@@ -495,7 +495,8 @@
     if (s.status === "failed") { out.append(h("div", { class: "sresult fail mt16", text: s.error || "The search failed. You were not charged." })); return; }
     const jobs = await api("GET", `/searches/${s.id}/jobs?limit=300`);
     out.append(h("div", { class: "sresult mt16" }, h("strong", { text: s.cached ? "Served from our database (free)" : `Found ${s.results} ${s.results === 1 ? "job" : "jobs"}${s.new_jobs ? `, ${s.new_jobs} new to the database` : ""}` }),
-      h("div", { class: "muted", text: s.cached ? "Someone searched this in the last few hours." : `Charged ${money(s.cost_usd, 4)}.` })));
+      h("div", { class: "muted", text: s.cached ? "Someone searched this in the last few hours." : `Charged ${money(s.cost_usd, 4)}.` }),
+      s.error ? h("div", { class: "muted", text: s.error }) : null));
     const list = h("div", { class: "mt16" });
     if (jobs.ok && jobs.data.length) for (const j of jobs.data) list.appendChild(jobCard(j));
     else list.appendChild(h("p", { class: "muted", text: "No jobs came back for this search. Try different words or a longer time window." }));

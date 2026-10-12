@@ -6,7 +6,6 @@ Dev mode (DEV_FIXTURES=1): reads a local JSON fixture — lets you iterate witho
 A query that says site:linkedin.com never keeps a result from another host. Google sometimes
 ignores site: and fills the page with job-board category URLs; those are not the search we ran."""
 import json
-from urllib.parse import urlparse
 import logging
 import re
 from pathlib import Path
@@ -42,7 +41,8 @@ def _checked(provider: str, r: httpx.Response) -> httpx.Response:
     """Turn a failed response into SearchError. Never include the request URL (it carries the key)."""
     status = getattr(r, "status_code", 200) or 200
     body = getattr(r, "text", "") or ""
-    if status == 429 or _quota_text(body):
+    # Only an error response can say "out of searches". A 200 page of results is Google's text (a snippet can say "quota exceeded").
+    if status == 429 or (status >= 400 and _quota_text(body)):
         raise SearchError(f"{provider} is out of searches", quota=True)
     if status >= 400:
         raise SearchError(f"{provider} HTTP {status}")
