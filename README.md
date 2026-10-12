@@ -13,13 +13,13 @@ Live at https://clientfinder.ai (FastAPI app on a VPS). For how it runs, how cha
 1. Query Google Search (SerpAPI / Serper.dev) for `"hiring copywriter"`, `"hiring email marketer"`, etc. — Google already indexes Twitter, Reddit, LinkedIn posts, blog hiring pages.
 2. Fetch each result URL with Playwright (handles JS-rendered pages).
 3. Feed the HTML to Claude, which extracts structured job data: title, company, pay, type, apply-URL, posted-at.
-4. Store in Postgres, serve via FastAPI, display in a Next.js frontend.
-5. Supplement with **direct ingestion** from durable sources that don't block us: RemoteOK, ProBlogger, Greenhouse/Lever boards, Upwork RSS.
+4. Store in Postgres, serve via FastAPI, and show it in a plain-JS site that FastAPI itself serves (no Next.js, no build step).
+5. Supplement with **direct ingestion** from durable sources that don't block us: RemoteOK, Remotive, We Work Remotely, ProBlogger, and Greenhouse/Lever/Ashby boards. (Upwork is only reached through the Google layer, not by RSS.)
 
 ## Local dev
 
 ```bash
-# 1. Start Postgres + Redis
+# 1. Start Postgres (docker-compose also starts a Redis container; the app does not use Redis yet)
 docker-compose up -d
 
 # 2. Backend
@@ -34,7 +34,7 @@ python scripts/run_pipeline.py --query "hiring copywriter"
 
 # 4. Boot the API
 uvicorn app.main:app --reload
-# → open http://localhost:8000/docs
+# → open http://localhost:8000/ . The interactive API docs at /docs are hidden (404) unless you set ENABLE_DOCS=1 in .env.
 ```
 
 See [CHECKLIST.md](CHECKLIST.md) for everything else.

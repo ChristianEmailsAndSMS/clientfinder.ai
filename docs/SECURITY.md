@@ -38,11 +38,11 @@ Each item below was reproduced or tested; the tests live in `backend/tests/` and
 
 ### Verified how
 
-- 293 automated tests (run `pytest` in `backend/`), including tampered/forged/expired/`alg=none` tokens, 2FA replay, lockout, CSRF, role checks, SSRF redirect
+- 385 automated tests at the last count (run `pytest` in `backend/`), including tampered/forged/expired/`alg=none` tokens, 2FA replay, lockout, CSRF, role checks, SSRF redirect
   to an internal host, secret redaction, and credit ledger invariants.
 - Mutation checks: I deliberately broke the 2FA replay check, session revocation, the admin email allow-list, the CSRF check
   and the ledger's overdraw guard; each break made a test fail.
-- On real PostgreSQL 16: all four migrations (and downgrade/upgrade round trip), 40 concurrent spends against a $1.00 balance
+- On real PostgreSQL 16 (at the time, migrations 0001-0004; 0005-0008 have not been round-tripped on Postgres by this review): the migrations (and downgrade/upgrade round trip), 40 concurrent spends against a $1.00 balance
   (exactly 20 accepted, balance 0, never negative), 30 simultaneous replays of one payment (credited once), 60 mixed
   operations (balance always equals the ledger sum), and the full browser account-creation flow in headless Chromium with no
   CSP violations.
@@ -55,16 +55,15 @@ Each item below was reproduced or tested; the tests live in `backend/tests/` and
   zero TTL could in theory differ between the two). The scraper only feeds an extractor and nothing it fetches is returned to a
   caller, so the realistic impact is small. Full removal needs connecting to the checked IP; revisit if the scraper is ever
   exposed to user-supplied URLs.
-- Whop payment webhooks: **not built**. Do not accept payments until the webhook is added with signature verification written
-  against Whop's own documentation (section 6).
+- Whop payment webhooks: now built (`app/whop.py`, signature + 5-minute window + dedupe by event id) but **never exercised with a real Whop payment**; field names are unverified (section 9).
 - A penetration test by a third party. This is a careful self-review, not a certification.
 
 ## 3. Authentication design (admin now, customers in Phase 4)
 
 - Passwords: argon2id; unknown emails burn the same work as known ones; generic error messages ("Invalid email, password or code").
-- 2FA: TOTP, secret encrypted at rest, each code usable once, +-30s drift. Mandatory for admins: an admin without 2FA cannot
-  sign in, and an admin session stops working if 2FA is switched off.
-- Admin = `is_admin` flag AND email in `ADMIN_EMAILS` AND 2FA on. All three, every request.
+- 2FA: TOTP, secret encrypted at rest, each code usable once, +-30s drift. Required for admins while `ADMIN_REQUIRE_2FA=1` (the code default): an admin without 2FA cannot
+  sign in. With `ADMIN_REQUIRE_2FA=0` (the owner's current choice, section 9) the admin account is password-only.
+- Admin = `is_admin` flag AND email in `ADMIN_EMAILS` AND 2FA on (the 2FA part is skipped when `ADMIN_REQUIRE_2FA=0`). Checked on every request.
 - Lockout: 5 failures locks the account 15 minutes; 20 failures from one IP in 10 minutes blocks that IP. Both are stored in the
   database, so a restart does not reset them. An attacker can use lockout to annoy you; clear it with
   `scripts/admin_cli.py unlock EMAIL`.
@@ -100,13 +99,13 @@ Each item below was reproduced or tested; the tests live in `backend/tests/` and
 6. Add `import cf_security` to the clientfinder.ai block of the Caddyfile (`deploy/Caddyfile.security.snippet`).
 7. SSH: key-only login (`PasswordAuthentication no` in `/etc/ssh/sshd_config.d/`; keep a second session open while you test);
    `apt install fail2ban unattended-upgrades`; `ufw delete allow 'Nginx Full'`.
-8. Install the hardened unit files and the backup timer (`deploy/*.service`, `deploy/*.timer`).
+8. Install the scheduler unit and the backup timer (`deploy/clientfinder-scheduler.service`, `deploy/clientfinder-backup.*`). There is no `clientfinder-api.service` in the repo: it exists only on the server (`systemctl cat clientfinder-api`).
 
 **Before launch**
 9. Run the services as a non-root user (below). Until then, keep `PLAYWRIGHT_FALLBACK` off.
 10. ~~`JOBS_REQUIRE_LOGIN`~~ is now on by default; the job feed needs an account.
 11. Off-server, encrypted backups (e.g. `rclone` to Backblaze B2 with a crypt remote) plus an alert when a backup fails.
-12. Whop webhook with signature verification and idempotent crediting (`credits.apply(..., ref=payment_id)` is ready for it).
+12. ~~Whop webhook~~ built; still needs one real test purchase.
 13. Email verification and password reset (Resend) for customers; then grant a small welcome credit and let the owner register normally.
 14. Pin dependency versions with hashes (`pip-compile --generate-hashes`) and run `pip-audit` in CI.
 15. Add API workers behind Caddy only after moving the rate limiter to Redis (it is per-process today).

@@ -1,7 +1,7 @@
 # Stack Decision Record
 
-Status: **Proposed**. Becomes final once the open items in `docs/INFRA.md` confirm no conflict
-with CopyProfit.ai / EmailProfit.ai.
+Status: **Decided and built** (see CHECKLIST.md, Phase 0): FastAPI + plain JS served by the API (no Next.js), Postgres, APScheduler (no Redis/RQ in use),
+Claude Haiku 5.5 extraction, SerpApi (Serper also supported), Whop, Resend (not sending yet). The table below is the original proposal and is partly out of date.
 
 ## Decision
 

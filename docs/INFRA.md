@@ -56,7 +56,7 @@ No Postgres or nginx on the host itself; databases are Docker-only.
 | 6380 | clientfinder_redis | localhost |
 
 Reserved for Clientfinder.ai: 8000 (API, in use), 5433 (Postgres), 6380 (Redis),
-**3010 for the Next.js frontend** (3000 is EmailProfit's).
+3010 was reserved for a Next.js frontend that was dropped (3000 is EmailProfit's).
 
 ## 5. Security findings
 
@@ -111,7 +111,7 @@ from `/root`; the plan to change that is in SECURITY.md section 4.
 | Where | `/var/backups/clientfinder/` on this VPS (dir mode 700, files 600) |
 | Verified | every dump is restored into a scratch database and its `jobs` rows counted before it is kept; a failed check fails the run (non-zero exit, nothing kept, `last_run.json` untouched) |
 | Retention | every backup for 14 days, plus the Sunday one for 8 weeks |
-| Status | `GET /admin/backups` (header `X-Admin-Token`): `ok` / `stale` (newest > 36h) / `none`; `last_run.json` next to the dumps |
+| Status | `GET /admin/backups` (signed-in admin session): `ok` / `stale` (newest > 36h) / `none`; `last_run.json` next to the dumps |
 | Script | `deploy/backup.sh` (bash, no dependency on the Python app) |
 
 Install (once):

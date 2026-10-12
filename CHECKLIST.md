@@ -72,11 +72,11 @@ The approach: Google is already indexing Twitter/X, Reddit, LinkedIn posts, rand
 - [ ] **Page fetcher**: Playwright on VPS (free, handles JS) OR Firecrawl API ($19/mo starter — cleaner but costs scale). Default to Playwright, fall back to Firecrawl when a site blocks us.
 - [ ] **For hostile sites** (LinkedIn in particular): optional **Bright Data** / **Apify** residential proxy integration. Add later if LinkedIn consistently fails from the VPS IP.
 - [x] **LLM extractor** (Claude Haiku 5.5, billed at 1.5x; was: Claude Sonnet or Haiku): single prompt that reads any page HTML and returns `{is_real_job, title, company_or_poster, pay, type, apply_url, posted_at, platform, raw_snippet}`. Haiku is cheaper per call; Sonnet is more accurate — benchmark both.
-- [x] **Durable sources, direct ingestion** (no Google needed, free): RemoteOK API, Remotive API, We Work Remotely RSS, ProBlogger, Mediabistro, Braintrust, Greenhouse/Lever/Ashby public boards filtered to copywriter/email/marketing, Upwork public RSS. These give us a clean baseline the Google-based layer can't miss.
+- [x] **Durable sources, direct ingestion** (no Google needed, free): RemoteOK API, Remotive API, We Work Remotely RSS, ProBlogger, Greenhouse/Lever/Ashby public boards filtered to copywriter/email/marketing. (Mediabistro, Braintrust and Upwork RSS are NOT built; Upwork posts only arrive through the Google layer.) These give us a clean baseline the Google-based layer can't miss.
 - [x] Dedupe (hash of normalized title + company + poster)
-- [x] Postgres schema: `jobs` + `sources` + `job_tags` + `search_queries` + `scrape_runs` + `failed_urls` (migrations 0001-0003, tested on Postgres 16)
+- [x] Postgres schema: `jobs` + `sources` + `job_tags` + `search_queries` + `scrape_runs` + `failed_urls` (migrations 0001-0008 now, which also add users, credit ledger, searches and payments; tested on Postgres 16)
 - [x] Scraper runs scheduled via **APScheduler** (`clientfinder-scheduler`) (hourly for Google-search layer, 4x/day for durable sources)
-- [x] Admin: "re-run source X now" + "requeue failed URLs" endpoints (`/admin/*`, X-Admin-Token; swap for real admin auth in Phase 2/6)
+- [x] Admin: "re-run source X now" + "requeue failed URLs" endpoints (`/admin/*`, behind the admin session login and CSRF header)
 
 ## Phase 2 — Backend API
 
