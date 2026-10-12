@@ -1233,6 +1233,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "What is creative strategy is covered in week one. We are hiring.",
         url="https://example.com/jobs/creative-strategist-what")
     assert pipeline.not_a_hiring_post(
+        "Creative strategist: What is it and why you [may] need it?",
+        "How popular is this role? Should apps consider this role?",
+        url="https://www.youtube.com/watch?v=b_wCaDhtVA0")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a creative strategist",
+        "What is it and why you need it comes up in the interview. We are hiring.",
+        url="https://example.com/jobs/creative-strategist-why")
+    assert pipeline.not_a_hiring_post(
         "Writer jobs - Get A Copywriter",
         "We provide copywriting services for a wide range of industries.",
         url="https://jobs.getacopywriter.com/")
