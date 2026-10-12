@@ -880,6 +880,22 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         query='hiring "landing page"',
         url="https://www.joveo.com/blog/recruiting-landing-page-builders/")
     assert pipeline.not_a_hiring_post(
+        "The 7 best landing page builders in 2026",
+        "Apps like Carrd, Kit, Instapage, and Leadpages can get you to a complete landing page in a matter of hours.",
+        url="https://zapier.com/blog/best-landing-page-builders/")
+    assert pipeline.not_a_hiring_post(
+        "7+ The Best Landing Page Agencies in 2026 | Most Picked.",
+        "7+ landing page agencies that design engaging, high-performing pages.",
+        url="https://www.landingpageflow.com/blog/the-best-landing-page-agencies-to-drive-smarter")
+    assert pipeline.not_a_hiring_post(
+        "The 23 Best B2B Landing Page Agencies for 2026",
+        "1. Directive. 2. Apexure. 3. Linear.",
+        url="https://directiveconsulting.com/blog/blog-best-landing-page-agencies/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a landing page designer",
+        "We compared the 7 best agencies first. Apply if you build landers.",
+        url="https://example.com/jobs/landing-page-designer")
+    assert pipeline.not_a_hiring_post(
         "8 Mistakes DTC Brands Make When Hiring a Creative Strategist",
         "Over-indexing on beautiful portfolios is one of the most common mistakes hiring creative strategist candidates.",
         url="https://www.constanthire.com/posts/8-mistakes-dtc-brands-make-when-hiring-a-creative-strategist")
