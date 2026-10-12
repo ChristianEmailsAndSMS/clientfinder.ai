@@ -231,8 +231,11 @@ def _finish(search_id: int, user_id: int, text: str, fresh: str, stats: dict) ->
             return
         query_plan.log_search(db, query_plan.QuerySpec(text, fresh), results=stats.get("search_hits", 0), new_jobs=stats.get("added", 0))
         tin, tout = stats.get("tokens_in", 0), stats.get("tokens_out", 0)
-        extraction = credits.usage_cost_micro(settings.extraction_model, tin, tout) if (tin or tout) else 0
-        our_extraction = pricing.cost_micro(settings.extraction_model, tin, tout) if (tin or tout) else 0
+        calls = stats.get("calls") or ([(tin, tout)] if (tin or tout) else [])      # priced one call at a time (long-prompt rate is per call)
+        extraction = pricing.calls_charge_micro(settings.extraction_model, calls)
+        our_extraction = pricing.calls_cost_micro(settings.extraction_model, calls)
+        if extraction is None or our_extraction is None:
+            raise ValueError(f"no price for model {settings.extraction_model!r}; refusing to charge a guess")
         fee, our_cost = search_fee_micro(), our_search_cost_micro() + our_extraction
         # The customer pays at least CREDIT_MARKUP x what the search really cost us (the floor is belt and braces: the two parts
         # already round up individually).
@@ -244,9 +247,10 @@ def _finish(search_id: int, user_id: int, text: str, fresh: str, stats: dict) ->
                 db.add(UserSearchJob(search_id=search_id, job_id=jid))
             s.status, s.results_count, s.new_jobs, s.cost_micro = "done", len(ids), stats.get("added", 0), 0
             return
-        credits.apply(db, user_id, -total, "usage", f"Search: {s.query}"[:200], ref=f"usersearch:{search_id}", allow_negative=True,
-                      meta={"search_id": search_id, "fee_micro": fee, "extraction_micro": extraction, "our_cost_micro": our_cost,
-                            "charged_micro": total, "tokens_in": tin, "tokens_out": tout, "model": settings.extraction_model})
+        if total > 0:                                                  # a search that really cost nothing has no ledger row (apply() refuses 0)
+            credits.apply(db, user_id, -total, "usage", f"Search: {s.query}"[:200], ref=f"usersearch:{search_id}", allow_negative=True,
+                          meta={"search_id": search_id, "fee_micro": fee, "extraction_micro": extraction, "our_cost_micro": our_cost,
+                                "charged_micro": total, "tokens_in": tin, "tokens_out": tout, "model": settings.extraction_model})
         ids = sorted(set(stats.get("job_ids", [])))
         for jid in ids:
             db.add(UserSearchJob(search_id=search_id, job_id=jid))

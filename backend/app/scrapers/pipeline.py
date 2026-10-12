@@ -149,6 +149,7 @@ def _process(db: Session, source: Source, result: SearchResult, seen: set[str], 
     if extracted.usage:
         stats["tokens_in"] += extracted.usage.get("input_tokens", 0)
         stats["tokens_out"] += extracted.usage.get("output_tokens", 0)
+        stats["calls"].append((extracted.usage.get("input_tokens", 0), extracted.usage.get("output_tokens", 0)))
     if not extracted.is_real_job:
         stats["skipped"] += 1
         _resolve_failure(db, result)
@@ -173,6 +174,7 @@ def _run_one(db: Session, source: Source, result: SearchResult, seen: set[str], 
         if e.usage:                                          # the model WAS called: those tokens cost money, so they are counted
             stats["tokens_in"] += e.usage.get("input_tokens", 0)
             stats["tokens_out"] += e.usage.get("output_tokens", 0)
+            stats["calls"].append((e.usage.get("input_tokens", 0), e.usage.get("output_tokens", 0)))
         _record_failure(db, source.key, result, f"extraction: {e}")
     except Exception as e:
         log.exception("pipeline row failed: %s", e)
@@ -182,7 +184,7 @@ def _run_one(db: Session, source: Source, result: SearchResult, seen: set[str], 
 
 def _new_stats(query: str) -> dict:
     return {"query": query, "searched": False, "search_hits": 0, "extracted": 0, "added": 0, "updated": 0,
-            "skipped": 0, "errors": 0, "tokens_in": 0, "tokens_out": 0, "job_ids": []}
+            "skipped": 0, "errors": 0, "tokens_in": 0, "tokens_out": 0, "calls": [], "job_ids": []}
 
 
 def _live_ready(stats: dict, what: str) -> bool:

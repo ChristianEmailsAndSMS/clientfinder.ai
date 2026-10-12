@@ -211,17 +211,21 @@ def overview(db: Session = Depends(get_db)) -> dict:
     users = db.scalar(select(func.count(User.id)).where(User.is_admin.is_(False))) or 0
     liability = db.scalar(select(func.coalesce(func.sum(User.balance_micro), 0)).where(User.is_admin.is_(False))) or 0
     used = query_plan.searches_used_this_month(db)
-    charged = ours = n = 0
+    tot = {"search": [0, 0, 0], "draft": [0, 0, 0]}             # count, charged, our cost: searches and Pitch help drafts kept apart
     for (meta,) in db.execute(select(CreditEntry.meta).where(CreditEntry.kind == "usage", CreditEntry.created_at >= now - timedelta(days=30)).limit(20000)):
         if meta and meta.get("our_cost_micro"):
-            n += 1
-            charged += meta.get("charged_micro", 0)
-            ours += meta["our_cost_micro"]
+            t = tot["search" if "search_id" in meta else "draft"]
+            t[0] += 1
+            t[1] += meta.get("charged_micro", 0)
+            t[2] += meta["our_cost_micro"]
+    (n, charged, ours), (dn, dcharged, dours) = tot["search"], tot["draft"]
     return {
         "schema": schema_check.check(db.get_bind()),
         "payments_waiting": payments_waiting,
         "customer_searches_30d": {"count": n, "charged_usd": credits.micro_to_usd(charged), "our_cost_usd": credits.micro_to_usd(ours),
                                   "margin_x": round(charged / ours, 3) if ours else None},
+        "pitch_drafts_30d": {"count": dn, "charged_usd": credits.micro_to_usd(dcharged), "our_cost_usd": credits.micro_to_usd(dours),
+                             "margin_x": round(dcharged / dours, 3) if dours else None},
         "jobs": {"total": total_jobs, "new_24h": new_24h},
         "sources": {"count": len(srcs), "failing": failing, "stale": stale},
         "failed_urls_pending": pending_failed,
@@ -254,10 +258,14 @@ def list_users(q: str | None = Query(None, max_length=100), limit: int = Query(1
     if q:
         stmt = stmt.where(User.email.ilike(f"%{q.strip().lower()}%"))
     users = db.scalars(stmt).all()
-    stats = {uid: (n, spent) for uid, n, spent in db.execute(
-        select(UserSearch.user_id, func.count(UserSearch.id), func.coalesce(func.sum(UserSearch.cost_micro), 0))
-        .where(UserSearch.user_id.in_([u.id for u in users]), UserSearch.status == "done", UserSearch.cached.is_(False)).group_by(UserSearch.user_id))}
-    return [{**_user_row(u), "searches": stats.get(u.id, (0, 0))[0], "spent_usd": credits.micro_to_usd(int(stats.get(u.id, (0, 0))[1]))} for u in users]
+    ids = [u.id for u in users]
+    stats = {uid: n for uid, n in db.execute(
+        select(UserSearch.user_id, func.count(UserSearch.id))
+        .where(UserSearch.user_id.in_(ids), UserSearch.status == "done", UserSearch.cached.is_(False)).group_by(UserSearch.user_id))}
+    spent = {uid: int(s) for uid, s in db.execute(          # everything they were charged: searches AND Pitch help drafts (ledger is the truth)
+        select(CreditEntry.user_id, func.coalesce(func.sum(-CreditEntry.delta_micro), 0))
+        .where(CreditEntry.user_id.in_(ids), CreditEntry.kind == "usage").group_by(CreditEntry.user_id))}
+    return [{**_user_row(u), "searches": stats.get(u.id, 0), "spent_usd": credits.micro_to_usd(spent.get(u.id, 0))} for u in users]
 
 
 @router.get("/users/{user_id}/ledger")

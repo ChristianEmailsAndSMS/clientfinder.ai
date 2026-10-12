@@ -40,8 +40,9 @@ def main() -> int:
 
     with session_scope() as db:
         usage = db.execute(select(CreditEntry.meta).where(CreditEntry.kind == "usage", CreditEntry.created_at >= since)).all()
-    charged = sum((m or {}).get("charged_micro", 0) for (m,) in usage)
-    ours = sum((m or {}).get("our_cost_micro", 0) for (m,) in usage)
+    sm = [m for (m,) in usage if m and "search_id" in m]                # customer SEARCHES only (Pitch help drafts have no search_id)
+    charged = sum(m.get("charged_micro", 0) for m in sm)
+    ours = sum(m.get("our_cost_micro", 0) for m in sm)
     ok = [q for q in searches if q.error is None]  # rows: (query_key, new_jobs, error)
     search_usd = len(ok) * per_search
     tin = tout = 0
@@ -62,11 +63,12 @@ def main() -> int:
     print(f"== since {since:%Y-%m-%d}")
     print(f"searches: {len(ok)} ok, {len(searches) - len(ok)} failed  -> ${search_usd:.2f} at ${per_search:.4f}/search")
     print(f"new jobs: {total_jobs} total, {llm_jobs} via Claude extraction")
-    print(f"extraction: {tin:,} in / {tout:,} out tokens -> ${ext_usd:.2f}" + (f"  ({unpriced} jobs on unpriced models)" if unpriced else ""))
+    print(f"extraction (stored jobs only; pages the model read but did not store are not recorded, so this is a LOWER BOUND): "
+          f"{tin:,} in / {tout:,} out tokens -> ${ext_usd:.2f}" + (f"  ({unpriced} jobs on unpriced models)" if unpriced else ""))
     note = " (Claude-extracted rows only; stored rows that cost nothing are not counted)"
     print(f"approx extraction cost per Claude-extracted job: ${ext_usd / llm_jobs:.4f}{note}" if llm_jobs else "no Claude-extracted jobs yet")
     spend = search_usd + ext_usd
-    print(f"total scraping spend: ${spend:.2f}  ->  ${spend / total_jobs:.3f} per new job" if total_jobs else "no jobs yet")
+    print(f"total scraping spend (at least): ${spend:.2f}  ->  at least ${spend / total_jobs:.3f} per new job" if total_jobs else "no jobs yet")
 
     if ours:
         print(f"\ncustomer searches this month: charged ${charged / 1e6:.4f} for ${ours / 1e6:.4f} of real cost = {charged / ours:.3f}x (target 1.5x)")

@@ -56,6 +56,28 @@ def charge_micro(model: str | None, input_tokens: int, output_tokens: int) -> in
     return None if c is None else int((c * _MARKUP).to_integral_value(ROUND_CEILING))
 
 
+def calls_cost_micro_exact(model: str | None, calls) -> Decimal | None:
+    """Exact cost of SEVERAL separate model calls, each priced on its own (the long-prompt rate card depends on ONE call's input size,
+    never on the sum over a search). `calls` is an iterable of (input_tokens, output_tokens)."""
+    total = Decimal(0)
+    for tin, tout in calls:
+        c = cost_micro_exact(model, tin, tout)
+        if c is None:
+            return None
+        total += c
+    return total
+
+
+def calls_cost_micro(model: str | None, calls) -> int | None:
+    c = calls_cost_micro_exact(model, calls)
+    return None if c is None else int(c.to_integral_value(ROUND_CEILING))
+
+
+def calls_charge_micro(model: str | None, calls) -> int | None:
+    c = calls_cost_micro_exact(model, calls)
+    return None if c is None else int((c * _MARKUP).to_integral_value(ROUND_CEILING))
+
+
 def cost_usd(model: str | None, input_tokens: int, output_tokens: int) -> float | None:
     c = cost_micro(model, input_tokens, output_tokens)
     return None if c is None else c / 1_000_000
