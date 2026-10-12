@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Query, Response
-from sqlalchemy import func, or_, select
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
 from .. import geo, platforms
@@ -13,11 +13,24 @@ from ..tagging import tag_counts
 
 router = APIRouter(prefix="/jobs", tags=["jobs"], dependencies=[Depends(public_guard)])
 
+HOURS_PER_YEAR = 2080            # 40 h x 52 weeks: the usual convention for putting an hourly rate next to a salary
+
+
+def _yearly(amount):
+    """A pay figure on a common per-year scale so $50/hour and $90,000/year can be ordered. Per-project pay and jobs with no
+    period have no yearly equivalent: they get NULL and sort last (never mixed in as if a $500 project were $500 a year)."""
+    return case((Job.pay_period == "hour", amount * HOURS_PER_YEAR), (Job.pay_period == "year", amount), else_=None)
+
+
+# "$50+/hr" has only a minimum and "up to $40/hr" only a maximum, so each side falls back to the figure that exists.
+_PAY_TOP = func.coalesce(Job.pay_max, Job.pay_min)
+_PAY_BOTTOM = func.coalesce(Job.pay_min, Job.pay_max)
+
 SORTS = {
     "newest": lambda: (Job.first_seen_at.desc(), Job.id.desc()),
     "oldest": lambda: (Job.first_seen_at.asc(), Job.id.asc()),
-    "pay_high": lambda: (Job.pay_max.desc().nulls_last(), Job.first_seen_at.desc()),
-    "pay_low": lambda: (Job.pay_min.asc().nulls_last(), Job.first_seen_at.desc()),
+    "pay_high": lambda: (_yearly(_PAY_TOP).desc().nulls_last(), Job.first_seen_at.desc(), Job.id.desc()),
+    "pay_low": lambda: (_yearly(_PAY_BOTTOM).asc().nulls_last(), Job.first_seen_at.desc(), Job.id.desc()),
 }
 
 
@@ -62,6 +75,9 @@ def list_jobs(
     limit: int = Query(30, ge=1, le=100),
     offset: int = Query(0, ge=0, le=10_000),
 ):
+    if (min_pay is not None or max_pay is not None) and not pay_period:
+        # $40 an hour and $40,000 a year are not comparable numbers: make the caller say which one they mean.
+        raise HTTPException(422, "Choose a pay period (hour, year or project) to filter by minimum or maximum pay")
     conds = [Job.is_real_job.is_(True)]
     if q and q.strip():
         like = _like(q.strip())
@@ -86,9 +102,9 @@ def list_jobs(
     if pay_period:
         conds.append(Job.pay_period == pay_period)
     if min_pay is not None:
-        conds.append(Job.pay_max >= min_pay)
+        conds.append(_PAY_TOP >= min_pay)
     if max_pay is not None:
-        conds.append(Job.pay_min <= max_pay)
+        conds.append(_PAY_BOTTOM <= max_pay)
     if has_pay:
         conds.append(or_(Job.pay_min.is_not(None), Job.pay_max.is_not(None), Job.pay_text.is_not(None)))
     if remote is not None:
@@ -147,7 +163,8 @@ def job_tags(db: Session = Depends(get_db)) -> list[dict]:
 
 @router.get("/stats")
 def job_stats(db: Session = Depends(get_db)) -> dict:
-    total = db.scalar(select(func.count(Job.id))) or 0
-    by_platform = dict(db.execute(select(Job.platform, func.count(Job.id)).group_by(Job.platform)).all())
-    by_type = dict(db.execute(select(Job.type, func.count(Job.id)).group_by(Job.type)).all())
+    real = Job.is_real_job.is_(True)                # same population as /jobs, /jobs/facets and /public/stats
+    total = db.scalar(select(func.count(Job.id)).where(real)) or 0
+    by_platform = dict(db.execute(select(Job.platform, func.count(Job.id)).where(real).group_by(Job.platform)).all())
+    by_type = {t: n for t, n in db.execute(select(Job.type, func.count(Job.id)).where(real, Job.type.is_not(None)).group_by(Job.type)).all()}
     return {"total": total, "by_platform": by_platform, "by_type": by_type}

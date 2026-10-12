@@ -1,5 +1,14 @@
 from datetime import datetime
+from typing import Annotated
+
+from fastapi import Path
 from pydantic import BaseModel, Field
+
+# Primary keys are 32-bit integers in Postgres. An id above this cannot exist, and asking the database for one raises an
+# error (a 500) instead of "not found", so every id that arrives from a client is bounded here.
+MAX_DB_ID = 2**31 - 1
+PathId = Annotated[int, Path(ge=1, le=MAX_DB_ID)]
+BodyId = Annotated[int, Field(ge=1, le=MAX_DB_ID)]
 
 
 class JobOut(BaseModel):

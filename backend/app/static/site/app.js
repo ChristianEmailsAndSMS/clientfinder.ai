@@ -98,10 +98,16 @@
     if (topics.length) root.appendChild(section("Topics (must have all)", h("div", { class: "chips mt12" },
       topics.map((t) => { const b = h("button", { type: "button", class: "chip" + (state.tags.has(t.value) ? " on" : ""), text: `${t.value} ${num(t.count)}` }); b.addEventListener("click", () => toggle(state.tags, t.value, b)); return b; }))));
 
-    const minPay = h("input", { class: "input", type: "number", min: "0", step: "1", placeholder: "Minimum pay", value: state.minPay, "aria-label": "Minimum pay" });
+    // $40 an hour and $40,000 a year cannot be compared, so the minimum only works once a pay period is chosen.
+    const minPay = h("input", { class: "input", type: "number", min: "0", step: "1", placeholder: state.payPeriod ? "Minimum pay" : "Pick a pay period first", value: state.minPay, "aria-label": "Minimum pay", disabled: !state.payPeriod });
     minPay.addEventListener("input", debounce(() => { state.minPay = minPay.value; loadJobs(true); }, 350));
     const per = h("select", { class: "input", "aria-label": "Pay period" }, [["", "Any pay period"], ["hour", "Per hour"], ["year", "Per year"], ["project", "Per project"]].map(([v, l]) => h("option", { value: v, text: l, selected: v === state.payPeriod })));
-    per.addEventListener("change", () => { state.payPeriod = per.value; loadJobs(true); });
+    per.addEventListener("change", () => {
+      state.payPeriod = per.value;
+      minPay.disabled = !per.value; minPay.placeholder = per.value ? "Minimum pay" : "Pick a pay period first";
+      if (!per.value) { state.minPay = ""; minPay.value = ""; }
+      loadJobs(true);
+    });
     root.appendChild(section("Pay", check("Only jobs that list pay", null, state.hasPay, (on) => { state.hasPay = on; loadJobs(true); }), per, minPay));
 
     root.appendChild(h("div", { class: "fsec" }, h("button", { class: "btn sm w100", type: "button", text: "Clear all filters", onclick: () => { resetFilters(); buildFilters(); loadJobs(true); } })));
@@ -149,7 +155,7 @@
     const p = new URLSearchParams(location.search);
     state.q = p.get("q") || ""; state.remote = ["true", "false"].includes(p.get("remote")) ? p.get("remote") : "";
     state.hasPay = p.get("has_pay") === "true"; state.payPeriod = ["hour", "year", "project"].includes(p.get("pay_period")) ? p.get("pay_period") : "";
-    state.minPay = /^\d+(\.\d+)?$/.test(p.get("min_pay") || "") ? p.get("min_pay") : "";
+    state.minPay = state.payPeriod && /^\d+(\.\d+)?$/.test(p.get("min_pay") || "") ? p.get("min_pay") : "";
     state.posted = ["1", "7", "30"].includes(p.get("posted_within_days")) ? p.get("posted_within_days") : "";
     state.sort = SORTS.some(([v]) => v === p.get("sort")) ? p.get("sort") : "newest";
     state.location = (p.get("location") || "").slice(0, 60); state.worldwide = p.get("include_worldwide") !== "false";

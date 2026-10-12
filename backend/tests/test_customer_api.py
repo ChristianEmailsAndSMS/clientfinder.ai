@@ -90,7 +90,8 @@ def test_search_text_is_literal_so_percent_and_underscore_do_not_match_everythin
 
 def test_sorting_puts_missing_pay_last(seeded):
     c = seeded
-    assert titles(c.get("/jobs?sort=pay_high"))[:2] == ["Senior Email Marketing Manager", "Direct Response Copywriter"]
+    # $60/hr is about $124.8k a year (2080 h), which is more than $120k a year: pay is ordered on a common yearly scale
+    assert titles(c.get("/jobs?sort=pay_high"))[:2] == ["Direct Response Copywriter", "Senior Email Marketing Manager"]
     assert titles(c.get("/jobs?sort=oldest"))[0] == "Funnel Designer"
     assert titles(c.get("/jobs?sort=newest"))[0] == "Senior Email Marketing Manager"
 

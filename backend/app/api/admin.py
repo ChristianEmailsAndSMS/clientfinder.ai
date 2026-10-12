@@ -22,6 +22,7 @@ from ..security import aware, csrf_guard, current_admin, log_event
 from ..scrapers import pipeline, query_plan
 from ..scrapers.registry import DURABLE
 from ..security import admin_emails
+from ..schemas import BodyId, PathId
 from ..tagging import retag
 
 
@@ -152,7 +153,7 @@ def failed_urls(status: str = Query("pending", pattern="^(pending|dead|resolved|
 
 
 class RequeueBody(BaseModel):
-    ids: list[int] | None = Field(None, description="specific rows (even dead ones); omit for all pending")
+    ids: list[BodyId] | None = Field(None, max_length=500, description="specific rows (even dead ones); omit for all pending")
     limit: int = Field(50, ge=1, le=500)
 
 
@@ -269,7 +270,7 @@ def list_users(q: str | None = Query(None, max_length=100), limit: int = Query(1
 
 
 @router.get("/users/{user_id}/ledger")
-def user_ledger(user_id: int, limit: int = Query(100, ge=1, le=500), db: Session = Depends(get_db)) -> dict:
+def user_ledger(user_id: PathId, limit: int = Query(100, ge=1, le=500), db: Session = Depends(get_db)) -> dict:
     u = _get_user(db, user_id)
     rows = db.scalars(select(CreditEntry).where(CreditEntry.user_id == user_id).order_by(CreditEntry.id.desc()).limit(limit)).all()
     return {"user": _user_row(u), "entries": [
@@ -285,7 +286,7 @@ class CreditAdjust(BaseModel):
 
 
 @router.post("/users/{user_id}/credits")
-def adjust_credits(user_id: int, body: CreditAdjust, request: Request, admin: User = Depends(current_admin),
+def adjust_credits(user_id: PathId, body: CreditAdjust, request: Request, admin: User = Depends(current_admin),
                    db: Session = Depends(get_db)) -> dict:
     u = _get_user(db, user_id)
     try:
@@ -312,7 +313,7 @@ class LimitsBody(BaseModel):
 
 
 @router.post("/users/{user_id}/limits")
-def set_limits(user_id: int, body: LimitsBody, request: Request, admin: User = Depends(current_admin), db: Session = Depends(get_db)) -> dict:
+def set_limits(user_id: PathId, body: LimitsBody, request: Request, admin: User = Depends(current_admin), db: Session = Depends(get_db)) -> dict:
     u = _get_user(db, user_id)
     changes = []
     if body.unlimited is not None:
@@ -331,7 +332,7 @@ class ActiveBody(BaseModel):
 
 
 @router.post("/users/{user_id}/active")
-def set_active(user_id: int, body: ActiveBody, request: Request, admin: User = Depends(current_admin), db: Session = Depends(get_db)) -> dict:
+def set_active(user_id: PathId, body: ActiveBody, request: Request, admin: User = Depends(current_admin), db: Session = Depends(get_db)) -> dict:
     u = _get_user(db, user_id)
     if u.id == admin.id:
         raise HTTPException(409, "You cannot suspend your own account")
@@ -344,7 +345,7 @@ def set_active(user_id: int, body: ActiveBody, request: Request, admin: User = D
 
 
 @router.post("/users/{user_id}/unlock")
-def unlock_user(user_id: int, request: Request, admin: User = Depends(current_admin), db: Session = Depends(get_db)) -> dict:
+def unlock_user(user_id: PathId, request: Request, admin: User = Depends(current_admin), db: Session = Depends(get_db)) -> dict:
     u = _get_user(db, user_id)
     u.locked_until, u.failed_logins = None, 0
     log_event(db, "user_unlocked", request, user=admin, detail=f"user {u.id}")
@@ -353,7 +354,7 @@ def unlock_user(user_id: int, request: Request, admin: User = Depends(current_ad
 
 
 @router.post("/users/{user_id}/logout-everywhere")
-def kick_user(user_id: int, request: Request, admin: User = Depends(current_admin), db: Session = Depends(get_db)) -> dict:
+def kick_user(user_id: PathId, request: Request, admin: User = Depends(current_admin), db: Session = Depends(get_db)) -> dict:
     u = _get_user(db, user_id)
     u.session_version += 1
     log_event(db, "user_kicked", request, user=admin, detail=f"user {u.id}")
@@ -373,7 +374,7 @@ def security_events(limit: int = Query(100, ge=1, le=500), event: str | None = Q
 
 # ---------- payments ----------
 class ResolveBody(BaseModel):
-    user_id: int
+    user_id: BodyId
 
 
 @router.get("/payments")
@@ -387,7 +388,7 @@ def payments(status: str | None = None, limit: int = Query(50, ge=1, le=200), db
 
 
 @router.post("/payments/{event_id}/credit")
-def credit_payment(event_id: int, body: ResolveBody, request: Request, admin: User = Depends(current_admin), db: Session = Depends(get_db)) -> dict:
+def credit_payment(event_id: PathId, body: ResolveBody, request: Request, admin: User = Depends(current_admin), db: Session = Depends(get_db)) -> dict:
     ev = db.get(PaymentEvent, event_id)
     if not ev or not db.get(User, body.user_id):
         raise HTTPException(404, "No such payment or user")

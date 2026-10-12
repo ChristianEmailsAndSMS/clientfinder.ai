@@ -11,7 +11,7 @@ from .. import credits, live_search
 from ..config import settings
 from ..db import get_db
 from ..models import Job, User, UserSearch, UserSearchJob
-from ..schemas import JobOut
+from ..schemas import JobOut, PathId
 from ..security import csrf_guard, current_user, rate_limit_guard
 from .jobs import serialize_jobs
 
@@ -79,14 +79,14 @@ def _mine(db: Session, user: User, search_id: int) -> UserSearch:
 
 
 @router.get("/{search_id}")
-def one(search_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
+def one(search_id: PathId, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
     live_search.expire_stale(db)
     db.commit()
     return _row(_mine(db, user, search_id))
 
 
 @router.get("/{search_id}/jobs", response_model=list[JobOut])
-def jobs(search_id: int, limit: int = Query(50, ge=1, le=100), user: User = Depends(current_user), db: Session = Depends(get_db)):
+def jobs(search_id: PathId, limit: int = Query(50, ge=1, le=100), user: User = Depends(current_user), db: Session = Depends(get_db)):
     s = _mine(db, user, search_id)
     rows = db.scalars(select(Job).join(UserSearchJob, UserSearchJob.job_id == Job.id)
                       .where(UserSearchJob.search_id == s.id, Job.is_real_job.is_(True))

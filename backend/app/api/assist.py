@@ -8,6 +8,7 @@ from .. import assist, credits
 from ..config import settings
 from ..db import get_db
 from ..models import User
+from ..schemas import MAX_DB_ID
 from ..security import csrf_guard, current_user, rate_limit_guard
 
 router = APIRouter(prefix="/assist", tags=["assist"], dependencies=[Depends(rate_limit_guard)])
@@ -15,7 +16,7 @@ router = APIRouter(prefix="/assist", tags=["assist"], dependencies=[Depends(rate
 
 class AssistBody(BaseModel):
     mode: str = Field(max_length=20)
-    job_id: int | None = None
+    job_id: int | None = Field(None, ge=0, le=MAX_DB_ID)
     job_text: str = Field("", max_length=4000)
     thread: str = Field("", max_length=5000)
     image_b64: str | None = Field(None, max_length=4_400_000)       # about 3 MB of image
