@@ -214,3 +214,4 @@ button.tile.bundle{font:inherit;color:var(--ink);align-items:flex-start}button.t
 /* phones: the logo and both sign-up buttons must fit in 340px without the page scrolling sideways */
 @media (max-width:480px){.topbar{gap:8px}.topbar .brand img{height:26px;width:auto}.topbar nav{gap:6px}.topbar nav .btn.sm{padding:7px 9px;font-size:13px}}
 @media (max-width:380px){.topbar .brand img{height:22px}.topbar nav .btn.sm{padding:6px 7px;font-size:12px}}
+.btn.sm.on{border-color:var(--accent);color:var(--accent)}

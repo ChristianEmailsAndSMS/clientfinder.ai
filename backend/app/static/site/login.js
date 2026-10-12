@@ -25,7 +25,7 @@
       h("div", { class: "muted who", text: r.data.email }),
       h("a", { class: "btn primary lg", href: "/app", text: "Open the app" }),
       r.data.is_admin ? h("a", { class: "btn", href: "/admin", text: "Admin dashboard" }) : null,
-      h("button", { class: "btn", type: "button", text: "Sign out", onclick: async () => { await api("POST", "/auth/logout"); location.reload(); } })));
+      h("button", { class: "btn", type: "button", text: "Sign out", onclick: async () => { if (await CF.signOut()) location.reload(); else CF.toast("Could not sign you out. Check your connection and try again.", "bad"); } })));
   });
 
   status.then((r) => {

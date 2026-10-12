@@ -6,6 +6,7 @@
 
   const state = { q: "", posted: "", types: new Set(), platforms: new Set(), tags: new Set(), roles: new Set(), regions: new Set(), kinds: new Set(), location: "", worldwide: true, unspecified: true, remote: "", hasPay: false, payPeriod: "", minPay: "", sort: "newest", offset: 0, total: 0, loading: false };
   let me = null, facets = null, loadToken = 0;
+  let saved = new Set();                                   // ids of the jobs this customer bookmarked
 
   const SORTS = [["newest", "Newest first"], ["oldest", "Oldest first"], ["pay_high", "Highest pay"], ["pay_low", "Lowest pay"]];
   const PERIOD = { hour: "hr", year: "yr", project: "project" };
@@ -32,6 +33,7 @@
       if (e.key === "/" && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); $("q").focus(); }
       if (e.key === "Escape") closeModal();
     });
+    const sv = await api("GET", "/account/saved/ids"); if (sv.ok) saved = new Set(sv.data);
     const f = await api("GET", "/jobs/facets");
     facets = f.ok ? f.data : { total: 0, platforms: [], types: [], tags: [], pay_periods: [], kinds: [], regions: [] };
     buildFilters();
@@ -49,8 +51,9 @@
       h("div", { class: "who", text: me.email }),
       me.is_admin ? h("a", { href: "/admin", text: "Admin dashboard" }) : null,
       h("button", { type: "button", text: "My job search setup", onclick: () => { pop.hidden = true; openOnboarding(false); } }),
+      h("button", { type: "button", text: "Saved jobs", onclick: () => { pop.hidden = true; openSaved(); } }),
       h("button", { type: "button", text: "Credits & history", onclick: () => { pop.hidden = true; openCredits(); } }),
-      h("button", { type: "button", text: "Sign out", onclick: async () => { await api("POST", "/auth/logout"); location.replace("/"); } }));
+      h("button", { type: "button", text: "Sign out", onclick: async () => { if (await CF.signOut()) location.replace("/"); else CF.toast("Could not sign you out. Check your connection and try again.", "bad"); } }));
     const btn = h("button", { class: "btn icon", type: "button", "aria-haspopup": "true", "aria-label": "Account menu", text: me.email.slice(0, 1).toUpperCase(), onclick: (e) => { e.stopPropagation(); pop.hidden = !pop.hidden; } });
     clear($("menu")).append(btn, pop);
     document.addEventListener("click", () => { pop.hidden = true; });
@@ -77,7 +80,9 @@
     root.appendChild(section("Remote", seg([["", "Any"], ["true", "Remote"], ["false", "On-site"]], () => state.remote, (v) => { state.remote = v; loadJobs(true); })));
 
     if (facets.types.length) root.appendChild(section("Job type", h("div", { class: "chips mt12" },
-      facets.types.map((t) => { const b = h("button", { type: "button", class: "chip" + (state.types.has(t.value) ? " on" : ""), text: `${CF.TYPE[t.value] || t.value} ${num(t.count)}` }); b.addEventListener("click", () => toggle(state.types, t.value, b)); return b; }))));
+      typeGroups().map((g) => { const on = () => g.values.some((v) => state.types.has(v));
+        const b = h("button", { type: "button", class: "chip" + (on() ? " on" : ""), text: `${g.label} ${num(g.count)}` });
+        b.addEventListener("click", () => { const was = on(); g.values.forEach((v) => (was ? state.types.delete(v) : state.types.add(v))); b.classList.toggle("on", !was); loadJobs(true); }); return b; }))));
 
     for (const k of facets.kinds || []) {
       const items = facets.platforms.filter((p) => p.kind === k.value);
@@ -123,6 +128,12 @@
     const paint = () => { for (const b of wrap.children) b.classList.toggle("on", b.dataset.v === get()); };
     for (const [v, l] of options) wrap.appendChild(h("button", { type: "button", "data-v": v, text: l, onclick: () => { set(v); paint(); } }));
     paint(); return wrap;
+  }
+  // "part-time" and "part_time" are one filter; each distinct label is one chip that selects every raw value behind it.
+  function typeGroups() {
+    const by = new Map();
+    for (const t of facets.types) { const label = CF.typeLabel(t.value); const g = by.get(label) || { label, values: [], count: 0 }; g.values.push(t.value); g.count += t.count; by.set(label, g); }
+    return [...by.values()].sort((a, b) => b.count - a.count);
   }
   function resetFilters() {
     Object.assign(state, { posted: "", remote: "", hasPay: false, payPeriod: "", minPay: "", q: "", location: "", worldwide: true, unspecified: true });
@@ -194,7 +205,7 @@
     const add = (label, fn) => box.appendChild(h("button", { type: "button", class: "chip on", title: "Remove filter", onclick: () => { fn(); buildFilters(); loadJobs(true); } }, label + "  ×"));
     if (state.q) add(`“${state.q}”`, () => { state.q = ""; $("q").value = ""; });
     for (const v of state.platforms) add(CF.PLATFORM[v] || v, () => state.platforms.delete(v));
-    for (const v of state.types) add(CF.TYPE[v] || v, () => state.types.delete(v));
+    for (const v of state.types) add(CF.typeLabel(v), () => state.types.delete(v));
     for (const v of state.tags) add(v, () => state.tags.delete(v));
     for (const v of state.kinds) add(((facets.kinds || []).find((k) => k.value === v) || {}).label || v, () => state.kinds.delete(v));
     for (const v of state.roles) add((ROLE[v] || {}).label || v, () => state.roles.delete(v));
@@ -207,15 +218,47 @@
   }
 
   function payText(j) {
-    if (j.pay_text && j.pay_text !== "unspecified") return j.pay_text;
-    if (j.pay_min == null && j.pay_max == null) return "";
+    const shown = CF.cleanPay(j.pay_text);
+    if (shown && !/rate not stated/.test(shown)) return shown;
+    if (j.pay_min == null && j.pay_max == null) return shown;
     const k = (n) => (n >= 1000 ? Math.round(n / 100) / 10 + "k" : String(n));
     const range = j.pay_min != null && j.pay_max != null && j.pay_max !== j.pay_min ? `${k(j.pay_min)}–${k(j.pay_max)}` : k(j.pay_max ?? j.pay_min);
     return `$${range}${j.pay_period ? "/" + PERIOD[j.pay_period] : ""}`;
   }
   function empty(title, text, extra) { return h("div", { class: "card empty" }, h("h3", { text: title }), h("p", { text }), extra); }
 
-  function jobCard(j) {
+  // Bookmark toggle; "Saved jobs" in the account menu lists them.
+  function saveButton(j, onUnsave) {
+    const b = h("button", { class: "btn sm", type: "button", "aria-pressed": String(saved.has(j.id)) });
+    const paint = () => { const on = saved.has(j.id); b.textContent = on ? "Saved" : "Save"; b.setAttribute("aria-pressed", String(on)); b.classList.toggle("on", on); b.title = on ? "Remove from your saved jobs" : "Save this job to come back to"; };
+    b.addEventListener("click", async () => {
+      const want = !saved.has(j.id); b.disabled = true;
+      const r = await api(want ? "PUT" : "DELETE", "/account/saved/" + j.id);
+      b.disabled = false;
+      if (!r.ok) { CF.toast(detail(r), "bad"); if (r.status === 404) saved.delete(j.id); paint(); return; }
+      want ? saved.add(j.id) : saved.delete(j.id); paint();
+      if (!want && onUnsave) onUnsave();
+    });
+    paint(); return b;
+  }
+
+  async function openSaved() {
+    const body = h("div", {}, h("span", { class: "spinner" }));
+    modal("Saved jobs", body);
+    const r = await api("GET", "/account/saved");
+    if (!r.ok) {
+      clear(body).append(h("p", { class: "error", text: detail(r) }));
+      return;
+    }
+    saved = new Set(r.data.map((j) => j.id));
+    const list = h("div", {});
+    const note = () => { if (!list.children.length) clear(list).append(h("p", { class: "muted", text: "Nothing saved yet. Press Save on any job to keep it here." })); };
+    for (const j of r.data) { const card = jobCard(j, () => { card.remove(); note(); }); list.appendChild(card); }
+    clear(body).append(h("p", { class: "muted", text: `${r.data.length} saved ${r.data.length === 1 ? "job" : "jobs"}, most recently saved first.` }), list);
+    note();
+  }
+
+  function jobCard(j, onUnsave) {
     const desc = h("div", { class: "desc", hidden: true, text: (j.description || j.raw_snippet || "No description captured.").slice(0, 900) });
     const safe = /^https?:\/\//i.test(j.source_url || "");
     const pay = payText(j);
@@ -227,7 +270,7 @@
         j.location ? [h("span", { class: "sep", text: "·" }), h("span", { text: j.location })] : null),
       h("div", { class: "meta" },
         pay ? h("span", { class: "chip pay", text: pay }) : null,
-        j.type && CF.TYPE[j.type] ? h("span", { class: "chip type", text: CF.TYPE[j.type] }) : null,
+        j.type ? h("span", { class: "chip type", text: CF.typeLabel(j.type) }) : null,
         j.remote ? h("span", { class: "chip remote", text: "Remote" }) : null,
         (j.tags || []).filter((t) => !ATTR_TAGS.has(t)).slice(0, 4).map((t) => h("span", { class: "chip tag", text: t }))),
       desc,
@@ -235,6 +278,7 @@
         safe ? h("a", { class: "btn sm primary", href: j.source_url, target: "_blank", rel: "noopener noreferrer nofollow" }, "Open post ", CF.icon("out", 14)) : null,
         h("button", { class: "btn sm", type: "button", onclick: () => { desc.hidden = !desc.hidden; titleBtn.setAttribute("aria-expanded", String(!desc.hidden)); } }, desc.hidden ? "Details" : "Hide details"),
         h("button", { class: "btn sm", type: "button", title: "First message, cover letter, resume pitch and reply help for this job", onclick: () => openPitch(j) }, "Pitch help"),
+        saveButton(j, onUnsave),
         safe ? h("button", { class: "btn sm icon", type: "button", "aria-label": "Copy link", onclick: () => CF.copy(j.source_url) }, CF.icon("copy", 14)) : null));
   }
 
@@ -253,7 +297,7 @@
 
   function openOnboarding(first) {
     const kindsAll = (facets.kinds || []).map((k) => k.value);
-    const draft = { roles: new Set(me.prefs.roles || []), regions: new Set(me.prefs.regions || []), kinds: new Set((me.prefs.kinds || []).length ? me.prefs.kinds : kindsAll), remote: me.prefs.remote || "" };
+    const draft = { roles: new Set(me.prefs.roles || []), regions: new Set(me.prefs.regions || []), kinds: new Set(me.prefs.kinds || []), all: !(me.prefs.kinds || []).length, remote: me.prefs.remote || "" };
     let step = 0;
     const tile = (label, sub, on, fn) => { const b = h("button", { type: "button", class: "tile" + (on ? " on" : ""), "aria-pressed": String(on) }, h("strong", { text: label }), sub ? h("small", { text: sub }) : null);
       b.addEventListener("click", () => { const now = fn(); b.classList.toggle("on", now); b.setAttribute("aria-pressed", String(now)); }); return b; };
@@ -265,13 +309,14 @@
         body: () => h("div", {}, h("div", { class: "tiles" }, (facets.regions || []).filter((r) => r.value !== "unspecified" && r.value !== "worldwide").map((r) => tile(r.label, [r.offset, `${num(regionShown(r, true, true))} jobs`].filter(Boolean).join(" · "), draft.regions.has(r.value), flip(draft.regions, r.value)))),
           h("div", { class: "mt16" }, h("div", { class: "hint", text: "On-site or remote?" }), (() => { const wrap = h("div", { class: "seg" }); const paint = () => { for (const b of wrap.children) b.classList.toggle("on", b.dataset.v === draft.remote); };
             for (const [v, l] of [["", "Either"], ["true", "Remote only"], ["false", "On-site"]]) wrap.appendChild(h("button", { type: "button", "data-v": v, text: l, onclick: () => { draft.remote = v; paint(); } })); paint(); return wrap; })())) },
-      { title: "Where should we look?", sub: "Job boards list real openings. Social posts are people asking for help, often before a job is formally posted.",
-        body: () => { const all = (facets.kinds || []).length > 0 && draft.kinds.size === kindsAll.length;
-          const redo = (fn) => () => { fn(); paint(); return true; };
-          return h("div", { class: "tiles" },
-            tile("All of them", "Search job boards, social media and other websites at once", all, () => { if (all) draft.kinds.clear(); else kindsAll.forEach((k) => draft.kinds.add(k)); paint(); return !all; }),
-            (facets.kinds || []).map((k) => tile(k.label, `${num(k.count)} jobs · ${KIND_HELP[k.value]}`, draft.kinds.has(k.value), () => { flip(draft.kinds, k.value)(); paint(); return draft.kinds.has(k.value); }))); },
-        ok: () => kindsAll.length === 0 || draft.kinds.size > 0, why: "Pick at least one place to look." },
+      { title: "Where should we look?", sub: "Choose All of them, or pick just the places you want. Job boards list real openings; social posts are people asking for help, often before a job is formally posted.",
+        body: () => h("div", { class: "tiles" },
+            tile("All of them", "Search job boards, social media and other websites at once", draft.all, () => { draft.all = true; draft.kinds.clear(); paint(); return true; }),
+            (facets.kinds || []).map((k) => tile(k.label, `${num(k.count)} jobs · ${KIND_HELP[k.value]}`, !draft.all && draft.kinds.has(k.value), () => {
+              if (draft.all) { draft.all = false; draft.kinds = new Set([k.value]); } else { draft.kinds.has(k.value) ? draft.kinds.delete(k.value) : draft.kinds.add(k.value); }
+              if (draft.kinds.size === 0 || draft.kinds.size === kindsAll.length) { draft.all = true; draft.kinds.clear(); }      // none or every place is the same as "All of them"
+              paint(); return !draft.all && draft.kinds.has(k.value); }))),
+        ok: () => true },
     ];
     const root = clear($("modal-root"));
     const body = h("div", { class: "body" }), foot = h("div", { class: "row end mt20" });
@@ -280,8 +325,14 @@
       h("header", {}, h("h2", { text: first ? "Welcome to Clientfinder" : "Your job search setup" }), dots, first ? null : h("button", { class: "btn sm icon", type: "button", "aria-label": "Close", onclick: closeModal }, CF.icon("x", 16))), body);
     const ov = h("div", { class: "overlay" }, m); root.appendChild(ov);
 
+    // "See my matches" means the jobs for the setup just chosen: clear whatever search or filters were on screen, and say so.
+    function showMine() {
+      const hadSearch = !!(state.q || state.location || state.posted || state.hasPay || state.minPay !== "" || state.types.size || state.platforms.size || state.tags.size);
+      resetFilters(); applyPrefs(me.prefs); closeModal(); buildFilters(); loadJobs(true);
+      if (hadSearch) CF.toast("Showing jobs for your setup. Your earlier search and filters were cleared.", "good");
+    }
     async function save(skip) {
-      const prefs = skip ? { roles: [], regions: [], kinds: [], remote: "" } : { roles: [...draft.roles], regions: [...draft.regions], kinds: draft.kinds.size === kindsAll.length ? [] : [...draft.kinds], remote: draft.remote };
+      const prefs = skip ? { roles: [], regions: [], kinds: [], remote: "" } : { roles: [...draft.roles], regions: [...draft.regions], kinds: draft.all ? [] : [...draft.kinds], remote: draft.remote };
       const r = await api("PUT", "/account/prefs", prefs);
       if (!r.ok) { CF.toast(detail(r), "bad"); return false; }
       me.onboarded = true; me.prefs = r.data.prefs; return true;
@@ -302,9 +353,9 @@
       body.append(h("h3", { class: "wtitle", text: "You are all set" }), h("p", { class: "muted", text: `Looking for: ${picked}.` }),
         h("div", { class: "sresult" }, h("strong", { text: "Want the freshest posts?" }), h("p", { class: "muted", text: "Our database updates through the day. For something brand new, run your own live search: we search the web right now and add what we find. " + (me.balance_usd > 0 || me.unlimited ? (me.unlimited ? "Your searches are free on this account." : `You have ${money(me.balance_usd)} in credit.`) : "It costs a little credit; browsing is always free.") })),
         foot);
-      foot.append(h("button", { class: "btn", type: "button", text: "Show my matches", onclick: async () => { if (await save(false)) { applyPrefs(me.prefs); closeModal(); buildFilters(); loadJobs(true); } } }),
+      foot.append(h("button", { class: "btn", type: "button", text: "Show my matches", onclick: async () => { if (await save(false)) showMine(); } }),
         h("span", { class: "grow" }),
-        h("button", { class: "btn primary", type: "button", text: "Run a live search now", onclick: async () => { if (await save(false)) { applyPrefs(me.prefs); closeModal(); buildFilters(); loadJobs(true); openSearch(firstQuery); } } }));
+        h("button", { class: "btn primary", type: "button", text: "Run a live search now", onclick: async () => { if (await save(false)) { showMine(); openSearch(firstQuery); } } }));
     }
     paint();
   }
@@ -346,7 +397,8 @@
       h("div", { class: "bal grad", text: me.unlimited ? "Unlimited" : money(r.data.balance_usd) }),
       h("p", { class: "muted", text: "Credits pay for searches you run yourself. Browsing and filtering the database is always free." }),
       r.data.bundles && r.data.bundles.length ? h("div", { class: "mt16" }, h("strong", { text: "Buy credits" }),
-        h("p", { class: "muted", text: "Pay at checkout with the same email you signed up with. You get credit equal to what you pay, and it never expires." }),
+        h("p", { class: "muted", text: "You get credit equal to what you pay, and it never expires. At checkout, use this email so we can match the payment to your account:" }),
+        h("div", { class: "row" }, h("strong", { text: me.email }), h("button", { class: "btn sm", type: "button", text: "Copy email", onclick: () => CF.copy(me.email) })),
         h("div", { class: "tiles" }, r.data.bundles.map((b) => bundleTile(b))), buyErr) : "",
       r.data.bundles && r.data.bundles.length ? "" : h("div", { class: "sresult mt16" }, h("strong", { text: "Adding credits" }),
         h("p", { class: "muted", text: r.data.buy_url ? "Pay on the secure checkout page. Credits are added to your account once the payment is confirmed. If they are not there within a day, email christian@emailsandsms.com." : "Card payments are launching soon. Until then, email christian@emailsandsms.com and we will top up your account." }),
@@ -459,7 +511,13 @@
       quote = null; runBtn.disabled = true;
       const q = asSearch(input.value);
       willSearch.textContent = q ? `LinkedIn, X, Facebook, Reddit, remote job boards, and the web, for “${q}”` : "";
-      if (input.value.trim().length < 3) { info.textContent = `Type the service you sell. You have ${c.left_today} new searches left today.`; runBtn.textContent = "Run search"; return; }
+      if (input.value.trim().length < 3) {                     // before anything is typed: say the same thing the estimate will say later
+        runBtn.textContent = "Run search";
+        if (c.unlimited) info.textContent = `Type the service you sell. Your searches are free on this account (${c.left_today} new searches left today).`;
+        else if (c.price_usd && c.balance_usd < c.price_usd) clear(info).append(`Type the service you sell. A search costs about ${money(c.price_usd)} and you have ${money(c.balance_usd)}. `, h("button", { class: "btn sm", type: "button", text: "Add credits", onclick: () => openCredits() }));
+        else info.textContent = `Type the service you sell. You have ${money(c.balance_usd)} in credits and ${c.left_today} new searches left today.`;
+        return;
+      }
       const r = await api("POST", "/searches/estimate", { query: q, freshness: s.freshness, site: null });
       if (seq !== estSeq) return;
       if (!r.ok) { info.textContent = detail(r); return; }

@@ -257,3 +257,8 @@ platform labels missing for X, Mastodon and others. Remaining low-priority filte
   `signed_in` so visitors do not trigger a 401 from `/auth/me`. Error lines start hidden and silent.
 - **Cloudflare Web Analytics.** The strict CSP (no third-party scripts) correctly blocks Cloudflare's auto-injected beacon. The CSP stays as it is; to stop the
   console message, turn off automatic Web Analytics for the site in the Cloudflare dashboard.
+- **Saved jobs (migration 0010).** `saved_jobs` is private to each customer: every endpoint (`GET /account/saved`, `GET /account/saved/ids`,
+  `PUT`/`DELETE /account/saved/{job_id}`) needs a signed-in user and the writes need `csrf_guard`. Only real, listed jobs can be saved, at most 500 per
+  customer, and a job removed from the database drops out of the list. Nothing is shared between customers.
+- **Sign-out.** The page now confirms with `/auth/status` that the session is really gone and signs out a second time if it is not (a customer reported
+  that the first click sometimes did not stick on the live site; the cause was not reproduced locally, so this verifies instead of assuming).

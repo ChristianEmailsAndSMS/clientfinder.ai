@@ -114,6 +114,16 @@ class UserSearchJob(Base):
     job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), primary_key=True)
 
 
+class SavedJob(Base):
+    """A job a customer bookmarked to come back to. Private to the customer."""
+    __tablename__ = "saved_jobs"
+    __table_args__ = (Index("ix_saved_jobs_user_created", "user_id", "created_at"),)
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
 class PaymentEvent(Base):
     """Every payment webhook we accept, so nothing is lost and the owner can resolve anything that could not be matched."""
     __tablename__ = "payment_events"

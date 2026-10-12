@@ -31,7 +31,7 @@ def test_only_the_newest_estimate_may_update_the_search_modal():
 
 
 def test_onboarding_does_not_dead_end_when_there_are_no_places_to_pick():
-    assert "kindsAll.length === 0 ||" in APP                       # empty database / failed facets left step 3 unfinishable
+    assert "ok: () => true }" in APP and "draft.all" in APP        # step 3 can always be finished: with no places to pick it means "All of them"
 
 
 def test_unlimited_accounts_are_not_told_they_have_unlimited_searches():

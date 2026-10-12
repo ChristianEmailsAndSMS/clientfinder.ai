@@ -30,7 +30,7 @@
           h("div", { class: "m" }, CF.platformBadge(j.platform),
             j.type && CF.TYPE[j.type] ? h("span", { class: "chip type", text: CF.TYPE[j.type] }) : null,
             j.remote ? h("span", { class: "chip remote", text: "Remote" }) : null,
-            j.pay ? h("span", { class: "chip pay", text: j.pay }) : null)),
+            CF.cleanPay(j.pay) ? h("span", { class: "chip pay", text: CF.cleanPay(j.pay) }) : null)),
         h("div", { class: "when", text: ago(j.seen_at) })));
     }
   });

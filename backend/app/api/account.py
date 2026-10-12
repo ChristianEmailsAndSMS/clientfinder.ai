@@ -3,14 +3,15 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .. import live_search, whop_api
 from ..config import settings
 from ..credits import micro_to_usd
 from ..db import get_db
-from ..models import CreditEntry, User
+from ..models import CreditEntry, Job, SavedJob, User
 from ..tagging import CATEGORY_RULES
 from .. import geo, platforms
 from ..security import csrf_guard, current_user, rate_limit_guard, utcnow
@@ -111,3 +112,44 @@ def checkout(body: CheckoutBody, request: Request, user: User = Depends(current_
         raise HTTPException(502, whop_api.PUBLIC_MESSAGE)
     _checkout_links[(user.id, body.usd)] = (now, url)
     return {"url": url}
+
+
+# ---------- saved jobs (a private bookmark list) ----------
+MAX_SAVED = 500
+
+
+@router.get("/saved/ids")
+def saved_ids(user: User = Depends(current_user), db: Session = Depends(get_db)) -> list[int]:
+    return list(db.scalars(select(SavedJob.job_id).where(SavedJob.user_id == user.id)).all())
+
+
+@router.get("/saved")
+def saved_jobs(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    from .jobs import serialize_jobs
+    ids = db.scalars(select(SavedJob.job_id).where(SavedJob.user_id == user.id).order_by(SavedJob.created_at.desc(), SavedJob.job_id.desc()).limit(MAX_SAVED)).all()
+    by_id = {j.id: j for j in db.scalars(select(Job).where(Job.id.in_(ids or [-1]), Job.is_real_job.is_(True))).all()}
+    return serialize_jobs(db, [by_id[i] for i in ids if i in by_id])          # most recently saved first
+
+
+@router.put("/saved/{job_id}")
+def save_job(job_id: int, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
+    csrf_guard(request)
+    if not db.scalar(select(Job.id).where(Job.id == job_id, Job.is_real_job.is_(True))):
+        raise HTTPException(404, "That job is no longer listed.")
+    if db.get(SavedJob, (user.id, job_id)) is None:
+        if (db.scalar(select(func.count()).select_from(SavedJob).where(SavedJob.user_id == user.id)) or 0) >= MAX_SAVED:
+            raise HTTPException(409, f"You can save up to {MAX_SAVED} jobs. Remove some first.")
+        db.add(SavedJob(user_id=user.id, job_id=job_id))
+        try:
+            db.commit()
+        except IntegrityError:                                  # a double click raced: it is saved either way
+            db.rollback()
+    return {"saved": True}
+
+
+@router.delete("/saved/{job_id}")
+def unsave_job(job_id: int, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
+    csrf_guard(request)
+    db.execute(delete(SavedJob).where(SavedJob.user_id == user.id, SavedJob.job_id == job_id))
+    db.commit()
+    return {"saved": False}

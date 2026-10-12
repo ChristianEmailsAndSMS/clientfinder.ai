@@ -78,6 +78,23 @@
     remoterocketship: "Remote Rocketship", jobicy: "Jobicy",
     x: "X / Twitter", mastodon: "Mastodon", instagram: "Instagram", threads: "Threads", tiktok: "TikTok", youtube: "YouTube", bluesky: "Bluesky", wellfound: "Wellfound", smartrecruiters: "SmartRecruiters" };
   CF.TYPE = { full_time: "Full-time", contract: "Contract", hourly: "Hourly", fixed: "Fixed price", social_post: "Social post", part_time: "Part-time" };
+  // Labels for any job type the data holds ("part-time" and "part_time" read the same), never a raw lowercase value.
+  CF.typeLabel = (v) => CF.TYPE[String(v).replace(/-/g, "_")] || String(v).replace(/[_-]+/g, " ").replace(/^./, (c) => c.toUpperCase());
+  // Only show pay text that is an amount: "Salary unspecified" is not pay, and a bare "1300" has no unit or currency.
+  CF.cleanPay = (text) => {
+    const t = String(text || "").trim();
+    if (!/\d/.test(t)) return "";
+    return /^[\d.,\s]+$/.test(t) ? `${Number(t.replace(/[,\s]/g, "")).toLocaleString()} (rate not stated)` : t;
+  };
+  // Sign out and make sure it stuck: confirm with the server, try once more if the session is still there.
+  CF.signOut = async () => {
+    for (let i = 0; i < 2; i++) {
+      await CF.api("POST", "/auth/logout");
+      const s = await CF.api("GET", "/auth/status");
+      if (s.ok && !s.data.signed_in) return true;
+    }
+    return false;
+  };
   CF.platformBadge = (p) => h("span", { class: "plat " + String(p).replace(/[^a-z]/g, ""), text: CF.PLATFORM[p] || p });
 
   CF.toast = (msg, kind) => {
