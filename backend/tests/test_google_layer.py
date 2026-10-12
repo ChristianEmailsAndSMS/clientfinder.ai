@@ -1242,6 +1242,21 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         query="site:reddit.com/r/forhire/comments hiring copywriter",
         url="https://www.reddit.com/r/forhire/comments/abc/copywriter/")
     assert not pipeline.not_a_hiring_post(
+        "[Hiring] Copywriter, anyone interested?",
+        "I am looking for copywriters to join our team. Remote or freelance.",
+        query='"hiring copywriter"',
+        url="https://www.reddit.com/r/HireaWriter/comments/14htfp3/hiring_copywriter_anyone_interested/")
+    assert not pipeline.not_a_hiring_post(
+        "[HIRING] Email Marketer for Fast-Growing Ecommerce Brand",
+        "Commission-based email marketing for a store doing real revenue.",
+        query='"hiring email marketer"',
+        url="https://www.reddit.com/r/Emailmarketing/comments/1sji89w/hiring_email_marketer_for_fastgrowing_ecommerce/")
+    assert pipeline.not_a_hiring_post(
+        "[HIRING] TikTok Content Poster – Remote Side Job",
+        "hiring copywriter shows up in the related posts",
+        query='"hiring copywriter"',
+        url="https://www.reddit.com/r/hiring/comments/abc/tiktok/")
+    assert not pipeline.not_a_hiring_post(
         "Carol Dasaro's Post",
         "Hi everyone, I'm hiring for a freelance copywriter.",
         query="hiring copywriter",

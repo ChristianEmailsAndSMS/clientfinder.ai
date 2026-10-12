@@ -272,6 +272,11 @@ def _role_needles(query: str) -> list[str]:
     return [w for w in re.findall(r"[a-z0-9']+", bare) if w not in _ROLE_STOPWORDS and len(w) >= 4]
 
 
+def _flat(text: str) -> str:
+    """Letters and numbers only, so "[HIRING] Copywriter" matches "hiring copywriter"."""
+    return re.sub(r"[^a-z0-9]+", " ", (text or "").lower()).strip()
+
+
 def _marketplace_index(url: str) -> bool:
     """Category and search pages on hire marketplaces, not one opening."""
     u = (url or "").lower()
@@ -398,11 +403,13 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     if _SALARY_GUIDE.search(blob) and not _HIRING_SOMEONE.search(blob):
         return True
     # On Reddit the role often appears only in the related-posts snippet of a different thread.
+    # "[HIRING] Copywriter" is the same phrase as "hiring copywriter" once the bracket is ignored.
     # LinkedIn titles are the author's name, so this check stays on reddit.com.
     # A "Freelance Writer" title can still be a copywriter job, so other roles are an explicit list.
     needles = _role_needles(query)
-    if "reddit.com" in (url or "").lower():
-        if needles and not all(needle in title.lower() for needle in needles):
+    if "reddit.com" in low_url:
+        title_flat = f" {_flat(title)} "
+        if needles and not all(f" {_flat(needle)} " in title_flat for needle in needles):
             return True
     if (_OTHER_ROLE_TITLE.search(title) and needles
             and not all(needle in title.lower() for needle in needles)):
