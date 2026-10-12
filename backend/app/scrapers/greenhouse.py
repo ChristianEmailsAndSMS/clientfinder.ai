@@ -16,6 +16,7 @@ from ..models import Job, Source, ScrapeRun
 from ..dedup import dedupe_hash
 from ..security_utils import safe_job_url
 from ..tagging import set_tags
+from .common import title_matches
 
 log = logging.getLogger(__name__)
 
@@ -31,15 +32,12 @@ GREENHOUSE_COMPANIES: tuple[str, ...] = (
     # Add more real board slugs as you find them. Many companies no longer host on Greenhouse directly.
 )
 
-TITLE_KEYWORDS = (
-    "copywriter", "copywriting", "email", "lifecycle", "landing page",
-    "creative strategist", "content marketing", "growth marketing", "crm manager",
-)
+# Bare "email" matched "Email Security Engineer" / "Email Infrastructure": use the shared marketing keyword list.
+EXTRA_KEYWORDS = ("content marketing", "email designer", "email developer", "email producer")
 
 
 def _matches_title(title: str) -> bool:
-    t = (title or "").lower()
-    return any(kw in t for kw in TITLE_KEYWORDS)
+    return title_matches(title, EXTRA_KEYWORDS)
 
 
 def fetch_board(company: str) -> list[dict]:

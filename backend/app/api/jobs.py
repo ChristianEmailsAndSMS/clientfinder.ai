@@ -106,9 +106,9 @@ def list_jobs(
     if max_pay is not None:
         conds.append(_PAY_BOTTOM <= max_pay)
     if has_pay:
-        conds.append(or_(Job.pay_min.is_not(None), Job.pay_max.is_not(None), Job.pay_text.is_not(None)))
+        conds.append(Job.id.in_(select(JobTag.job_id).where(JobTag.tag == "has-pay")))      # same rule as the tag: a real number, not "DOE" or 0
     if remote is not None:
-        conds.append(Job.remote.is_(True) if remote else or_(Job.remote.is_(False), Job.remote.is_(None)))
+        conds.append(Job.remote.is_(remote))      # "On-site" means the post says on-site; unknown is not on-site
     if posted_within_days:
         cutoff = datetime.now(timezone.utc) - timedelta(days=posted_within_days)
         conds.append(or_(Job.posted_at >= cutoff, (Job.posted_at.is_(None)) & (Job.first_seen_at >= cutoff)))
@@ -136,17 +136,23 @@ def facets(db: Session = Depends(get_db)) -> dict:
     for p in plats:
         kinds[p["kind"]] = kinds.get(p["kind"], 0) + p["count"]
     region_counts: dict[str, int] = {}
+    with_ww: dict[str, int] = {}            # what the list returns for that region while "also show worldwide" is on
     unspecified = 0
     for r, c in db.execute(select(Job.region, func.count(Job.id)).where(real).group_by(Job.region)).all():
         if not r:
             unspecified += c
-        for k in geo.split(r):
+        ks = geo.split(r)
+        for k in ks:
             region_counts[k] = region_counts.get(k, 0) + c
+        for k in geo.BANDS:
+            if k in ks or "worldwide" in ks:
+                with_ww[k] = with_ww.get(k, 0) + c
     return {
         "total": db.scalar(select(func.count(Job.id)).where(real)) or 0,
         "platforms": plats,
         "kinds": [{"value": k, "label": platforms.KIND_LABEL[k], "count": kinds.get(k, 0)} for k in ("board", "social", "web") if kinds.get(k)],
-        "regions": [{"value": k, "label": lbl, "offset": off, "count": region_counts.get(k, 0)} for k, (lbl, off) in geo.BANDS.items()]
+        "regions": [{"value": k, "label": lbl, "offset": off, "count": region_counts.get(k, 0),
+                     "count_with_worldwide": with_ww.get(k, 0)} for k, (lbl, off) in geo.BANDS.items()]
                    + [{"value": "unspecified", "label": "Location not stated", "offset": "", "count": unspecified}],
         "types": counts(Job.type),
         "pay_periods": counts(Job.pay_period),

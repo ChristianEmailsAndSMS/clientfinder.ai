@@ -14,6 +14,7 @@ from ..models import Job, Source, ScrapeRun
 from ..dedup import dedupe_hash
 from ..security_utils import safe_job_url
 from ..tagging import set_tags
+from .common import title_matches
 
 log = logging.getLogger(__name__)
 
@@ -28,8 +29,8 @@ TARGET_KEYWORDS = (
 
 
 def _matches(obj: dict) -> bool:
-    hay = " ".join(str(obj.get(k, "")) for k in ("position", "tags", "description", "company")).lower()
-    return any(kw in hay for kw in TARGET_KEYWORDS)
+    """Title only, like every other source: a "Python Developer" whose description says "landing page" is not a copywriting lead."""
+    return title_matches(str(obj.get("position") or ""), TARGET_KEYWORDS)
 
 
 def fetch_jobs() -> list[dict]:
@@ -83,8 +84,8 @@ def run() -> dict:
             if row.get("date"):
                 try: posted_at = datetime.fromisoformat(row["date"].replace("Z", "+00:00"))
                 except Exception: pass
-            pay_min = row.get("salary_min")
-            pay_max = row.get("salary_max")
+            pay_min = row.get("salary_min") or None          # the feed sends 0 for "not stated"
+            pay_max = row.get("salary_max") or None
             job = Job(
                 dedupe_hash=h,
                 source_url=url,
@@ -95,7 +96,7 @@ def run() -> dict:
                 description=row.get("description"),
                 type="full_time",
                 pay_text=f"${pay_min:,}-${pay_max:,}" if pay_min and pay_max else None,
-                pay_min=pay_min, pay_max=pay_max, pay_period="year",
+                pay_min=pay_min, pay_max=pay_max, pay_period="year" if (pay_min or pay_max) else None,
                 location=row.get("location"),
                 remote=True,
                 skills=row.get("tags") or None,

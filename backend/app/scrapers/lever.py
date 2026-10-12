@@ -12,7 +12,8 @@ log = logging.getLogger(__name__)
 
 LEVER_COMPANIES: tuple[str, ...] = ("spotify", "plaid", "palantir", "kraken", "lever")
 SOURCE_KEY = "lever"
-_PERIOD = {"per-year-salary": "year", "per-hour-wage": "hour", "per-month-salary": "year"}
+_PERIOD = {"per-year-salary": "year", "per-hour-wage": "hour", "per-month-salary": "year", "per-week-salary": "year"}
+_TO_YEARLY = {"per-month-salary": 12, "per-week-salary": 52}      # the amount is per month / week: store the yearly figure that "year" promises
 
 
 def parse(company: str, postings: list[dict]) -> CollectResult:
@@ -23,7 +24,11 @@ def parse(company: str, postings: list[dict]) -> CollectResult:
         if not url or not title_matches(title):
             continue
         cats = p.get("categories") or {}
-        sal = p.get("salaryRange") or {}
+        sal = dict(p.get("salaryRange") or {})
+        k = _TO_YEARLY.get(sal.get("interval"), 1)
+        for end in ("min", "max"):
+            if sal.get(end):
+                sal[end] = sal[end] * k
         location = cats.get("location")
         remote = (p.get("workplaceType") == "remote") or ("remote" in (location or "").lower()) or None
         out.jobs.append(NormalizedJob(

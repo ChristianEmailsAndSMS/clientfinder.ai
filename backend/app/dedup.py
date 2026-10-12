@@ -11,8 +11,11 @@ _whitespace = re.compile(r"\s+")
 TRACKING_PARAMS: set[str] = {
     "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
     "ref", "ref_src", "source", "fbclid", "gclid", "msclkid", "mc_cid", "mc_eid",
-    "s", "t",  # Twitter tracking
+    "gh_src", "lever-source", "lever-origin", "trackingid", "trk", "refid", "tk", "referrer_url_path", "igshid",
 }
+# "s" and "t" are Twitter/X share trackers, but on other sites they are real ids (forum ?t=<thread>, search ?s=<term>): strip them there only.
+TWITTER_ONLY_PARAMS: set[str] = {"s", "t"}
+_TWITTER_HOSTS = {"twitter.com", "x.com", "mobile.twitter.com", "www.twitter.com", "www.x.com"}
 
 
 def normalize_url(url: str) -> str:
@@ -23,7 +26,8 @@ def normalize_url(url: str) -> str:
         scheme = (p.scheme or "https").lower()
         netloc = p.netloc.lower()
         path = p.path.rstrip("/")
-        kept = [(k, v) for (k, v) in parse_qsl(p.query, keep_blank_values=False) if k.lower() not in TRACKING_PARAMS]
+        drop = TRACKING_PARAMS | (TWITTER_ONLY_PARAMS if netloc in _TWITTER_HOSTS else set())
+        kept = [(k, v) for (k, v) in parse_qsl(p.query, keep_blank_values=False) if k.lower() not in drop]
         kept.sort()  # stable order for stable hashing
         query = urlencode(kept)
         return urlunparse((scheme, netloc, path, "", query, ""))

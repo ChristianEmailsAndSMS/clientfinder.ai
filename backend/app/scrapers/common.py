@@ -18,7 +18,7 @@ from ..db import session_scope
 from ..dedup import dedupe_hash
 from ..models import Job, ScrapeRun, Source
 from ..security_utils import safe_job_url
-from ..tagging import set_tags
+from ..tagging import mask_noise, set_tags
 
 log = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ def clip(value, field: str):
 
 
 def title_matches(title: str | None, extra: tuple[str, ...] = ()) -> bool:
-    t = (title or "").lower()
+    t = mask_noise((title or "").lower())
     return any(k in t for k in TITLE_KEYWORDS + extra)
 
 

@@ -3,6 +3,7 @@
 Real mode: hits SerpAPI (or Serper.dev if configured).
 Dev mode (DEV_FIXTURES=1): reads a local JSON fixture — lets you iterate without an API key."""
 import json
+from urllib.parse import urlparse
 import logging
 from pathlib import Path
 from typing import Iterable
@@ -67,18 +68,29 @@ def _fixture_results(query: str) -> list[SearchResult]:
     return []
 
 
+# (domain, platform): matched against the URL's HOST (the domain or one of its sub-domains), never against the whole URL text,
+# so "wix.com" is not X, "clever.com" is not Lever and "?ref=twitter.com" is not Twitter.
+_HOSTS: tuple[tuple[str, str], ...] = (
+    ("twitter.com", "twitter"), ("x.com", "twitter"), ("reddit.com", "reddit"), ("linkedin.com", "linkedin"), ("upwork.com", "upwork"),
+    ("indeed.com", "indeed"), ("problogger.com", "problogger"), ("mediabistro.com", "mediabistro"), ("greenhouse.io", "greenhouse"),
+    ("lever.co", "lever"), ("ashbyhq.com", "ashby"), ("remoteok.com", "remoteok"), ("weworkremotely.com", "weworkremotely"),
+    ("remotive.com", "remotive"), ("wellfound.com", "wellfound"), ("workable.com", "workable"), ("smartrecruiters.com", "smartrecruiters"),
+    ("facebook.com", "facebook"), ("instagram.com", "instagram"), ("threads.net", "threads"), ("tiktok.com", "tiktok"),
+    ("youtube.com", "youtube"), ("bsky.app", "bluesky"),
+)
+
+
 def _platform_from_url(url: str) -> str:
-    u = url.lower()
-    if "twitter.com" in u or "x.com" in u: return "twitter"
-    if "reddit.com" in u: return "reddit"
-    if "linkedin.com" in u: return "linkedin"
-    if "upwork.com" in u: return "upwork"
-    if "indeed.com" in u: return "indeed"
-    if "problogger.com" in u: return "problogger"
-    if "mediabistro.com" in u: return "mediabistro"
-    if "greenhouse.io" in u: return "greenhouse"
-    if "lever.co" in u: return "lever"
-    if "ashbyhq.com" in u: return "ashby"
+    try:
+        p = urlparse(url.strip() if "//" in url else "//" + url.strip())
+        host = (p.hostname or "").lower().rstrip(".")
+    except ValueError:
+        return "web"
+    for domain, platform in _HOSTS:
+        if host == domain or host.endswith("." + domain):
+            if platform == "linkedin" and p.path.lower().startswith("/jobs"):
+                return "linkedin_jobs"          # a LinkedIn job listing is a job board entry, not a social post
+            return platform
     return "web"
 
 

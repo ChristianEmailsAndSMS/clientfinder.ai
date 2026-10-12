@@ -69,7 +69,7 @@ def test_filters_each_narrow_the_list_and_total_count_ignores_paging(seeded):
     assert titles(c.get("/jobs?platform=reddit&platform=remoteok")) == ["Senior Email Marketing Manager", "Direct Response Copywriter"]
     assert titles(c.get("/jobs?type=contract")) == ["Direct Response Copywriter", "Landing Page Builder (100% remote)"]
     assert titles(c.get("/jobs?remote=true")) == ["Senior Email Marketing Manager", "Direct Response Copywriter"]
-    assert titles(c.get("/jobs?remote=false")) == ["Landing Page Builder (100% remote)", "Funnel Designer"]
+    assert titles(c.get("/jobs?remote=false")) == ["Funnel Designer"]            # only posts that say on-site; "unknown" is not on-site
     assert titles(c.get("/jobs?has_pay=true")) == ["Senior Email Marketing Manager", "Direct Response Copywriter"]
     assert titles(c.get("/jobs?pay_period=hour&min_pay=50")) == ["Direct Response Copywriter"]
     assert titles(c.get("/jobs?pay_period=year&min_pay=100000")) == ["Senior Email Marketing Manager"]

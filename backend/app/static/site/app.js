@@ -90,8 +90,8 @@
     loc.addEventListener("input", debounce(() => { state.location = loc.value.trim(); loadJobs(true); }, 350));
     const regs = (facets.regions || []).filter((r) => r.count > 0 || state.regions.has(r.value));
     if (regs.length) root.appendChild(section("Location & time zone", loc,
-      h("div", { class: "mt12" }, regs.map((r) => check(r.label + (r.offset ? `  (${r.offset})` : ""), r.count, state.regions.has(r.value), () => toggle(state.regions, r.value)))),
-      check("Also show worldwide / anywhere jobs", null, state.worldwide, (on) => { state.worldwide = on; loadJobs(true); }),
+      h("div", { class: "mt12" }, regs.map((r) => check(r.label + (r.offset ? `  (${r.offset})` : ""), (state.worldwide && r.count_with_worldwide != null && r.value !== "worldwide" && r.value !== "unspecified") ? r.count_with_worldwide : r.count, state.regions.has(r.value), () => toggle(state.regions, r.value)))),
+      check("Also show worldwide / anywhere jobs", null, state.worldwide, (on) => { state.worldwide = on; buildFilters(); loadJobs(true); }),
       h("p", { class: "hint", text: "Worked out from the location written in each post, so it is approximate. Many posts name no place." })));
 
     const topics = facets.tags.filter((t) => !ATTR_TAGS.has(t.value));
@@ -144,7 +144,7 @@
     if (state.remote) p.set("remote", state.remote);
     if (state.hasPay) p.set("has_pay", "true");
     if (state.payPeriod) p.set("pay_period", state.payPeriod);
-    if (state.minPay !== "" && Number(state.minPay) >= 0) p.set("min_pay", state.minPay);
+    if (state.minPay !== "" && state.payPeriod && Number(state.minPay) >= 0) p.set("min_pay", state.minPay);       // pay amounts only mean something per period
     if (state.posted) p.set("posted_within_days", state.posted);
     if (state.sort !== "newest") p.set("sort", state.sort);
     if (offset != null) { p.set("limit", PAGE); p.set("offset", offset); }
@@ -201,7 +201,7 @@
     if (state.remote) add(state.remote === "true" ? "Remote" : "On-site", () => { state.remote = ""; });
     if (state.posted) add(state.posted === "1" ? "Last 24h" : `Last ${state.posted} days`, () => { state.posted = ""; });
     if (state.hasPay) add("Pay listed", () => { state.hasPay = false; });
-    if (state.minPay !== "") add(`Pay ≥ ${state.minPay}${state.payPeriod ? "/" + PERIOD[state.payPeriod] : ""}`, () => { state.minPay = ""; });
+    if (state.minPay !== "" && state.payPeriod) add(`Pay ≥ ${state.minPay}${state.payPeriod ? "/" + PERIOD[state.payPeriod] : ""}`, () => { state.minPay = ""; });
   }
 
   function payText(j) {

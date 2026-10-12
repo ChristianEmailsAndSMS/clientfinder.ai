@@ -5,6 +5,8 @@ description. Attribute tags come from structured fields. Tags are derived data: 
 them at any time (scripts/backfill_tags.py), so changing the rules is safe."""
 from __future__ import annotations
 
+import re
+
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
@@ -15,7 +17,7 @@ CATEGORY_RULES: dict[str, tuple[str, ...]] = {
     "email-marketing": ("email marketing", "email marketer", "email copy", "email specialist", "email manager",
                         "email strategist", "email designer", "email developer"),
     "lifecycle-crm": ("lifecycle", "crm", "retention marketing", "retention manager"),
-    "funnels-landing-pages": ("funnel", "landing page", "conversion rate", "cro "),
+    "funnels-landing-pages": ("funnel", "landing page", "conversion rate", "cro"),
     "creative-strategy": ("creative strategist", "creative director", "creative lead"),
     "growth-marketing": ("growth marketing", "growth marketer", "growth manager"),
     "direct-response": ("direct response", "direct-response"),
@@ -29,6 +31,26 @@ TOOL_RULES: dict[str, tuple[str, ...]] = {
     "hubspot": ("hubspot",),
     "gohighlevel": ("gohighlevel", "go high level", "highlevel"),
 }
+# "lifecycle" and "cro" are ordinary parts of other words/jobs: "Product Lifecycle Manager", "Software Development Lifecycle", "Macro Economist".
+_NOISE = re.compile(r"product lifecycle|development lifecycle|software lifecycle|asset lifecycle|data lifecycle|sdlc|plm\b|lifecycle (?:hardware|data|infrastructure|engineer)")
+_WHOLE_WORD = frozenset({"cro", "crm"})          # these are short: only as a whole word (not inside "micro", "macro", "acrm")
+
+
+def mask_noise(title: str) -> str:
+    return _NOISE.sub(" ", title)
+
+
+def kw_in(text: str, kw: str) -> bool:
+    """Keyword match that starts at a word start ("micro " no longer contains "cro"); whole-word for the short ones."""
+    end = r"(?![a-z0-9])" if kw in _WHOLE_WORD else ""
+    return re.search(rf"(?<![a-z0-9]){re.escape(kw)}{end}", text) is not None
+
+
+def has_pay_info(pay_min, pay_max, pay_text) -> bool:
+    """A job 'lists pay' only with a real number: 'DOE', 'Competitive' or 'Unpaid' are not pay, and 0 is how some feeds say 'unknown'."""
+    return bool((pay_min and pay_min > 0) or (pay_max and pay_max > 0) or (pay_text and re.search(r"\d", pay_text)))
+
+
 ALL_TAGS: frozenset[str] = frozenset(
     list(CATEGORY_RULES) + list(TOOL_RULES) + ["remote", "contract", "full-time", "has-pay"]
 )
@@ -37,11 +59,11 @@ ALL_TAGS: frozenset[str] = frozenset(
 def derive_tags(*, title: str | None, skills: list[str] | None = None, description: str | None = None,
                 type: str | None = None, remote: bool | None = None,
                 pay_min: float | None = None, pay_max: float | None = None, pay_text: str | None = None) -> set[str]:
-    t = f" {(title or '').lower()} "
+    t = f" {mask_noise((title or '').lower())} "
     tools_text = " ".join([t, " ".join(skills or []).lower(), (description or "")[:2000].lower()])
     tags: set[str] = set()
     for tag, kws in CATEGORY_RULES.items():
-        if any(k in t for k in kws):
+        if any(kw_in(t, k) for k in kws):
             tags.add(tag)
     for tag, kws in TOOL_RULES.items():
         if any(k in tools_text for k in kws):
@@ -52,7 +74,7 @@ def derive_tags(*, title: str | None, skills: list[str] | None = None, descripti
         tags.add("contract")
     elif type == "full_time":
         tags.add("full-time")
-    if pay_min or pay_max or pay_text:
+    if has_pay_info(pay_min, pay_max, pay_text):
         tags.add("has-pay")
     return tags
 
