@@ -162,7 +162,9 @@ _FUNNEL_PRODUCT_PAGE = re.compile(
 _LANDING_PAGE_TOOL = re.compile(
     r"\bcapture job seeker information\b"
     r"|\bwithout a designer or developer\b"
-    r"|\blanding page setup wizard\b",
+    r"|\blanding page setup wizard\b"
+    r"|\bgrow your leads and sales with unbounce\b"
+    r"|\bleading landing page platform\b",
     re.I,
 )
 # "Find freelance funnel builder jobs" is a signup for people offering services.
@@ -338,6 +340,9 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
         return True
     # ZipRecruiter /e/ pages explain a job title. They are not openings.
     if "ziprecruiter.com/e/" in low_url:
+        return True
+    # Unbounce's homepage sells the landing page builder. A job elsewhere on the site stays.
+    if "unbounce.com" in low_url and low_url.split("unbounce.com", 1)[1].split("?", 1)[0].strip("/") == "":
         return True
     if "recruitment-agency" in (url or "").lower() or _RECRUITER_PITCH.search(blob):
         return True

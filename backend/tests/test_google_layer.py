@@ -751,6 +751,22 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "You'll build pages without a designer or developer.",
         url="https://example.com/jobs/landing-page-builder")
     assert pipeline.not_a_hiring_post(
+        "Unbounce: The Best Landing Page Builder and CRO platform",
+        "Grow your leads and sales with Unbounce. Easily create, test, and optimize landing pages.",
+        url="https://unbounce.com/")
+    assert pipeline.not_a_hiring_post(
+        "Unbounce: The Best Landing Page Builder and CRO platform",
+        "Unbounce, the leading landing page platform built for marketers and agencies.",
+        url="https://unbounce.com/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a landing page builder",
+        "You'll use the leading landing page platform. Grow your leads and sales with Unbounce.",
+        url="https://example.com/jobs/unbounce-builder")
+    assert not pipeline.not_a_hiring_post(
+        "Copywriter",
+        "We are hiring a copywriter.",
+        url="https://unbounce.com/careers/copywriter")
+    assert pipeline.not_a_hiring_post(
         "Email Marketer Job Description Template",
         "As an email marketer, you will develop, implement and optimise email marketing strategies for our company.",
         url="https://business.linkedin.com/hire/resources/how-to-hire-guides/email-marketer-job-description")
