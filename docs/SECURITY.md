@@ -230,3 +230,15 @@ spend as a lower bound).
 
 **After deploying, run once:** `POST /admin/regions/rebuild` (Admin), `python scripts/backfill_tags.py`, `python scripts/recompute_platforms.py --apply`,
 and delete Lever jobs whose `pay_period='year'` and `pay_max < 20000` so the next run re-adds them with the right pay.
+
+
+## 11. Second audit swarm (2026-10-12, on the code after Cursor's merge)
+
+Four of seven auditors finished before the session limit; the docs, security and end-to-end auditors and all skeptics did not run and are
+scheduled to be re-run. The findings of the four that did finish were checked by reading the evidence and running the tests, then fixed:
+the "[object HTMLDivElement]" and "null" text in dialogs, "Newest first" sorting by scrape date instead of the shown date, the "Live: updated"
+badge being kept alive by a customer's paid search, a false admin alarm for the customer-search source, `recompute_platforms.py` relabelling
+posts as "web" (it now uses the page URL that Google returned), the Reddit/open-web title filter dropping real posts (plural, -ing, "copy writer",
+customer words, hybrid roles, employers who mention a keyword), the monthly search budget being checked once instead of before every Google search,
+old rows (or rows kept as not-a-real-job) being attached to a customer's search, partial searches being handed out free from the cache, and
+platform labels missing for X, Mastodon and others. Remaining low-priority filter findings (F5 to F7) are not fixed.

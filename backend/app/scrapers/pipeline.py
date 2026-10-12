@@ -18,7 +18,7 @@ from ..schemas import SearchResult, ExtractedJob
 from ..dedup import dedupe_hash
 from ..tagging import set_tags
 from ..config import settings
-from . import google_search, page_fetcher, llm_extractor
+from . import google_search, page_fetcher, llm_extractor, query_plan
 from ..security_utils import redact, safe_job_url
 from .common import clip
 from .llm_extractor import ExtractionError
@@ -36,7 +36,7 @@ _DIRECTORY_TITLE = re.compile(r"\bjobs? board\b", re.I)
 _FIND_JOBS_TITLE = re.compile(r"\bfind\b.{0,40}\bjobs\b", re.I)
 _DIRECTORY = re.compile(r"\b\d+\s+writer jobs\b|\bjobs exclusive to paid subscribers\b", re.I)
 # "Remote-First Marketing Jobs" and a snippet of "Browse Marketing jobs" are category pages.
-_JOBS_INDEX_TITLE = re.compile(r"\bremote-first\b.{0,40}\bjobs\s*$", re.I)
+_JOBS_INDEX_TITLE = re.compile(r"\bremote-first\b.{0,40}\bjobs\s*(?:$|[|,:(\u2013-])", re.I)
 _BROWSE_JOBS = re.compile(r"\bbrowse\b.{0,40}\bjobs\b", re.I)
 # "Freelance and remote Copywriters jobs" / "Browse the latest ... jobs" is a board index.
 # "Browse Marketing jobs" is already covered above. A single freelance copywriter opening stays.
@@ -91,7 +91,8 @@ _JOBS_IN_PLACE = re.compile(
 # "Remote Copywriting Jobs", or "Email Copywriter Remote Jobs". A single opening stays.
 _OPEN_ROLES_TITLE = re.compile(
     r"\(\s*\d[\d,]*\s+open roles\s*\)"
-    r"|^\s*(?:remote\s+)?(?:copywriter|copywriting|creative strategist|funnel builder|email marketer|email copywriter|landing page)\s+(?:remote\s+)?jobs\s*$",
+    r"|^\s*(?:(?:remote|freelance)\s+)*(?:copywriters?|copywriting|creative strateg(?:y|ists?)|funnel builders?|email marketers?|email marketing"
+    r"|email copywriters?|landing pages?)\s+(?:remote\s+)?jobs\s*(?:$|[|,:(\u2013-])",   # a "| Remote.co" / ", Employment | Indeed" suffix is still a list
     re.I,
 )
 # Title only. A real post can mention a template in the description.
@@ -150,10 +151,12 @@ _ADVICE_TITLE = re.compile(
     r"|^\s*what to look for when hiring\b"
     r"|\bexamples:\s*what works\b"
     r"|^\s*(?:q:\s*)?what does (?:a|an)\b.{0,60}\bdo\b"
-    r"|\bfreelancers?\s*-\s*hire\b"
-    r"|^\s*hiring an?\b[^?\n]{0,80}\?",
+    r"|\bfreelancers?\s*-\s*hire\b",
     re.I,
 )
+# "Hiring a creative strategist?" (a short question about the role) is an explainer. "Hiring a funnel builder - who's
+# interested?" and "Hiring a strategist for our brand, know anyone?" are openings, so only a bare role question matches.
+_HIRING_QUESTION_TITLE = re.compile(r"^\s*hiring an?\s+(?:[\w&/']+(?:-\w+)*\s+){0,5}[\w&/']+(?:-\w+)*\s*\?", re.I)
 # A company can be named "Funnel Builder" (or use that phrase as a tagline) and be hiring an
 # engineer. Platform, backend, and fullstack titles are the same miss as "software engineer".
 _ENGINEERING_ROLE = re.compile(
@@ -213,6 +216,14 @@ _FIRST_PERSON_INTRO = re.compile(
 )
 _HIRING_SOMEONE = re.compile(
     r"\b(we(?:'re| are) hiring|we(?:'re| are) looking|looking for (?:a|someone)|now hiring|is hiring)\b",
+    re.I,
+)
+# Wider than _HIRING_SOMEONE: used only to keep a post that also says "I have 6 years" or "Hi, I'm a marketer".
+# It is NOT used for "is anyone hiring" or advice, because "is anyone hiring a copywriter?" matches "hiring a".
+_HIRING_NOW = re.compile(
+    r"\b(we(?:'re| are) hiring|we(?:'re| are) looking|looking for (?:a|someone)|now hiring|is hiring"
+    r"|i(?:'m| am) hiring|hiring\s+(?:an?|for)\b|hiring:|(?:we|i) need an?\b|looking to hire"
+    r"|need an? (?:\w+\s+){0,3}(?:copywriters?|marketers?|strategists?|builders?|writers?)\b)",
     re.I,
 )
 # "is anyone hiring" is a person looking for work, often for a friend. "We're hiring" in the same post is an opening.
@@ -305,17 +316,41 @@ def _flat(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", (text or "").lower()).strip()
 
 
+_QUERY_NOISE = frozenset({"hiring", "hire", "hires", "wanted", "jobs", "job", "remote", "freelance"})
+
+
 def _stem(word: str) -> str:
-    """copywriter/copywriting -> copywrit, marketer/marketing -> market, strategist/strategy -> strateg, builder/building -> build."""
-    return re.sub(r"(?:ists?|ers?|ing|ors?|y)$", "", word) if len(word) > 5 else word
+    """copywriter / copywriters / copywriting -> copywrit; marketer / marketing -> market; strategist / strategy -> strateg."""
+    for suffix in ("ists", "ist", "ers", "er", "ing", "ies", "y", "s"):
+        if word.endswith(suffix) and len(word) - len(suffix) >= 4:
+            return word[: -len(suffix)]
+    return word
+
+
+def _stems(text: str) -> set[str]:
+    flat = f" {_flat(text)} ".replace(" copy writer", " copywriter").replace(" copy writing", " copywriting")
+    return {_stem(w) for w in flat.split()}
 
 
 def _needle_in_title(needle: str, title_flat: str) -> bool:
-    """True when the role words of the query are in the title, in order, ignoring the ending of each word.
-    "email marketer", "email marketing" and "Email Marketing Specialist" are the same role; so are copywriter and copywriting."""
-    want = [_stem(w) for w in _flat(needle).split()]
-    have = [_stem(w) for w in title_flat.split()]
-    return bool(want) and any(have[i:i + len(want)] == want for i in range(len(have) - len(want) + 1))
+    """True when every role word of the query phrase is in the title, ignoring plural, -ing and hiring/wanted.
+    "email marketer" matches "Email Marketing Specialist" and "[HIRING] Copywriters"; "hiring copywriter" matches "Copywriter"."""
+    words = [w for w in _flat(needle).split() if w not in _QUERY_NOISE]
+    have = _stems(title_flat)
+    return all(_stem(w) in have for w in words)
+
+
+def _names_role(query: str, title: str) -> bool:
+    """A quoted query ("email marketer") needs every phrase in the title. Plain words the customer typed ("freelance copywriter
+    ecommerce") need any one of them: requiring all of them dropped nearly every real post."""
+    needles = _role_needles(query)
+    if not needles:
+        return True
+    sub_removed = re.sub(r"\s*:\s*r/\w+.*$", "", title or "")      # Google adds ": r/copywriting" to Reddit titles: that is the sub, not the role
+    flat = f" {_flat(sub_removed)} "
+    quoted = bool(re.findall(r'"([^"]+)"', re.sub(r"site:\S+", " ", query or "", flags=re.I)))
+    hits = [_needle_in_title(n, flat) for n in needles]
+    return all(hits) if quoted else any(hits)
 
 
 def _remotive_opening(url: str) -> bool:
@@ -425,10 +460,17 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     if "how-to-hire" in (url or "").lower() or _JOB_TEMPLATE.search(title):
         return True
     # Remotive puts "browse more remote jobs" under a single opening. A category page still drops.
-    if _BROWSE_JOBS.search(blob) and not _remotive_opening(low_url):
+    # Every scope in JOB_SCOPES is a path of individual openings, and boards put "Browse more jobs" under them, not only Remotive.
+    on_opening = _remotive_opening(low_url) or ("remotive.com" not in low_url and any(scope in low_url for scope in query_plan.JOB_SCOPES))
+    if _BROWSE_JOBS.search(blob) and not on_opening:
         return True
-    if (_SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _DIRECTORY_TITLE.search(title)
-            or _FIND_JOBS_TITLE.search(title)
+    hiring = _HIRING_SOMEONE.search(blob)
+    # These title/advice rules had no "a post that is also hiring someone stays" exemption, so "Best Buy Careers: Copywriter
+    # jobs" / "Copywriter at Job Board Co" / "We're hiring! Here's what I look for when ..." lost real openings.
+    if not hiring and (_CAREERS_INDEX.search(title) or _DIRECTORY_TITLE.search(title) or _FIND_JOBS_TITLE.search(title)
+                       or _ADVICE.search(blob) or _HIRING_QUESTION_TITLE.search(title)):
+        return True
+    if (_SELF_PROMO.search(title)
             or _JOBS_INDEX_TITLE.search(title) or _JOB_COUNT_INDEX.search(title)
             or _JOB_COUNT_SUFFIX.search(title) or _DATED_JOBS_INDEX.search(title)
             or _AGGREGATOR_TITLE.search(title) or _SALARY_JOBS_INDEX.search(blob)
@@ -436,10 +478,12 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
             or _TOP_N_JOBS.search(title) or _REDUCED_HOURS_INDEX.search(title)
             or _DIRECTORY.search(blob)
             or _BROWSE_LATEST_JOBS.search(blob)
-            or _ADVICE.search(blob) or _ADVICE_TITLE.search(title) or _PRICE_QUESTION.search(blob)
+            or _ADVICE_TITLE.search(title) or _PRICE_QUESTION.search(blob)
             or _CLOSED_JOB.search(blob) or _NOT_A_JOB_PAGE.search(blob)):
         return True
-    if (_FIRST_PERSON_YEARS.search(blob) or _FIRST_PERSON_INTRO.search(blob) or _JOB_SEEKER.search(blob)) and not _HIRING_SOMEONE.search(blob):
+    if (_FIRST_PERSON_YEARS.search(blob) or _FIRST_PERSON_INTRO.search(blob)) and not _HIRING_NOW.search(blob):
+        return True
+    if _JOB_SEEKER.search(blob) and not hiring:
         return True
     # Title only. A real funnel-builder post can mention working with engineers in the body.
     if re.search(r"funnel builder", query or "", re.I) and _ENGINEERING_ROLE.search(title):
@@ -468,13 +512,9 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     # LinkedIn titles are the author's name, so this check stays on reddit.com.
     # A "Freelance Writer" title can still be a copywriter job, so other roles are an explicit list.
     # "Hiring Email Marketing Specialist" is the same role as "hiring email marketer".
-    needles = _role_needles(query)
-    if "reddit.com" in low_url:
-        title_flat = f" {_flat(title)} "
-        if needles and not all(_needle_in_title(needle, title_flat) for needle in needles):
-            return True
-    if (_OTHER_ROLE_TITLE.search(title) and needles
-            and not all(needle in title.lower() for needle in needles)):
+    if "reddit.com" in low_url and not _names_role(query, title):
+        return True
+    if _OTHER_ROLE_TITLE.search(title) and not _names_role(query, title):
         return True
     return False
 

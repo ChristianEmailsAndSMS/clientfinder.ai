@@ -1489,3 +1489,103 @@ def test_charge_is_cost_times_markup_rounded_up():
     assert charge_usd("claude-haiku-4-5-20251001", 2000, 400) == pytest.approx(cost * 1.5)   # 0.006
     assert charge_usd("claude-haiku-4-5-20251001", 1, 1) >= cost_usd("claude-haiku-4-5-20251001", 1, 1) * 1.5  # never rounds down
     assert charge_usd("unpriced-model", 10, 10) is None
+
+
+# ---------- swarm 2: filters must not drop real openings (each case failed before the fix) ----------
+_RF = "site:reddit.com/r/forhire/comments"
+_RURL = "https://www.reddit.com/r/forhire/comments/1a/x/"
+
+
+@pytest.mark.parametrize("title,query", [
+    ("[HIRING] Copywriters for white-label agency : r/forhire", _RF + ' "hiring" copywriter'),
+    ("[HIRING] Copywriting for SaaS landing pages : r/forhire", _RF + ' "hiring" copywriter'),
+    ("[HIRING] Copy writer for email sequences : r/forhire", _RF + ' "hiring" copywriter'),
+    ("[Hiring] Email Marketers with Mailchimp experience : r/forhire", _RF + ' "hiring" "email marketer"'),
+    ("[Hiring] Email Copywriters needed : r/forhire", _RF + ' "hiring" "email copywriter"'),
+    ("[Hiring] Landing pages for lead gen : r/forhire", _RF + ' "hiring" "landing page"'),
+    ("[Hiring] Creative Strategy lead : r/forhire", _RF + ' "hiring" "creative strategist"'),
+    ("[Hiring] Klaviyo Email Marketer : r/forhire", '"hiring email marketer"'),
+    # a customer's plain words: any one of them, not all of them, must be in the title
+    ("[HIRING] Copywriter for Shopify store : r/forhire", _RF + " freelance copywriter ecommerce"),
+    ("[HIRING] Email Marketing Specialist : r/forhire", _RF + " email marketer"),
+    ("[HIRING] Email copywriter : r/forhire", _RF + " klaviyo copywriter"),
+])
+def test_reddit_title_check_accepts_plural_gerund_and_customer_words(title, query):
+    assert not pipeline.not_a_hiring_post(title, "$50/hr, DM me", query, _RURL)
+
+
+def test_reddit_title_check_still_drops_other_roles_and_ignores_the_subreddit_name():
+    assert pipeline.not_a_hiring_post("[HIRING] Viral Manager : r/hiring", "x", _RF + ' "hiring" copywriter', _RURL)
+    assert pipeline.not_a_hiring_post("Writing copy for a hiring page: tips? : r/copywriting", "x", _RF + ' "hiring" copywriter', _RURL)
+    assert pipeline.not_a_hiring_post("[HIRING] Email Marketing Specialist : r/forhire", "x", _RF + ' "hiring" copywriter', _RURL)
+
+
+def test_other_role_rule_keeps_a_title_that_names_the_searched_role_on_open_web_queries():
+    # '"hiring copywriter"' used to demand the literal words "hiring copywriter" in the title
+    assert not pipeline.not_a_hiring_post("Copywriter & Account Manager - Remote", "We're hiring.", '"hiring copywriter"', "https://co.com/j/1")
+    assert not pipeline.not_a_hiring_post("Copywriter / Graphic Designer", "SaaS company", "copywriter saas", "https://co.com/j/1")
+    assert not pipeline.not_a_hiring_post("Email Marketing Account Manager (Klaviyo)", "We're hiring.", '"hiring email marketer"', "https://co.com/j/2")
+    assert pipeline.not_a_hiring_post("Remote Account Manager at SOCi", "x", '"hiring creative strategist"', "https://co.com/j/3")
+
+
+@pytest.mark.parametrize("title,snippet", [
+    ("Eli on LinkedIn: We're hiring a copywriter!", "We're hiring a copywriter! Here's what I look for when reading applications: voice."),
+    ("Meg on LinkedIn: How I built our team", "How I built our creative team, and why we're hiring a creative strategist now."),
+    ("Copywriter at Job Board Co | Remote", "Job Board Co is hiring a copywriter."),
+    ("Copywriter at Flexjobs - Find flexible jobs", "Flexjobs is hiring a Copywriter."),
+    ("Careers at Mosaic: Senior Email Marketer", "Mosaic is hiring a Senior Email Marketer."),
+    ("Hiring a funnel builder - who's interested?", "We're hiring a funnel builder. DM me."),
+    ("Hiring a creative strategist for our DTC brand - know anyone?", "$5k/mo, remote. Looking for a strategist."),
+])
+def test_title_and_advice_rules_keep_a_post_that_also_says_it_is_hiring(title, snippet):
+    assert not pipeline.not_a_hiring_post(title, snippet, "x", "https://example.com/j/1")
+
+
+def test_hiring_question_and_advice_without_a_hiring_line_still_drop():
+    assert pipeline.not_a_hiring_post("Hiring a creative strategist?", "What to look for.", "x", "https://blog.example.com/p")
+    assert pipeline.not_a_hiring_post("Careers at Acme", "See our teams.", "x", "https://acme.com/careers")
+    assert pipeline.not_a_hiring_post("Is anyone hiring a copywriter?", "my friend has 5 years of experience", "x", "https://x.com/a/status/1")
+
+
+@pytest.mark.parametrize("snippet", [
+    "Hiring a Klaviyo expert. I have 6 years running a DTC brand and I need someone to take email off my plate. DM.",
+    "I'm hiring an email marketer. I have 6 years running this brand. DM.",
+    "Hi, I'm a growth marketer at Brightly. Need an email copywriter ASAP, DM me with samples.",
+    "Hi, I'm a freelance copywriter and I'm hiring a junior copywriter for overflow. DM.",
+])
+def test_first_person_rules_keep_posts_that_hire_in_other_words_than_were_a_fixture(snippet):
+    assert not pipeline.not_a_hiring_post("Jess on X", snippet, "x", "https://x.com/j/status/1")
+
+
+def test_first_person_ads_still_drop():
+    assert pipeline.not_a_hiring_post("Mike on X", "Open to work! I have 5+ years of experience as an email marketer. #hiring", "x", "https://x.com/m/status/1")
+    assert pipeline.not_a_hiring_post("Hi", "Hi, I'm a freelance copywriter specializing in email. DM me.", "x", "https://x.com/m/status/2")
+
+
+def test_browse_more_jobs_footer_does_not_drop_an_opening_on_any_job_board_scope():
+    for url in ("https://remoteok.com/remote-jobs/remote-senior-copywriter-1", "https://weworkremotely.com/remote-jobs/acme-copywriter",
+                "https://remotive.com/remote/jobs/marketing/copywriter-1"):
+        assert not pipeline.not_a_hiring_post("Senior Copywriter (Remote)", "Browse more remote jobs on this board.", "copywriter jobs", url)
+    assert pipeline.not_a_hiring_post("Marketing Jobs", "Browse Marketing jobs.", "copywriter jobs", "https://remotive.com/remote-jobs/marketing")
+
+
+@pytest.mark.parametrize("title", [
+    "Remote Copywriting Jobs | Remote.co", "Creative strategist jobs - ZipRecruiter", "Email Copywriter Remote Jobs | Jobgether",
+    "Copywriter Jobs, Employment | Indeed.com", "Copywriting Jobs - Apply Now | Glassdoor", "Remote-First Marketing Jobs | Wellfound",
+    "Email Marketing Jobs (Remote) - Wellfound",
+])
+def test_job_list_titles_with_a_site_name_suffix_are_still_lists(title):
+    assert pipeline.not_a_hiring_post(title, "Browse listings and apply", "x", "https://jobs.example.com/x")
+
+
+def test_dropped_result_is_neither_fetched_nor_read_nor_billed_and_the_filter_is_deterministic(db, monkeypatch):
+    junk = SearchResult(url="https://blog.example.com/how-to-hire-a-copywriter", title="How to Hire a Copywriter",
+                        snippet="A guide", source_query='"hiring copywriter"', platform="web")
+    monkeypatch.setattr(google_search, "search", lambda *a, **k: [junk, junk])
+    calls = []
+    monkeypatch.setattr(page_fetcher, "fetch_page_for_result", lambda r: calls.append("fetch") or (LONG, True))
+    monkeypatch.setattr(llm_extractor, "extract", lambda r, h: calls.append("llm") or _extracted())
+    stats = pipeline.run_pipeline_for_query('"hiring copywriter"')
+    assert calls == [] and (stats["skipped"], stats["tokens_in"], stats["tokens_out"], stats["calls"]) == (2, 0, 0, [])
+    first = [pipeline.not_a_hiring_post(junk.title, junk.snippet, junk.source_query, junk.url) for _ in range(5)]
+    assert first == [True] * 5
