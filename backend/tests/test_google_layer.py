@@ -1000,6 +1000,18 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We are hiring a copywriter. The client is a hiring agency that hires for other brands.",
         url="https://example.com/jobs/copywriter")
     assert pipeline.not_a_hiring_post(
+        "Why Should I Hire a Copywriter?",
+        "Wondering why hire a copywriter? Good copywriters position your business.",
+        url="https://www.gravitatedesign.com/blog/why-should-i-hire-a-copywriter/")
+    assert pipeline.not_a_hiring_post(
+        "5 Reasons Why Hiring A Copywriter Can Be A Game Changer",
+        "Why should I hire a professional, full-time copywriter instead of someone who writes perfect English?",
+        url="https://www.candyboxmarketing.com/resources/5-reasons-why-hiring-a-copywriter-can-be-a-game-changer/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "Why should I hire you? Show the work in your portfolio.",
+        url="https://example.com/jobs/copywriter-why")
+    assert pipeline.not_a_hiring_post(
         "Creative Strategist freelancers - Hire",
         "Write down these goals clearly. This will help the creative strategist understand the brief.")
     assert not pipeline.not_a_hiring_post(

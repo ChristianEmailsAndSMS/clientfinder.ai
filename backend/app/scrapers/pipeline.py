@@ -203,6 +203,8 @@ _HIRE_IN_TITLE = re.compile(r"\bhire\b", re.I)
 # "We're a hiring agency that hires skilled copywriters for client companies" is a talent pool.
 # A post that is also hiring someone stays.
 _HIRING_AGENCY_POOL = re.compile(r"\bhiring agency that hires\b", re.I)
+# "Why should I hire a copywriter?" is advice. A post that is also hiring someone stays.
+_WHY_HIRE = re.compile(r"\bwhy should i hire\b", re.I)
 # "Copywriter Hiring • 500+ reels on Instagram" is a topic page. Title only.
 _INSTAGRAM_REEL_INDEX = re.compile(r"\breels on instagram\b", re.I)
 # "Free and customizable copywriting templates" is a design gallery. Title only.
@@ -341,6 +343,8 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     if _RECRUITMENT_AGENCY_TITLE.search(title) and _HIRE_IN_TITLE.search(title):
         return True
     if _HIRING_AGENCY_POOL.search(blob) and not _HIRING_SOMEONE.search(blob):
+        return True
+    if _WHY_HIRE.search(blob) and not _HIRING_SOMEONE.search(blob):
         return True
     # LinkedIn and Equip how-to-hire pages are sample descriptions, not openings.
     if "how-to-hire" in (url or "").lower() or _JOB_TEMPLATE.search(title):
