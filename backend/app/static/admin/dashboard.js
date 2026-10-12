@@ -60,7 +60,7 @@
   $("btn-logout-all").addEventListener("click", async () => { await api("POST", "/auth/logout-all"); location.replace("/login"); });
 
   // ---------- dashboard shell ----------
-  const renderers = { overview: renderOverview, sources: renderSources, failed: renderFailed, users: renderUsers, security: renderSecurity };
+  const renderers = { overview: renderOverview, sources: renderSources, failed: renderFailed, users: renderUsers, payments: renderPayments, security: renderSecurity };
   function enterDashboard(me) {
     $("who").textContent = me.email;
     view("dash");
@@ -102,7 +102,7 @@
     if (o.sources.failing.length) problems.push("Failing sources: " + o.sources.failing.join(", "));
     if (o.sources.stale.length) problems.push("No recent run: " + o.sources.stale.join(", "));
     if (o.backups.status !== "ok") problems.push("Backups are " + o.backups.status);
-    if (o.payments_waiting) problems.push(`${o.payments_waiting} payment${o.payments_waiting === 1 ? "" : "s"} need a decision (unmatched, refunded or disputed). See /admin/payments.`);
+    if (o.payments_waiting) problems.push(`${o.payments_waiting} payment${o.payments_waiting === 1 ? "" : "s"} need a decision (unmatched, refunded or disputed). Open the Payments tab.`);
     box.appendChild(h("h2", {}, "Needs attention"));
     box.appendChild(problems.length ? h("ul", {}, problems.map((p) => h("li", { class: "bad" }, p))) : h("p", { class: "good" }, "Nothing flagged."));
   }
@@ -198,6 +198,35 @@
       h("td", {}, when(x.at)), h("td", {}, x.kind), h("td", { class: x.amount_usd < 0 ? "bad" : "good" }, usd(x.amount_usd)),
       h("td", {}, usd(x.balance_after_usd)), h("td", {}, x.reason)))));
     panel.scrollIntoView({ behavior: "smooth" });
+  }
+
+  // ---------- payments ----------
+  async function renderPayments() {
+    const box = clear($("tab-payments"));
+    const r = await guarded("GET", "/admin/payments?limit=100");
+    if (!r.ok) { box.appendChild(h("p", { class: "error" }, detail(r))); return; }
+    box.appendChild(h("p", { class: "muted" }, "Every payment notice from Whop. Anything marked unmatched or review was NOT credited automatically. For a real payment, type the customer's email and click Credit. Refunds and disputes can never be credited here: take the credit back on the customer's row if you refund."));
+    const rows = r.data.map((e) => {
+      const email = h("input", { type: "email", placeholder: "customer email", value: e.email || "", class: "w220" });
+      const canCredit = (e.status === "unmatched" || e.status === "review") && e.type === "payment.succeeded" && e.amount_usd;
+      const credit = h("button", { class: "small", onclick: async () => {
+        const q = email.value.trim().toLowerCase();
+        if (!q) { flash("Type the customer's email first.", true); return; }
+        const u = await guarded("GET", "/admin/users?limit=5&q=" + encodeURIComponent(q));
+        const hit = u.ok ? u.data.find((x) => x.email === q) : null;
+        if (!hit) { flash("No customer with exactly that email.", true); return; }
+        if (!confirm(`Add ${usd(e.amount_usd)} of credit to ${hit.email}?`)) return;
+        const x = await guarded("POST", `/admin/payments/${e.id}/credit`, { user_id: hit.id });
+        flash(x.ok ? "Credited." : detail(x), !x.ok);
+        if (x.ok) renderPayments();
+      } }, "Credit");
+      return h("tr", {},
+        h("td", {}, when(e.created_at)), h("td", {}, e.type || ""),
+        h("td", { class: e.status === "credited" ? "good" : e.status === "ignored" ? "muted" : "warn" }, e.status),
+        h("td", {}, e.amount_usd == null ? "" : usd(e.amount_usd)), h("td", {}, e.email || ""), h("td", {}, e.note || ""),
+        h("td", {}, canCredit ? h("div", { class: "row" }, email, credit) : ""));
+    });
+    box.appendChild(table(["When", "Type", "Status", "Amount", "Email", "Note", "Action"], rows));
   }
 
   // ---------- security log ----------

@@ -335,3 +335,11 @@ def test_payment_matched_only_by_email_is_credited_only_if_it_is_one_of_our_pack
         uid = db.scalar(select(User.id).where(User.email == "buyer@example.com"))
     tagged = post(c, pay(total=15, metadata={"cf_user_id": str(uid)}), msg_id="tagged")     # our own checkout proves it is a credit purchase
     assert tagged.json()["status"] == "credited" and bal(env) == 62_000_000
+
+
+def test_admin_dashboard_has_a_payments_tab_with_a_credit_action_built_without_innerhtml():
+    from pathlib import Path
+    root = Path(__file__).resolve().parent.parent / "app/static/admin"
+    assert 'data-tab="payments"' in (root / "index.html").read_text() and 'id="tab-payments"' in (root / "index.html").read_text()
+    js = (root / "dashboard.js").read_text()
+    assert "renderPayments" in js and "/admin/payments/${e.id}/credit" in js and ".innerHTML" not in js
