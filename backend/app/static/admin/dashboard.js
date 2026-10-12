@@ -117,7 +117,7 @@
       h("td", {}, s.last_run ? h("span", { class: s.last_run.status === "ok" ? "good" : "bad" }, s.last_run.status) : "never"),
       h("td", {}, s.last_run ? when(s.last_run.at) : ""),
       h("td", {}, `${s.runs_24h} (${s.failed_24h} failed)`),
-      h("td", {}, h("button", { class: "small", disabled: s.running, onclick: async () => {
+      h("td", {}, s.runnable === false ? "" : h("button", { class: "small", disabled: s.running, onclick: async () => {
         const x = await guarded("POST", `/admin/sources/${encodeURIComponent(s.key)}/run`);
         flash(x.ok ? `Started ${s.key}. Refresh in a minute.` : detail(x), !x.ok);
         setTimeout(renderSources, 1500);

@@ -74,11 +74,13 @@ def list_sources(db: Session = Depends(get_db)) -> list[dict]:
             c[0] += 1
             c[1] += 1 if status == "failed" else 0
     totals = dict(db.execute(select(Job.source_key, func.count(Job.id)).group_by(Job.source_key)).all())
+    google_keys = _google_keys()
     out = []
     for sid, key, kind, enabled in db.execute(select(Source.id, Source.key, Source.kind, Source.enabled).order_by(Source.key)):
         last = latest.get(sid)
         out.append({
             "key": key, "kind": kind, "enabled": enabled, "running": key in _running,
+            "runnable": key in DURABLE or key in google_keys,
             "total_jobs": totals.get(key, 0),
             "runs_24h": day.get(sid, [0, 0])[0], "failed_24h": day.get(sid, [0, 0])[1],
             "last_run": None if not last else {"at": _iso(last[0]), "status": last[1], "jobs_added": last[2], "error": last[3]},
@@ -205,8 +207,10 @@ def overview(db: Session = Depends(get_db)) -> dict:
     new_24h = db.scalar(select(func.count(Job.id)).where(Job.first_seen_at >= now - timedelta(hours=24))) or 0
     pending_failed = db.scalar(select(func.count(FailedUrl.id)).where(FailedUrl.status == "pending")) or 0
     srcs = list_sources(db)
-    failing = [x["key"] for x in srcs if x["last_run"] and x["last_run"]["status"] == "failed" and not x["key"].startswith("google:")]
-    stale = [x["key"] for x in srcs if not x["key"].startswith("google:")
+    # Only the scheduled feeds can be "failing" or "stale". Customer searches ("usersearch") and Google plan queries run on demand, so
+    # no run for a day is normal for them and must not raise an alarm.
+    failing = [x["key"] for x in srcs if x["key"] in DURABLE and x["last_run"] and x["last_run"]["status"] == "failed"]
+    stale = [x["key"] for x in srcs if x["key"] in DURABLE
              and (not x["last_run"] or (now - datetime.fromisoformat(x["last_run"]["at"])) > timedelta(hours=30))]
     payments_waiting = db.scalar(select(func.count(PaymentEvent.id)).where(PaymentEvent.status.in_(("review", "unmatched")))) or 0
     users = db.scalar(select(func.count(User.id)).where(User.is_admin.is_(False))) or 0

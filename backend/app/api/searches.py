@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .. import credits, live_search
@@ -90,5 +90,5 @@ def jobs(search_id: PathId, limit: int = Query(100, ge=1, le=300), user: User = 
     s = _mine(db, user, search_id)
     rows = db.scalars(select(Job).join(UserSearchJob, UserSearchJob.job_id == Job.id)
                       .where(UserSearchJob.search_id == s.id, Job.is_real_job.is_(True))
-                      .order_by(Job.first_seen_at.desc(), Job.id.desc()).limit(limit)).all()
+                      .order_by(func.coalesce(Job.posted_at, Job.first_seen_at).desc(), Job.id.desc()).limit(limit)).all()
     return serialize_jobs(db, rows)

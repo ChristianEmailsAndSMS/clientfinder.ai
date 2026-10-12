@@ -19,6 +19,8 @@
     return el;
   };
   const h = CF.h;
+  // Same child rules as h() (skips null/false, flattens arrays). Element.append() would print "null" and "[object HTMLDivElement]".
+  CF.put = (el, ...kids) => { for (const kid of kids.flat(Infinity)) { if (kid == null || kid === false) continue; el.appendChild(typeof kid === "object" ? kid : document.createTextNode(String(kid))); } return el; };
   CF.clear = (el) => { while (el.firstChild) el.removeChild(el.firstChild); return el; };
 
   // tiny icon set (stroke icons, built with createElementNS so no HTML parsing)
@@ -74,7 +76,7 @@
     himalayas: "Himalayas", remotely: "Remotely", nodesk: "NoDesk", workingnomads: "Working Nomads", fourdayweek: "4 Day Week", workable: "Workable",
     contentjobs: "Content Jobs", jobspresso: "Jobspresso", creatorjobboard: "Creator Job Board", euremotejobs: "EU Remote Jobs", remoteco: "Remote.co",
     remoterocketship: "Remote Rocketship", jobicy: "Jobicy",
-    instagram: "Instagram", threads: "Threads", tiktok: "TikTok", youtube: "YouTube", bluesky: "Bluesky", wellfound: "Wellfound", smartrecruiters: "SmartRecruiters" };
+    x: "X / Twitter", mastodon: "Mastodon", instagram: "Instagram", threads: "Threads", tiktok: "TikTok", youtube: "YouTube", bluesky: "Bluesky", wellfound: "Wellfound", smartrecruiters: "SmartRecruiters" };
   CF.TYPE = { full_time: "Full-time", contract: "Contract", hourly: "Hourly", fixed: "Fixed price", social_post: "Social post", part_time: "Part-time" };
   CF.platformBadge = (p) => h("span", { class: "plat " + String(p).replace(/[^a-z]/g, ""), text: CF.PLATFORM[p] || p });
 

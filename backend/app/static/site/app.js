@@ -284,7 +284,7 @@
       if (step < steps.length) {
         const st = steps[step], err = h("p", { class: "error", hidden: true });
         body.append(h("h3", { class: "wtitle", text: st.title }), h("p", { class: "muted", text: st.sub }), st.body(), err, foot);
-        foot.append(first && step === 0 ? h("button", { class: "btn", type: "button", text: "Skip for now", onclick: async () => { if (await save(true)) closeModal(); } }) : step > 0 ? h("button", { class: "btn", type: "button", text: "Back", onclick: () => { step--; paint(); } }) : null,
+        CF.put(foot, first && step === 0 ? h("button", { class: "btn", type: "button", text: "Skip for now", onclick: async () => { if (await save(true)) closeModal(); } }) : step > 0 ? h("button", { class: "btn", type: "button", text: "Back", onclick: () => { step--; paint(); } }) : null,
           h("span", { class: "grow" }),
           h("button", { class: "btn primary", type: "button", text: step === steps.length - 1 ? "See my matches" : "Next", onclick: () => { if (st.ok && !st.ok()) { err.textContent = st.why; err.hidden = false; return; } step++; paint(); } }));
         return;
@@ -392,7 +392,7 @@
       go.disabled = true; clear(out).append(h("span", { class: "spinner" }), " Writing…");
       const r = await api("POST", "/assist", { mode: st.mode, job_id: job.id, thread: st.mode === "reply" ? thread.value : "", image_b64: st.mode === "reply" ? st.image : null, note: note.value });
       go.disabled = false;
-      if (!r.ok) { clear(out).append(h("div", { class: "sresult fail", text: detail(r) }), r.status === 402 ? h("button", { class: "btn sm mt12", type: "button", text: "Add credits", onclick: () => openCredits() }) : null); return; }
+      if (!r.ok) { CF.put(clear(out), h("div", { class: "sresult fail", text: detail(r) }), r.status === 402 ? h("button", { class: "btn sm mt12", type: "button", text: "Add credits", onclick: () => openCredits() }) : null); return; }
       me.balance_usd = r.data.balance_usd; if (!me.unlimited) $("bal").textContent = money(me.balance_usd);
       clear(out).append(h("div", { class: "draft", text: r.data.text }),
         h("div", { class: "row mt12" }, h("button", { class: "btn sm", type: "button", text: "Copy", onclick: () => CF.copy(r.data.text) }),
@@ -509,7 +509,7 @@
   async function loadHistory(box, out) {
     const r = await api("GET", "/searches?limit=6");
     if (!r.ok || !r.data.length) return;
-    clear(box).append(h("h3", { class: "mt20", text: "Your recent searches" }),
+    CF.put(clear(box), h("h3", { class: "mt20", text: "Your recent searches" }),
       r.data.map((s) => h("div", { class: "row mt12" }, h("div", { class: "grow" }, h("div", { text: s.query + (s.site ? `  ·  ${s.site}` : "") }), h("div", { class: "hint", text: `${ago(s.created_at)} · ${s.status === "done" ? s.results + " results" : s.status}${s.cost_usd ? " · " + money(s.cost_usd, 4) : ""}` })),
         s.status === "done" ? h("button", { class: "btn sm", type: "button", text: "View", onclick: () => showResult(s, out) }) : null)));
   }

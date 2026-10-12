@@ -39,7 +39,11 @@ def public_stats(db: Session = Depends(get_db)) -> dict:
     def build():
         now = datetime.now(timezone.utc)
         real = Job.is_real_job.is_(True)
-        last = db.scalar(select(func.max(ScrapeRun.finished_at)).where(ScrapeRun.status == "ok"))
+        from ..live_search import SOURCE_KEY
+        # "Live: updated X ago" is about our own collection. A customer's paid search also writes a scrape_run, and must not make
+        # a dead scheduler look alive.
+        last = db.scalar(select(func.max(ScrapeRun.finished_at)).join(Source, Source.id == ScrapeRun.source_id)
+                         .where(ScrapeRun.status == "ok", Source.key != SOURCE_KEY))
         if last is not None and last.tzinfo is None:
             last = last.replace(tzinfo=timezone.utc)
         return {

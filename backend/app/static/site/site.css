@@ -211,3 +211,6 @@ textarea.input{width:100%;resize:vertical;line-height:1.5}
 button.tile.bundle{font:inherit;color:var(--ink);align-items:flex-start}button.tile.bundle strong{font-size:26px;letter-spacing:-.02em}button.tile:disabled{opacity:.6;cursor:wait}
 
 .brand{display:inline-flex;align-items:center}.brand img{display:block;height:38px;width:auto}
+/* phones: the logo and both sign-up buttons must fit in 340px without the page scrolling sideways */
+@media (max-width:480px){.topbar{gap:8px}.topbar .brand img{height:26px;width:auto}.topbar nav{gap:6px}.topbar nav .btn.sm{padding:7px 9px;font-size:13px}}
+@media (max-width:380px){.topbar .brand img{height:22px}.topbar nav .btn.sm{padding:6px 7px;font-size:12px}}

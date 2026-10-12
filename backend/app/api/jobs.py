@@ -26,9 +26,13 @@ def _yearly(amount):
 _PAY_TOP = func.coalesce(Job.pay_max, Job.pay_min)
 _PAY_BOTTOM = func.coalesce(Job.pay_min, Job.pay_max)
 
+# The card shows posted_at (falling back to first_seen_at) and the "Posted" filter uses the same date, so "Newest first" must sort by it too.
+# first_seen_at alone put a 40-day-old post that we scraped today above one posted yesterday.
+_SHOWN_DATE = func.coalesce(Job.posted_at, Job.first_seen_at)
+
 SORTS = {
-    "newest": lambda: (Job.first_seen_at.desc(), Job.id.desc()),
-    "oldest": lambda: (Job.first_seen_at.asc(), Job.id.asc()),
+    "newest": lambda: (_SHOWN_DATE.desc(), Job.id.desc()),
+    "oldest": lambda: (_SHOWN_DATE.asc(), Job.id.asc()),
     "pay_high": lambda: (_yearly(_PAY_TOP).desc().nulls_last(), Job.first_seen_at.desc(), Job.id.desc()),
     "pay_low": lambda: (_yearly(_PAY_BOTTOM).asc().nulls_last(), Job.first_seen_at.desc(), Job.id.desc()),
 }
