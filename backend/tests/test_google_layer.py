@@ -838,6 +838,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "We're hiring a landing page designer",
         "Who to hire is in the brief. Apply if you design landers.",
         url="https://example.com/jobs/landing-page-designer")
+    assert pipeline.not_a_hiring_post(
+        "Best platform to hiring a copywriter",
+        "Best platform to hiring a copywriter. Job Posting.",
+        url="https://www.reddit.com/r/copywriting/comments/vay8sp/best_platform_to_hiring_a_copywriter/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "The best platform to apply is this page.",
+        url="https://example.com/jobs/copywriter")
     assert pipeline.not_a_hiring_post("How should brands hire creative strategists?!", "")
     assert pipeline.not_a_hiring_post("3 signs you're not actually a creative strategist", "")
     assert pipeline.not_a_hiring_post("Ultimate checklist for hiring a copywriting genius", "Secret checklist for a pro copywriter")
