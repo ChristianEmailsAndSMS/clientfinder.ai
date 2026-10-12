@@ -408,10 +408,17 @@
   }
 
   // ---- run a search
-  const SERVICES = ["email copywriter", "copywriter", "funnel builder", "creative strategist", "klaviyo specialist", "landing page designer"];
+  const SERVICES = ["copywriting", "copywriter", "email marketing", "email copywriter", "creative strategy", "creative strategist", "funnel builder"];
   const WINDOWS = { d: "Past day", w: "Past week", m: "Past month", m3: "Past 3 months", m6: "Past 6 months", m9: "Past 9 months", y: "Past year" };
   // The customer sells a service; the web search looks for people HIRING for it.
-  const asSearch = (service) => { const t = service.trim(); return /\b(hiring|hire|looking for|need|needs|wanted|seeking)\b/i.test(t) ? t : (t ? "hiring " + t : ""); };
+  const asSearch = (service) => {
+    const t = service.trim();
+    if (/\b(hiring|hire|looking for|need|needs|wanted|seeking)\b/i.test(t)) return t;
+    if (!t) return "";
+    // Quoted so it does not match the company Builder Funnel.
+    const role = /^funnel builder$/i.test(t) ? '"funnel builder"' : t;
+    return "hiring " + role;
+  };
 
   async function openSearch(prefill) {
     const cfg = await api("GET", "/searches/config");
@@ -429,7 +436,7 @@
     const chips = h("div", { class: "chips mt12" }, SERVICES.map((p) => h("button", { type: "button", class: "chip", text: p, onclick: () => { input.value = p; estimate(); input.focus(); } })));
 
     modal("Find clients who are hiring",
-      h("p", { class: "muted", text: "Tell us the service you sell. We search the web right now for people looking to hire for it, read each post and add the jobs to the database." }),
+      h("p", { class: "muted", text: "Tell us the service you sell. We search LinkedIn, X, Facebook, Reddit, and remote boards (Dynamite Jobs, Himalayas, We Work Remotely, Remote OK, and more) right now for people hiring for it." }),
       !c.ready ? h("div", { class: "sresult fail mt12", text: c.reason }) : null,
       h("label", { class: "field" }, "What service do you sell?", input), willSearch, chips,
       h("div", { class: "mt16" }, h("div", { class: "hint", text: "How far back should we look?" }), win),
@@ -443,7 +450,7 @@
       const seq = ++estSeq;                                  // only the newest estimate may update the screen
       quote = null; runBtn.disabled = true;
       const q = asSearch(input.value);
-      willSearch.textContent = q ? `We will search for: “${q}”` : "";
+      willSearch.textContent = q ? `LinkedIn, X, Facebook, Reddit, remote job boards, and the web, for “${q}”` : "";
       if (input.value.trim().length < 3) { info.textContent = `Type the service you sell. You have ${c.left_today} new searches left today.`; runBtn.textContent = "Run search"; return; }
       const r = await api("POST", "/searches/estimate", { query: q, freshness: s.freshness, site: null });
       if (seq !== estSeq) return;
@@ -486,7 +493,7 @@
   async function showResult(s, out) {
     clear(out);
     if (s.status === "failed") { out.append(h("div", { class: "sresult fail mt16", text: s.error || "The search failed. You were not charged." })); return; }
-    const jobs = await api("GET", `/searches/${s.id}/jobs?limit=50`);
+    const jobs = await api("GET", `/searches/${s.id}/jobs?limit=300`);
     out.append(h("div", { class: "sresult mt16" }, h("strong", { text: s.cached ? "Served from our database (free)" : `Found ${s.results} ${s.results === 1 ? "job" : "jobs"}${s.new_jobs ? `, ${s.new_jobs} new to the database` : ""}` }),
       h("div", { class: "muted", text: s.cached ? "Someone searched this in the last few hours." : `Charged ${money(s.cost_usd, 4)}.` })));
     const list = h("div", { class: "mt16" });

@@ -48,7 +48,7 @@ def test_only_a_serper_key_means_serper_is_called_and_budgeted(env, monkeypatch)
     assert google_search.active_provider() == "serper" and query_plan._provider() == "serper"
     c = member(env, balance_usd=5)
     run(c)
-    assert posts == ["https://google.serper.dev/search"]                          # the search really happened
+    assert posts and set(posts) == {"https://google.serper.dev/search"}           # every Google search really went to Serper (a search fans out to several)
     with env.scope() as db:
         assert db.scalar(select(SearchQuery.provider)) == "serper"
 
@@ -81,7 +81,7 @@ def test_a_search_expired_while_running_keeps_the_not_charged_promise(env, live,
     assert balance(env, c.uid) == 5_000_000
     with env.scope() as db:
         assert db.scalar(select(func.count(CreditEntry.id))) == 0
-        assert db.scalar(select(func.count(SearchQuery.id))) == 1                 # but the provider call still counts against the budget
+        assert db.scalar(select(func.count(SearchQuery.id))) >= 1                # but the provider calls still count against the budget
 
 
 def test_two_simultaneous_starts_by_one_user_start_only_one(monkeypatch, tmp_path):
@@ -91,7 +91,7 @@ def test_two_simultaneous_starts_by_one_user_start_only_one(monkeypatch, tmp_pat
     monkeypatch.setattr(settings, "serpapi_api_key", "k"); monkeypatch.setattr(settings, "anthropic_api_key", "k")
     monkeypatch.setattr(settings, "dev_fixtures", False)
     with S() as db:
-        u = User(email="r@x.test", password_hash="x", balance_micro=40_000)
+        u = User(email="r@x.test", password_hash="x", balance_micro=5_000_000)
         db.add(u); db.commit(); uid = u.id
     barrier = threading.Barrier(2, timeout=10)                                    # both requests pass every check before either inserts
     monkeypatch.setattr(query_plan, "searches_used_this_month", lambda db, now=None: (barrier.wait(), 0)[1])

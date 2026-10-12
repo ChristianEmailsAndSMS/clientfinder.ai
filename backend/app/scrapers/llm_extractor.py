@@ -28,7 +28,7 @@ class ExtractionError(Exception):
 
 EXTRACTION_PROMPT = """You are a job-posting extractor. Read the HTML/text below and return STRICT JSON with the shape:
 {
-  "is_real_job": bool,          // true if this looks like an actual hiring post (not just a blog about hiring, not spam)
+  "is_real_job": bool,          // true only if someone is hiring for a role. False for blogs, spam, and people advertising themselves ("for hire", "hire me")
   "title": str,                 // the role title
   "company_or_poster": str|null,// company name OR the social handle who posted it
   "pay_text": str|null,         // raw pay string as written ("$50/hr", "$3K/project", "DOE")

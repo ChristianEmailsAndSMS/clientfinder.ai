@@ -20,14 +20,14 @@ on **collecting** jobs. So 10 customers or 10,000 cost the same to serve; collec
 |---|---|---|---|---|
 | All 5,000 from Google | ~1,250 (37,500/mo) | ~$560 | ~$105 (one page read per job, 2,600 in / 900 out at $0.10 / $0.50) | **~$665** |
 | 3,500 from free feeds, 1,500 from Google | ~375 (11,000/mo) | ~$170 | ~$32 | **~$200** |
-| Today's plan (34 queries, twice a day) | ~68 (2,040/mo) | ~$31 | up to ~$14 if all 10 results are read | **~$31-45** |
+| Today's plan (166 queries, twice a day), only if the schedule is turned on | ~332 (10,000/mo) | ~$149 | depends on new pages | **search ~$149, plus Claude** |
 
 Reality check: the free feeds produced about 95 jobs in total. The number of genuinely new copywriter / email / funnel hiring posts per day
 across the whole internet is probably in the low hundreds, so spend is capped by supply of jobs, not by budget. Start small and use the
 cost report to see cost per new job before scaling queries.
 
 ## Customer-run searches
-A live search costs us ~$0.015 (search) + ~$0.0007 per page read (about 10) = about $0.022; customers are charged 1.5x = about $0.033.
+A live search runs the customer's words on the open web plus LinkedIn posts, LinkedIn jobs, X, Facebook, Reddit hiring threads (r/forhire and r/hiring), and 15 remote job boards (22 Google searches). Search cost to us is about $0.33, plus extraction. The customer pays 1.5x, about $0.73, shown as the estimate before they run. A search aimed at one site is a single Google search.
 Repeating a search within 6 hours is served from the database and costs nobody anything.
 
 ## Levers, in order of effect
@@ -39,7 +39,6 @@ Repeating a search within 6 hours is served from the database and costs nobody a
 
 
 ## Customer-paid searches (live search)
-Customers pay for their own searches from prepaid credits. Charge = max(fee + extraction, 1.5 × our real cost). With Haiku 5.5 the SerpAPI
-search ($0.015) dominates, so a typical 10-result search costs us about $0.02 and the customer about $0.033. The scheduled Google plan
-stays OFF (`GOOGLE_SCHEDULE_ENABLED=0`) so API keys alone never spend your money on a timer. The real margin is shown on the admin
+Customers pay for their own searches from prepaid credits. Charge = max(fee + extraction, 1.5 × our real cost), once per Google search that actually ran. A default search is 22 Google searches (the open web, LinkedIn posts, LinkedIn jobs, X, Facebook, r/forhire, r/hiring, and 15 remote boards: Dynamite Jobs, Himalayas, NoDesk, Working Nomads, We Work Remotely, 4 Day Week, Workable, Content Jobs, Jobspresso, EU Remote Jobs, Remote.co, Remote Rocketship, Jobicy, Remote OK, and Remotive). The estimate is about $0.73. One chosen site is still one Google search. Remotely and Creator Job Board are not included: a `hiring copywriter` search on those sites returned no individual jobs. The scheduled Google plan
+stays OFF (`GOOGLE_SCHEDULE_ENABLED=0`) so API keys alone never spend your money on a timer. Turning it on would run 166 queries twice a day (about $149/month in searches before Claude). The real margin is shown on the admin
 dashboard and in `scripts/cost_report.py`; it must read 1.50×.

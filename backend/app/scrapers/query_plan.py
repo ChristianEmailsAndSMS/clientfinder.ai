@@ -1,9 +1,11 @@
 """What the Google layer searches, how often, and within what budget.
 
-Plan = base phrases (open web) + the strongest phrases scoped to the sites where hiring posts live.
-Each query re-runs every GOOGLE_QUERY_CYCLE_HOURS with a past-24h filter (a never-run query backfills a
-week first). Every search is logged in `search_queries`; that log decides what is due and counts the
-monthly spend, so a restart can never double-spend or blow the SerpAPI budget."""
+Plan = hiring phrases on the open web, hiring language on LinkedIn posts, X, Facebook, and Reddit
+hiring threads, plus copywriting / email / creative-strategy terms on LinkedIn job pages and remote
+boards. Board scopes include the path of an individual opening (`site:himalayas.app/companies`) so
+category indexes are not the search. Each query re-runs every GOOGLE_QUERY_CYCLE_HOURS with a past-24h
+filter (a never-run query backfills a week first). Every search is logged in `search_queries`; that log
+decides what is due and counts the monthly spend, so a restart can never double-spend or blow the budget."""
 from __future__ import annotations
 
 import logging
@@ -20,7 +22,8 @@ from ..models import SearchQuery
 
 log = logging.getLogger(__name__)
 
-BASE_PHRASES: tuple[str, ...] = (
+# Open web. Quoted hiring phrases, because an unscoped "copywriting" search is dictionaries and course ads.
+OPEN_WEB: tuple[str, ...] = (
     '"hiring copywriter"',
     '"hiring email copywriter"',
     '"hiring email marketer"',
@@ -28,17 +31,60 @@ BASE_PHRASES: tuple[str, ...] = (
     '"hiring creative director"',
     '"hiring landing page builder"',
     '"hiring funnel builder"',
-    '"looking for a copywriter"',
-    '"need a copywriter"',
     '"copywriter wanted"',
 )
-# Only the highest-yield phrases get site scopes; scoping all of them multiplies cost for little gain.
-SCOPED_PHRASES: tuple[str, ...] = (
-    '"hiring copywriter"', '"hiring email marketer"', '"looking for a copywriter"', '"need a copywriter"',
+# What a person actually types on a job board. site:himalayas.app/companies copywriter jobs
+# stays on individual openings. "hiring copywriter" was checked live on each board below.
+TERMS: tuple[str, ...] = (
+    "copywriting jobs",
+    "copywriter jobs",
+    "email marketing jobs",
+    "email copywriter jobs",
+    "creative strategy jobs",
+    "creative strategist jobs",
+    '"funnel builder" jobs',
+    "landing page jobs",
 )
-SITE_SCOPES: tuple[str, ...] = (
-    "twitter.com", "x.com", "reddit.com", "linkedin.com/posts", "indeed.com", "upwork.com",
+# Posts. "creative strategist jobs" on X and Reddit is commentary. Hiring language is the post.
+POST_TERMS: tuple[str, ...] = (
+    '"hiring" copywriter',
+    '"hiring" "email copywriter"',
+    '"hiring" "email marketer"',
+    '"hiring" "creative strategist"',
+    '"hiring" "funnel builder"',
+    '"hiring" "landing page"',
 )
+# /posts are individual LinkedIn posts. Reddit is the hiring subs, not career-advice threads.
+POST_SCOPES: tuple[str, ...] = (
+    "linkedin.com/posts",
+    "x.com",
+    "facebook.com",
+    "reddit.com/r/forhire/comments",
+    "reddit.com/r/hiring/comments",
+)
+# Remote boards whose public pages are individual jobs, and LinkedIn's job pages.
+# Omitted after live site: checks of the phrases customers type:
+# tryremotely.com and creatorjobboard.com returned nothing for "hiring copywriter".
+# jobspresso.co/job/ returned a copy editor and a brand designer for that query, and nothing
+# for creative strategist or email copywriter.
+# remote.co/job-details/ returned nothing for those three queries.
+REMOTE_SCOPES: tuple[str, ...] = (
+    "dynamitejobs.com/company",
+    "himalayas.app/companies",
+    "nodesk.co/remote-jobs/",
+    "workingnomads.com/job/go",
+    "weworkremotely.com/remote-jobs/",
+    "4dayweek.io/job/",
+    "jobs.workable.com/view/",
+    "contentjobs.co/jobs/",
+    "euremotejobs.com/job/",
+    "remoterocketship.com/company",
+    "jobicy.com/jobs/",
+    "remoteok.com/remote-jobs/",
+    "remotive.com/remote/jobs/",
+)
+JOB_SCOPES: tuple[str, ...] = ("linkedin.com/jobs/view",) + REMOTE_SCOPES
+SITE_SCOPES: tuple[str, ...] = POST_SCOPES + JOB_SCOPES
 ERROR_RETRY_AFTER = timedelta(hours=1)
 MAX_BACKOFF = 14    # base cycle x 14 = 7 days at the default 12h: the slowest a dead query ever runs
 BACKOFF_GRACE = 2   # a quiet query is normal; backoff starts after the 3rd consecutive empty run
@@ -55,8 +101,9 @@ class QuerySpec:
 
 
 def build_plan() -> list[QuerySpec]:
-    texts = list(BASE_PHRASES)
-    texts += [f"{p} site:{site}" for site in SITE_SCOPES for p in SCOPED_PHRASES]
+    texts = list(OPEN_WEB)
+    texts += [f"site:{site} {term}" for site in POST_SCOPES for term in POST_TERMS]
+    texts += [f"site:{site} {term}" for site in JOB_SCOPES for term in TERMS]
     return [QuerySpec(t, "d") for t in texts]
 
 
@@ -141,8 +188,9 @@ def due_queries(db: Session, plan: list[QuerySpec] | None = None, now: datetime 
     return out[:limit] if limit else out
 
 
-def log_search(db: Session, spec: QuerySpec, *, results: int = 0, new_jobs: int = 0, error: str | None = None) -> None:
-    db.add(SearchQuery(query_key=spec.key, provider=_provider(), freshness=spec.freshness,
+def log_search(db: Session, spec: QuerySpec, *, results: int = 0, new_jobs: int = 0, error: str | None = None,
+               provider: str | None = None) -> None:
+    db.add(SearchQuery(query_key=spec.key, provider=provider or _provider(), freshness=spec.freshness,
                        results=results, new_jobs=new_jobs, error=redact(error)[:1000] if error else None))
 
 
@@ -161,14 +209,15 @@ def run_due_queries(max_queries: int | None = None) -> list[dict]:
     log.info("google tick: %d due (budget used %d/%d)", len(todo), used, settings.serpapi_monthly_budget)
 
     out: list[dict] = []
+    exhausted: set[str] = set()
     for spec in todo:
-        stats = pipeline.run_pipeline_for_query(spec.text, freshness=spec.freshness)
+        stats = pipeline.run_pipeline_for_query(spec.text, freshness=spec.freshness, exhausted=exhausted)
         if not stats.get("searched"):  # preflight refused (e.g. no Anthropic key): nothing was spent, log nothing
             out.append(stats)
             continue
         with session_scope() as db:
             log_search(db, spec, results=stats.get("search_hits", 0), new_jobs=stats.get("added", 0),
-                       error=stats.get("search_error"))
+                       error=stats.get("search_error"), provider=stats.get("provider"))
         out.append(stats)
     return out
 
@@ -187,5 +236,5 @@ def run_query_now(text: str, freshness: str = "w") -> dict:
     if stats.get("searched"):
         with session_scope() as db:
             log_search(db, QuerySpec(text, freshness), results=stats.get("search_hits", 0),
-                       new_jobs=stats.get("added", 0), error=stats.get("search_error"))
+                       new_jobs=stats.get("added", 0), error=stats.get("search_error"), provider=stats.get("provider"))
     return stats

@@ -95,6 +95,7 @@ def test_prompt_is_built_without_format_errors(monkeypatch):
     monkeypatch.setattr(llm_extractor, "_call_model", lambda prompt: (seen.update(p=prompt) or GOOD, {"model": "m", "input_tokens": 1, "output_tokens": 1}, "end_turn"))
     llm_extractor.extract(R, HTML)
     assert "Pay $50/hr" in seen["p"] and "{page_text}" not in seen["p"] and '"is_real_job": bool' in seen["p"]
+    assert "for hire" in seen["p"] and "hire me" in seen["p"]
 
 
 # =============== Claude Haiku 5.5 request/response rules ===============
