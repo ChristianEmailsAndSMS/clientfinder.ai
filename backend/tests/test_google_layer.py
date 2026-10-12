@@ -1266,6 +1266,16 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         query='"hiring copywriter"',
         url="https://www.reddit.com/r/hiring/comments/abc/tiktok/")
     assert not pipeline.not_a_hiring_post(
+        "Hiring Email Marketing Specialist - Remote ($400-$500 Monthly)",
+        "",
+        query='"hiring email marketer"',
+        url="https://www.reddit.com/r/DigitalMarketing/comments/1sb5nsg/hiring_email_marketing_specialist_remote_400500/")
+    assert pipeline.not_a_hiring_post(
+        "Best email tools this month",
+        "hiring email marketer shows up in the related posts",
+        query='"hiring email marketer"',
+        url="https://www.reddit.com/r/Emailmarketing/comments/abc/tools/")
+    assert not pipeline.not_a_hiring_post(
         "Carol Dasaro's Post",
         "Hi everyone, I'm hiring for a freelance copywriter.",
         query="hiring copywriter",

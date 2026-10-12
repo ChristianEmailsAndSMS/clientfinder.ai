@@ -277,6 +277,16 @@ def _flat(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", (text or "").lower()).strip()
 
 
+def _needle_in_title(needle: str, title_flat: str) -> bool:
+    """True when the query phrase is in the title. "email marketer" also matches "email marketing"."""
+    flat = _flat(needle)
+    forms = [flat]
+    marketing = flat.replace(" marketer", " marketing")
+    if marketing != flat:
+        forms.append(marketing)
+    return any(f" {form} " in title_flat for form in forms)
+
+
 def _remotive_opening(url: str) -> bool:
     """One Remotive job is /remote/jobs/category/slug. The category path is shorter."""
     marker = "remotive.com/remote/jobs/"
@@ -418,10 +428,11 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     # "[HIRING] Copywriter" is the same phrase as "hiring copywriter" once the bracket is ignored.
     # LinkedIn titles are the author's name, so this check stays on reddit.com.
     # A "Freelance Writer" title can still be a copywriter job, so other roles are an explicit list.
+    # "Hiring Email Marketing Specialist" is the same role as "hiring email marketer".
     needles = _role_needles(query)
     if "reddit.com" in low_url:
         title_flat = f" {_flat(title)} "
-        if needles and not all(f" {_flat(needle)} " in title_flat for needle in needles):
+        if needles and not all(_needle_in_title(needle, title_flat) for needle in needles):
             return True
     if (_OTHER_ROLE_TITLE.search(title) and needles
             and not all(needle in title.lower() for needle in needles)):
