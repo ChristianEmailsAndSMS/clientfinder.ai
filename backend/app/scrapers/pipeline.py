@@ -113,6 +113,7 @@ _ADVICE_TITLE = re.compile(
     r"|^\s*seeking advice\b"
     r"|^\s*advice on hiring\b"
     r"|^\s*job searches for\b"
+    r"|^\s*should i hire\b"
     r"|^\s*(?:the\s+)?\d+\s+(?:smart\s+)?(?:questions|things)\b.{0,60}\bhir(?:e|ing)\b"
     r"|^\s*what makes a (?:great|good)\b"
     r"|\bfast[- ]growing job\b"
