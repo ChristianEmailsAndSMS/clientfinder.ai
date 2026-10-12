@@ -19,7 +19,7 @@ from ..config import settings
 from ..db import get_db
 from ..models import User
 from ..security import (LOCKOUT_AFTER, LOCKOUT_MINUTES, _ph, admin_emails, aware, check_totp, clear_session_cookie, client_ip,
-                        csrf_guard, current_user, encrypt_secret, hash_password, ip_throttled, issue_enrol_token, log_event,
+                        csrf_guard, current_user, encrypt_secret, hash_password, ip_throttled, issue_enrol_token, loggable_email, log_event,
                         new_totp_secret, normalize_email, password_problem, qr_data_uri, read_enrol_token, require_secrets,
                         secrets_ready, set_session_cookie, signup_throttle_reason, totp_uri, utcnow, verify_password)
 
@@ -70,20 +70,25 @@ def signup(body: SignupBody, request: Request, response: Response, db: Session =
     if why:
         raise HTTPException(429, why)
     email = normalize_email(body.email)
+
+    def reject(status: int, message: str):
+        log_event(db, "signup_fail", request, detail=str(status))       # counted by ip_throttled: the 409 answer is an "is this email registered?" oracle
+        db.commit()
+        raise HTTPException(status, message)
     if email in admin_emails():
-        raise HTTPException(403, "This address is reserved for the site owner. If it is yours, sign in instead.")
+        reject(403, "This address is reserved for the site owner. If it is yours, sign in instead.")
     problem = password_problem(body.password, email, admin=False)
     if problem:
-        raise HTTPException(422, problem)
+        reject(422, problem)
     if db.scalar(select(User.id).where(User.email == email)):
-        raise HTTPException(409, "An account with this email already exists. Sign in instead.")
+        reject(409, "An account with this email already exists. Sign in instead.")
     user = User(email=email, password_hash=hash_password(body.password), is_admin=False, is_active=True)
     db.add(user)
     try:
         db.flush()
     except IntegrityError:                       # two sign-ups for the same address raced
         db.rollback()
-        raise HTTPException(409, "An account with this email already exists. Sign in instead.")
+        reject(409, "An account with this email already exists. Sign in instead.")
     if settings.signup_bonus_usd > 0:
         credits.apply(db, user.id, credits.usd_to_micro(settings.signup_bonus_usd), "grant", "Welcome credit")
     user.last_login_at = utcnow()
@@ -105,15 +110,18 @@ def login(body: LoginBody, request: Request, response: Response, db: Session = D
     user = db.scalar(select(User).where(User.email == email))
     now = utcnow()
     if user and user.locked_until and aware(user.locked_until) > now:
+        verify_password(user.password_hash, body.password)           # same work as any other attempt, so timing does not give the lock away
         log_event(db, "login_locked", request, user=user)
         db.commit()
-        raise HTTPException(429, "Too many attempts. Try again later.")
+        if email in admin_emails():                                  # the owner's address is public anyway: tell them why
+            raise HTTPException(429, "Too many attempts. Try again later.")
+        raise HTTPException(401, GENERIC_LOGIN_ERROR)                # unknown emails never lock, so a distinct answer would reveal the account
 
     password_ok = verify_password(user.password_hash if user else None, body.password)     # same work for unknown emails
     if not (password_ok and user and user.is_active):
         if user:
             _register_failure(db, user, now)
-        log_event(db, "login_fail", request, email=email)
+        log_event(db, "login_fail", request, email=loggable_email(email))
         db.commit()
         raise HTTPException(401, GENERIC_LOGIN_ERROR)
 

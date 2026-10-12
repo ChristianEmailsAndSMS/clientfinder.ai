@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi.responses import JSONResponse
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from .api.account import router as account_router
 from .api.admin import router as admin_router
 from .api.webhooks import router as webhooks_router
@@ -52,13 +52,34 @@ MAX_BODY_DEFAULT = 1_000_000
 MAX_BODY_ASSIST = 6_000_000                 # a screenshot as base64
 
 
-@app.middleware("http")
-async def body_limit(request: Request, call_next):
-    cl = request.headers.get("content-length")
-    limit = MAX_BODY_ASSIST if request.url.path == "/assist" else MAX_BODY_DEFAULT
-    if cl and cl.isdigit() and int(cl) > limit:
-        return JSONResponse(status_code=413, content={"detail": "Request too large"})
-    return await call_next(request)
+class BodyLimitMiddleware:
+    """Caps the request body. Checks Content-Length up front AND counts the bytes actually received, because a chunked
+    request (Transfer-Encoding: chunked) carries no Content-Length and would otherwise be read in full."""
+
+    def __init__(self, inner):
+        self.inner = inner
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.inner(scope, receive, send)
+        limit = MAX_BODY_ASSIST if scope.get("path") == "/assist" else MAX_BODY_DEFAULT
+        cl = dict(scope.get("headers") or []).get(b"content-length", b"")
+        if cl.isdigit() and int(cl) > limit:
+            return await JSONResponse(status_code=413, content={"detail": "Request too large"})(scope, receive, send)
+        seen = 0
+
+        async def counted():
+            nonlocal seen
+            msg = await receive()
+            if msg["type"] == "http.request":
+                seen += len(msg.get("body", b""))
+                if seen > limit:
+                    raise HTTPException(413, "Request too large")
+            return msg
+        await self.inner(scope, counted, send)
+
+
+app.add_middleware(BodyLimitMiddleware)
 
 
 @app.middleware("http")
@@ -67,7 +88,7 @@ async def security_headers(request: Request, call_next):
     for k, v in _BASE_HEADERS.items():
         response.headers.setdefault(k, v)
     response.headers["Content-Security-Policy"] = _PAGE_CSP
-    if request.url.path.startswith(("/admin", "/auth", "/account", "/app", "/login", "/searches", "/jobs")):
+    if request.url.path.startswith(("/admin", "/auth", "/account", "/app", "/login", "/searches", "/jobs", "/assist")):
         response.headers["Cache-Control"] = "no-store"
     return response
 

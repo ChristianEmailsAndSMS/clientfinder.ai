@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import re
 
 from sqlalchemy.orm import Session
 
@@ -117,13 +118,21 @@ def job_context(db: Session, job_id: int | None, job_text: str) -> str:
     return job_text.strip()[:4000]
 
 
+_TAGS = re.compile(r"<(\s*/?\s*(?:freelancer_background|job_post|conversation_so_far)\b)", re.I)
+
+
+def defang(text: str) -> str:
+    """Untrusted text must not be able to close the <job_post> (etc.) block it sits in and start talking as the prompt."""
+    return _TAGS.sub(r"&lt;\1", text)
+
+
 def build_messages(mode: str, user: User, job: str, thread: str, image: tuple[str, str] | None, note: str) -> list[dict]:
     prof = user.profile or {}
     about = (prof.get("about") or "").strip() or "(They have not written their background yet. Use [bracketed placeholders] for anything personal.)"
-    text = (f"TASK: {MODES[mode]}\n\n<freelancer_background>\n{about[:6000]}\nLinks: {prof.get('links', '')[:600]}\n</freelancer_background>\n\n"
-            f"<job_post>\n{job}\n</job_post>\n")
+    text = (f"TASK: {MODES[mode]}\n\n<freelancer_background>\n{defang(about[:6000])}\nLinks: {defang(prof.get('links', '')[:600])}\n</freelancer_background>\n\n"
+            f"<job_post>\n{defang(job)}\n</job_post>\n")
     if thread.strip():
-        text += f"\n<conversation_so_far>\n{thread.strip()[:5000]}\n</conversation_so_far>\n"
+        text += f"\n<conversation_so_far>\n{defang(thread.strip()[:5000])}\n</conversation_so_far>\n"
     if note.strip():
         text += f"\nExtra instruction from the freelancer: {note.strip()[:300]}\n"
     content: list[dict] = []

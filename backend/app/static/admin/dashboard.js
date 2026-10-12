@@ -180,7 +180,7 @@
     const reason = h("input", { name: "reason", placeholder: "Why (required, kept in the audit log)", required: true, minlength: 3 });
     const act = async (path, body, msg) => { const x = await guarded("POST", path, body); flash(x.ok ? msg : detail(x), !x.ok); if (x.ok) manageUser(id); };
     panel.appendChild(h("h2", {}, `${u.email}: ${u.unlimited ? "unlimited credits" : "balance " + usd(u.balance_usd)}`));
-    const limit = h("input", { name: "limit", inputmode: "numeric", placeholder: "default", value: u.daily_search_limit || "", style: "width:90px" });
+    const limit = h("input", { name: "limit", inputmode: "numeric", placeholder: "default", value: u.daily_search_limit || "", class: "w90" });
     panel.appendChild(h("div", { class: "row" },
       h("button", { onclick: () => act(`/admin/users/${id}/limits`, { unlimited: !u.unlimited }, u.unlimited ? "Unlimited credits turned off." : "Unlimited credits turned on: this person's searches are free."), class: u.unlimited ? "ghost" : "" },
         u.unlimited ? "Turn off unlimited credits" : "Give unlimited credits"),
@@ -205,7 +205,7 @@
     const box = clear($("tab-security"));
     const r = await guarded("GET", "/admin/security/events?limit=200");
     if (!r.ok) { box.appendChild(h("p", { class: "error" }, detail(r))); return; }
-    box.appendChild(h("p", { class: "muted" }, "Sign-ins, failures, lockouts and every admin action. Repeated login_fail or setup_fail from one address means someone is guessing."));
+    box.appendChild(h("p", { class: "muted" }, "Sign-ins, failures, lockouts and every admin action. Repeated login_fail, login_locked, totp_fail or signup_fail from one address means someone is guessing."));
     box.appendChild(table(["When", "Event", "Email", "IP", "Detail"], r.data.map((e) => h("tr", {},
       h("td", {}, when(e.at)), h("td", { class: /fail|lock/.test(e.event) ? "bad" : "" }, e.event),
       h("td", {}, e.email || ""), h("td", {}, e.ip || ""), h("td", {}, e.detail || "")))));

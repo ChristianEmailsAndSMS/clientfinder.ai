@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from .. import whop
 from ..config import settings
 from ..db import get_db
-from ..security import log_event
+from ..security import client_ip, ip_throttled, log_event
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
@@ -22,8 +22,9 @@ async def whop_webhook(request: Request, db: Session = Depends(get_db)) -> dict:
     h = request.headers
     msg_id = h.get("webhook-id", "")
     if not whop.verify(settings.whop_webhook_secret, msg_id, h.get("webhook-timestamp", ""), h.get("webhook-signature", ""), body):
-        log_event(db, "webhook_bad_signature", request)
-        db.commit()
+        if not ip_throttled(db, client_ip(request), events=("webhook_bad_signature",), limit=20):     # an unauthenticated caller must not be able to fill the audit table
+            log_event(db, "webhook_bad_signature", request)
+            db.commit()
         raise HTTPException(401, "Bad signature")
     try:
         payload = json.loads(body)

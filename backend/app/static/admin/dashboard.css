@@ -31,3 +31,5 @@ tr:last-child td{border-bottom:0}
 #qr{display:block;margin:.6rem auto;background:#fff;padding:6px;border-radius:8px}
 
 .bar .logo{height:26px;width:auto;margin-right:10px}
+
+.w90 { width: 90px; }

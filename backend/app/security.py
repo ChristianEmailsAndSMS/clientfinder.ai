@@ -81,9 +81,16 @@ def _subkey(label: bytes) -> bytes:
 # ---------- email / password ----------
 def normalize_email(email: str) -> str:
     e = (email or "").strip().lower()
-    if len(e) > 320 or not _EMAIL_RE.match(e):
+    domain = e.rpartition("@")[2]
+    if len(e) > 320 or not _EMAIL_RE.match(e) or domain.endswith(".") or ".." in domain:      # "owner@site.com." is the owner's mailbox too
         raise HTTPException(422, "Enter a valid email address")
     return e
+
+
+def loggable_email(raw: str) -> str | None:
+    """What may go in the audit log from the sign-in box: a well-formed address, never anything else (people paste passwords there)."""
+    e = (raw or "").strip().lower()
+    return e if len(e) <= 320 and _EMAIL_RE.match(e) else None
 
 
 def password_problem(password: str, email: str, admin: bool = False) -> str | None:
@@ -238,11 +245,13 @@ def log_event(db: Session, event: str, request: Request | None = None, *, user: 
     ))
 
 
-def ip_throttled(db: Session, ip: str) -> bool:
+AUTH_FAIL_EVENTS = ("login_fail", "login_locked", "totp_fail", "signup_fail")
+
+
+def ip_throttled(db: Session, ip: str, events: tuple[str, ...] = AUTH_FAIL_EVENTS, limit: int = IP_FAIL_LIMIT) -> bool:
     n = db.scalar(select(func.count(AuthEvent.id)).where(
-        AuthEvent.ip == ip, AuthEvent.event.in_(("login_fail", "totp_fail", "setup_fail")),
-        AuthEvent.created_at >= utcnow() - IP_FAIL_WINDOW)) or 0
-    return n >= IP_FAIL_LIMIT
+        AuthEvent.ip == ip, AuthEvent.event.in_(events), AuthEvent.created_at >= utcnow() - IP_FAIL_WINDOW)) or 0
+    return n >= limit
 
 
 # ---------- request guards ----------
