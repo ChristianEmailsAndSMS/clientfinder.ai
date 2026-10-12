@@ -31,6 +31,9 @@ _CAREERS_INDEX = re.compile(r"^\s*(careers at|all open positions)\b", re.I)
 # "Copywriter Jobs Board" and "Creative Strategist Job Board" are directories, not one opening.
 # "post it on our job board" in a description stays.
 _DIRECTORY_TITLE = re.compile(r"\bjobs? board\b", re.I)
+# "Hire a Copywriter | Find Copywriting Jobs" is a talent-agency index.
+# A hiring post can say "find copywriting jobs" in the description.
+_FIND_JOBS_TITLE = re.compile(r"\bfind\b.{0,40}\bjobs\b", re.I)
 _DIRECTORY = re.compile(r"\b\d+\s+writer jobs\b|\bjobs exclusive to paid subscribers\b", re.I)
 # "Remote-First Marketing Jobs" and a snippet of "Browse Marketing jobs" are category pages.
 _JOBS_INDEX_TITLE = re.compile(r"\bremote-first\b.{0,40}\bjobs\s*$", re.I)
@@ -361,6 +364,7 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     if "how-to-hire" in (url or "").lower() or _JOB_TEMPLATE.search(title):
         return True
     if (_SELF_PROMO.search(title) or _CAREERS_INDEX.search(title) or _DIRECTORY_TITLE.search(title)
+            or _FIND_JOBS_TITLE.search(title)
             or _JOBS_INDEX_TITLE.search(title) or _JOB_COUNT_INDEX.search(title)
             or _JOB_COUNT_SUFFIX.search(title) or _DATED_JOBS_INDEX.search(title)
             or _AGGREGATOR_TITLE.search(title) or _SALARY_JOBS_INDEX.search(blob)
