@@ -1217,6 +1217,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "The free course is optional onboarding. We are hiring.",
         url="https://example.com/jobs/creative-strategist-course")
     assert pipeline.not_a_hiring_post(
+        "Remote Copywriter wanted (real estate, finance)",
+        "Earn $40 to $65 per hour. INSTANTLY unlock this post and other writing opportunities by becoming a patron today!",
+        url="https://www.patreon.com/writejobsplus/posts/remote-wanted-40-66957319")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "Unlock this post on Patreon after you apply. We are hiring.",
+        url="https://example.com/jobs/copywriter-patron")
+    assert pipeline.not_a_hiring_post(
         "Writer jobs - Get A Copywriter",
         "We provide copywriting services for a wide range of industries.",
         url="https://jobs.getacopywriter.com/")
