@@ -77,8 +77,9 @@ def test_dev_mode_still_uses_mock(monkeypatch):
     assert llm_extractor.extract(R, HTML).usage is None
 
 
-def test_search_without_key_returns_nothing_not_fixtures():
-    assert google_search.search('"hiring copywriter"') == []
+def test_search_without_key_is_an_error_not_fixtures_and_not_an_empty_billable_result():
+    with pytest.raises(google_search.SearchError):
+        google_search.search('"hiring copywriter"')
 
 
 def test_pipeline_without_anthropic_key_does_nothing(monkeypatch):

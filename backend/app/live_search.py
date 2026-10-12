@@ -14,6 +14,7 @@ from decimal import ROUND_CEILING, Decimal
 from datetime import timedelta
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from . import credits
@@ -184,8 +185,12 @@ def start_search(db: Session, user: User, query: str, freshness: str, site: str 
                             balance_usd=credits.micro_to_usd(user.balance_micro))
 
     s = UserSearch(user_id=user.id, query=q, query_key=key, freshness=freshness, site=site, status="queued")
-    db.add(s)
-    db.flush()
+    try:
+        with db.begin_nested():                 # the unique index uq_user_searches_one_active is the real lock: two requests that both
+            db.add(s)                           # passed the checks above cannot both insert an active search for the same user
+            db.flush()
+    except IntegrityError:
+        raise SearchRefused(409, "You already have a search running. Wait for it to finish.") from None
     return s
 
 
@@ -212,6 +217,13 @@ def run_search(search_id: int) -> None:
 def _finish(search_id: int, user_id: int, text: str, fresh: str, stats: dict) -> None:
     with session_scope() as db:
         s = db.get(UserSearch, search_id)
+        if s.status != "running":
+            # expire_stale() already told the customer "Timed out. You were not charged." Keep that promise (we absorb the cost),
+            # but a search that really reached the provider still counts toward the monthly budget.
+            if stats.get("searched") and not stats.get("search_error") and not stats.get("error"):
+                query_plan.log_search(db, query_plan.QuerySpec(text, fresh), results=stats.get("search_hits", 0), new_jobs=stats.get("added", 0))
+            log.warning("user search %s finished after it was expired; not charging", search_id)
+            return
         s.finished_at = utcnow()
         if stats.get("error") or not stats.get("searched") or stats.get("search_error"):
             s.status = "failed"

@@ -126,16 +126,28 @@ def _serper_results(query: str, num: int = 10, freshness: str | None = None) -> 
     return out
 
 
+def active_provider() -> str | None:
+    """The provider search() will really call. One rule for the call, the budget count and the readiness checks."""
+    if settings.google_search_provider == "serper" and settings.serper_api_key:
+        return "serper"
+    if settings.serpapi_api_key:
+        return "serpapi"
+    if settings.serper_api_key:                 # only a Serper key exists: use it, whatever GOOGLE_SEARCH_PROVIDER says
+        return "serper"
+    return None
+
+
 def search(query: str, num: int = 10, freshness: str | None = None) -> list[SearchResult]:
     if settings.dev_fixtures:
         return _fixture_results(query)
-    if settings.google_search_provider == "serper" and settings.serper_api_key:
+    provider = active_provider()
+    if provider == "serper":
         return _serper_results(query, num=num, freshness=freshness)
-    if settings.serpapi_api_key:
+    if provider == "serpapi":
         return _serpapi_results(query, num=num, freshness=freshness)
-    # No key configured. Never fall back to fixtures here: they are fake and would end up in the live DB.
-    log.warning("no search API key configured; skipping %r (set DEV_FIXTURES=1 for fake local data)", query)
-    return []
+    # No key configured. Never fall back to fixtures (fake data in the live DB), and never return "no results": callers bill and
+    # budget a search that returned nothing, so a search that never ran must be an error.
+    raise SearchError("no search API key configured")
 
 
 # Default queries we rotate through on scheduled runs.

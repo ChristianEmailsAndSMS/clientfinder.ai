@@ -61,7 +61,8 @@ def build_plan() -> list[QuerySpec]:
 
 
 def _provider() -> str:
-    return "serper" if (settings.google_search_provider == "serper" and settings.serper_api_key) else "serpapi"
+    from .google_search import active_provider
+    return active_provider() or "serpapi"
 
 
 def month_start(now: datetime) -> datetime:

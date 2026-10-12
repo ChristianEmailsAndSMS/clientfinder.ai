@@ -445,7 +445,7 @@
       if (!quote.ready) { info.textContent = quote.reason; return; }
       if (quote.cached) { info.textContent = `Free: we searched this recently and have ${quote.cached_results} results ready.`; runBtn.textContent = "Show results (free)"; runBtn.disabled = false; return; }
       runBtn.textContent = `Run search · about ${money(quote.price_usd)}`;
-      if (quote.unlimited) { info.textContent = `Your account has unlimited searches. ${quote.searches_left_today} new searches left today.`; runBtn.textContent = "Run search"; runBtn.disabled = false; return; }
+      if (quote.unlimited) { info.textContent = `Your searches are free on this account (no credits used). ${quote.searches_left_today} new searches left in the last-24-hours limit.`; runBtn.textContent = "Run search"; runBtn.disabled = false; return; }
       if (!quote.affordable) {
         clear(info).append(`You have ${money(quote.balance_usd)}. This search needs about ${money(quote.price_usd)}. `, h("button", { class: "btn sm", type: "button", text: "Add credits", onclick: () => openCredits() }));
         return;

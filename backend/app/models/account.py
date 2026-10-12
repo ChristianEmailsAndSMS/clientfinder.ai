@@ -1,7 +1,7 @@
 """Accounts, credits and the security audit trail."""
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, BigInteger, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import text, JSON, BigInteger, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..db import Base
@@ -85,7 +85,11 @@ class UserSearch(Base):
     """A live search a customer ran (or got served from cache). Costs credits unless `cached`."""
     __tablename__ = "user_searches"
     __table_args__ = (Index("ix_user_searches_user_created", "user_id", "created_at"),
-                      Index("ix_user_searches_key_finished", "query_key", "finished_at"))
+                      Index("ix_user_searches_key_finished", "query_key", "finished_at"),
+                      # at most one queued/running search per user, enforced by the database (the Python check alone races)
+                      Index("uq_user_searches_one_active", "user_id", unique=True,
+                            postgresql_where=text("status IN ('queued', 'running')"),
+                            sqlite_where=text("status IN ('queued', 'running')")))
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
