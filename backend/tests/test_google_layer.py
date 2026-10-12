@@ -1185,6 +1185,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Looking for a freelance funnel builder to join the team.",
         query='hiring "funnel builder"')
     assert pipeline.not_a_hiring_post(
+        "Native English Copywriter Wanted",
+        "Are you native English freelance copywriters? Apply now. Create a profile now!",
+        url="https://scribershub.com/en/native-english-speaker-native-english-writer/")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "Are you a freelance copywriter? Create a profile now and apply.",
+        url="https://example.com/jobs/copywriter")
+    assert pipeline.not_a_hiring_post(
         "Writer jobs - Get A Copywriter",
         "We provide copywriting services for a wide range of industries.",
         url="https://jobs.getacopywriter.com/")

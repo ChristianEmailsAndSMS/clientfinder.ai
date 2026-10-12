@@ -182,6 +182,13 @@ _FREELANCE_DIRECTORY = re.compile(
     r"|\blooking for clients as a freelance\b",
     re.I,
 )
+# Scribers Hub asks "are you freelance copywriters?" and says create a profile now.
+# A post that is also hiring someone stays.
+_FREELANCER_SIGNUP = re.compile(
+    r"\bare you\b.{0,80}\bfreelance copywriters\b"
+    r"|\bcreate a profile now\b",
+    re.I,
+)
 # "We provide copywriting services" on a writer-jobs page is the agency selling work.
 # A post that is also hiring someone stays.
 _COPYWRITING_SERVICES = re.compile(r"\bwe provide copywriting services\b", re.I)
@@ -415,6 +422,8 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     if _LANDING_PAGE_TOOL.search(blob) and not _HIRING_SOMEONE.search(blob):
         return True
     if _FREELANCE_DIRECTORY.search(blob):
+        return True
+    if _FREELANCER_SIGNUP.search(blob) and not _HIRING_SOMEONE.search(blob):
         return True
     if _COPYWRITING_SERVICES.search(blob) and not _HIRING_SOMEONE.search(blob):
         return True
