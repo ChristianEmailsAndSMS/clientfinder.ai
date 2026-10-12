@@ -1245,6 +1245,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "What is it and why you need it comes up in the interview. We are hiring.",
         url="https://example.com/jobs/creative-strategist-why")
     assert pipeline.not_a_hiring_post(
+        "Creative Strategist vs.Creative Director | Do you know the difference",
+        "Explaining what each position actually does and which career path is right.",
+        url="https://www.youtube.com/watch?v=tM-MSynrXv0")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a creative strategist",
+        "Creative Strategist vs Creative Director is the career-path question. We are hiring.",
+        url="https://example.com/jobs/creative-strategist-vs")
+    assert pipeline.not_a_hiring_post(
         "Writer jobs - Get A Copywriter",
         "We provide copywriting services for a wide range of industries.",
         url="https://jobs.getacopywriter.com/")

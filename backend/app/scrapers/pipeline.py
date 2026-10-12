@@ -119,6 +119,7 @@ _ADVICE_TITLE = re.compile(
     r"|\bfree course\b"
     r"|^\s*what is\b"
     r"|\bwhat is it and why\b"
+    r"|\bvs\.?\s*creative director\b"
     r"|\byou do(?:n't| not) need to hire\b"
     r"|^\s*do you hire\b"
     r"|^\s*seeking advice\b"
