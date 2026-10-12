@@ -23,20 +23,20 @@ you / agent  --push-->  GitHub (ChristianEmailsAndSMS/clientfinder.ai)  --manual
 - Working branch today: `claude/quirky-edison-h61hvc` (the server pulls this). `main` is behind. Do not push to `main` without being asked.
   Work on one branch at a time, and commit small. Do not open a pull request unless asked.
 
-## Layout (`backend/` is the whole app)
+## Layout (`backend/` is the whole app; `docs/`, `deploy/`, `CHECKLIST.md` and this file are at the repo root)
 - `app/api/` routers: `auth`, `account` (credits, prefs, profile, checkout), `jobs` (filters, facets), `searches` (live search), `assist` (Pitch help),
   `admin`, `webhooks` (Whop), `site` (HTML pages and `/assets/*`).
 - `app/static/site/` customer UI (plain JS, no framework, no build step). `app/static/admin/` admin dashboard.
 - `app/scrapers/` collection pipeline; `app/live_search.py`; `app/assist.py`; `app/whop.py` (webhook) and `app/whop_api.py` (checkout links).
 - `app/credits.py` credit ledger; `app/pricing.py` model prices and the 1.5x markup; `app/geo.py` and `app/platforms.py` job classification.
-- `alembic/versions/` migrations (0001 to 0008 so far). `deploy/` server files and the audit script. `docs/` COSTS, SECURITY, INFRA, STACK.
+- `alembic/versions/` migrations (run `ls backend/alembic/versions` for the current head). `deploy/` (root) server files and the audit script. `docs/` (root) COSTS, SECURITY, INFRA, STACK. `scripts/` one-off tools (admin_cli, cost_report, backfills). Also `app/api/public.py` (home-page preview) and `app/api/dashboard.py` (admin page).
 - `CHECKLIST.md` = the build plan and what the owner still has to do.
 
 ## Run the tests (needs no database, no keys, no network)
 ```
 cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/python -m pytest -q
 ```
-All tests must pass before you push (385 at the time of writing). Tests use SQLite and stub every outside service.
+All tests must pass before you push (read the count on the last line; it only goes up). Tests use SQLite and stub every outside service.
 
 ## Rules that must not be broken
 1. **Money.** Balances are integers in micro-USD. Change them only through `credits.apply(...)` (atomic, append-only, idempotent via `ref`). Customers pay

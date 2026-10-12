@@ -30,3 +30,6 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO cl
 -- The credit ledger is append-only in the app: it may insert, but never rewrite or delete history.
 REVOKE UPDATE, DELETE ON credit_ledger FROM clientfinder_app;
 REVOKE UPDATE, DELETE ON auth_events FROM clientfinder_app;
+-- Only alembic (the owner login) may change the migration history, and payment records may be updated (a payment is resolved) but never deleted.
+REVOKE UPDATE, DELETE ON alembic_version FROM clientfinder_app;
+REVOKE DELETE ON payment_events FROM clientfinder_app;

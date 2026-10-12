@@ -7,7 +7,7 @@ of this file automatically and prints PASS / WARN / FAIL.
 
 | Asset | Worst case | Main controls |
 |---|---|---|
-| Customer accounts and credit balances (money) | Free credit, stolen balances, account takeover | Argon2id passwords, mandatory 2FA for admins, lockout + per-IP throttle, append-only ledger, atomic balance updates |
+| Customer accounts and credit balances (money) | Free credit, stolen balances, account takeover | Argon2id passwords, 2FA for admins (on by default; the owner can switch it off with `ADMIN_REQUIRE_2FA=0`, see section 9), lockout + per-IP throttle, append-only ledger, atomic balance updates |
 | Admin dashboard | Attacker grants themselves credit, reads customers | Allow-listed email + password + 2FA, HttpOnly/Secure/SameSite=Strict cookie, CSRF header + Origin check, strict CSP, audit log |
 | The job database (the product) | Competitor copies everything | Per-IP rate limit, optional `JOBS_REQUIRE_LOGIN` |
 | API keys (SerpAPI, Anthropic, Resend, Whop) | Someone else spends your money | `.env` mode 600, secrets redacted from logs and stored errors, never printed |
@@ -38,7 +38,7 @@ Each item below was reproduced or tested; the tests live in `backend/tests/` and
 
 ### Verified how
 
-- 385 automated tests at the last count (run `pytest` in `backend/`), including tampered/forged/expired/`alg=none` tokens, 2FA replay, lockout, CSRF, role checks, SSRF redirect
+- Automated tests (run `pytest` in `backend/` and read the last line for the current count), including tampered/forged/expired/`alg=none` tokens, 2FA replay, lockout, CSRF, role checks, SSRF redirect
   to an internal host, secret redaction, and credit ledger invariants.
 - Mutation checks: I deliberately broke the 2FA replay check, session revocation, the admin email allow-list, the CSRF check
   and the ledger's overdraw guard; each break made a test fail.

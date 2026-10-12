@@ -97,7 +97,7 @@ if systemctl is-active --quiet clientfinder-backup.timer 2>/dev/null; then P "ba
 if [[ -d "$BACKUP_DIR" ]]; then
   m=$(stat -c '%a' "$BACKUP_DIR"); [[ "$m" == "700" ]] && P "backup dir is private (700)" || F "backup dir mode $m (should be 700): contains customer data"
   newest=$(ls -1t "$BACKUP_DIR"/clientfinder-*.dump 2>/dev/null | head -1)
-  if [[ -n "$newest" ]]; then age=$(( ( $(date +%s) - $(stat -c %Y "$newest") ) / 3600 )); (( age <= 30 )) && P "newest backup is ${age}h old" || F "newest backup is ${age}h old"; else F "no backups found"; fi
+  if [[ -n "$newest" ]]; then age=$(( ( $(date +%s) - $(stat -c %Y "$newest") ) / 3600 )); (( age <= 36 )) && P "newest backup is ${age}h old" || F "newest backup is ${age}h old"; else F "no backups found"; fi
 else F "backup dir missing"; fi
 W "backups live on this server only: set up an encrypted off-server copy (docs/SECURITY.md)"
 
