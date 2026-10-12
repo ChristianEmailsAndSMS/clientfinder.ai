@@ -117,6 +117,7 @@ _ADVICE_TITLE = re.compile(
     r"|^\s*how to find\b.{0,80}\bjobs?\b"
     r"|^\s*need\b.{0,40}\bwork\?"
     r"|\bfree course\b"
+    r"|^\s*what is\b"
     r"|\byou do(?:n't| not) need to hire\b"
     r"|^\s*do you hire\b"
     r"|^\s*seeking advice\b"

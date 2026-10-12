@@ -1225,6 +1225,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Unlock this post on Patreon after you apply. We are hiring.",
         url="https://example.com/jobs/copywriter-patron")
     assert pipeline.not_a_hiring_post(
+        "What Is Creative Strategy? The Foundations Every Marketer Needs",
+        "What is creative strategy, and why does it matter for paid social?",
+        url="https://www.youtube.com/watch?v=DqFjak694PQ")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a creative strategist",
+        "What is creative strategy is covered in week one. We are hiring.",
+        url="https://example.com/jobs/creative-strategist-what")
+    assert pipeline.not_a_hiring_post(
         "Writer jobs - Get A Copywriter",
         "We provide copywriting services for a wide range of industries.",
         url="https://jobs.getacopywriter.com/")
