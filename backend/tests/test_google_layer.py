@@ -1220,6 +1220,10 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Remote Copywriter wanted (real estate, finance)",
         "Earn $40 to $65 per hour. INSTANTLY unlock this post and other writing opportunities by becoming a patron today!",
         url="https://www.patreon.com/writejobsplus/posts/remote-wanted-40-66957319")
+    assert pipeline.not_a_hiring_post(
+        "Remote UX Writer wanted (product / marketing)",
+        "To access this whole post, join Patreon today.",
+        url="https://www.patreon.com/writejobsplus/posts/remote-ux-writer-64554164")
     assert not pipeline.not_a_hiring_post(
         "We're hiring a copywriter",
         "Unlock this post on Patreon after you apply. We are hiring.",

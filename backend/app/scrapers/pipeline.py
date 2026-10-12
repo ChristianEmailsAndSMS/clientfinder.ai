@@ -229,10 +229,12 @@ _HIRING_AGENCY_POOL = re.compile(r"\bhiring agency that hires\b", re.I)
 _WHY_HIRE = re.compile(r"\bwhy should i hire\b", re.I)
 # "This article is for you" is an explainer. A post that is also hiring someone stays.
 _ARTICLE_FOR_YOU = re.compile(r"\bthis article is for you\b", re.I)
-# Write Jobs Plus locks the listing: "unlock this post" and "becoming a patron".
+# Write Jobs Plus locks the listing: "unlock this post", "becoming a patron",
+# "join Patreon today", and "access this whole post".
 # A post that is also hiring someone stays.
 _PATRON_PAYWALL = re.compile(
-    r"\bunlock this post\b|\bbecoming a patron\b",
+    r"\bunlock this post\b|\bbecoming a patron\b"
+    r"|\bjoin patreon today\b|\baccess this whole post\b",
     re.I,
 )
 # "Copywriter Hiring • 500+ reels on Instagram" is a topic page. Title only.
