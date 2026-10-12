@@ -590,8 +590,8 @@ def _resolve_failure(db: Session, result: SearchResult) -> None:
 def _process(db: Session, source: Source, result: SearchResult, seen: set[str], stats: dict) -> None:
     h = result_hash(result)
     known = db.scalar(select(Job).where(Job.dedupe_hash == h))
-    if known and not_a_hiring_post(result.title, result.snippet, result.source_query, result.url):
-        # Stored before today's skip rules existed. A customer must not be handed (and told they "found") a row we would now refuse.
+    if known and (not known.is_real_job or not_a_hiring_post(result.title, result.snippet, result.source_query, result.url)):
+        # Stored before today's skip rules existed, or kept as "not a real job". A customer must not be handed (and told they "found") a row we would now refuse.
         stats["skipped"] += 1
         return
     if known:  # already stored (maybe by a direct feed): no fetch, no Claude call

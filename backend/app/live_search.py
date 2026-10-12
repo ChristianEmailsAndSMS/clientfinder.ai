@@ -126,6 +126,7 @@ def expire_stale(db: Session) -> None:
 def find_cached(db: Session, key: str) -> UserSearch | None:
     return db.scalar(select(UserSearch).where(
         UserSearch.query_key == key, UserSearch.status == "done", UserSearch.cached.is_(False),
+        UserSearch.error.is_(None),                     # a partial search (some sites never ran) is not a complete answer to hand out free
         UserSearch.finished_at >= utcnow() - timedelta(hours=settings.search_cache_hours),
     ).order_by(UserSearch.id.desc()).limit(1))
 
@@ -253,6 +254,11 @@ def run_search(search_id: int) -> None:
         failures: list[str] = []
         exhausted: set[str] = set()
         for i, text in enumerate(targets):
+            with session_scope() as db:               # re-checked before every Google search, so searches that started together
+                over = query_plan.searches_used_this_month(db) >= settings.serpapi_monthly_budget       # cannot all overshoot the budget
+            if over:
+                failures.append("The monthly search budget was reached")
+                continue
             if i and not _still_running(search_id):
                 # expire_stale() already told the customer "Timed out. You were not charged." and released their one-search lock.
                 # Spending more Google searches and model calls on it would be money nobody pays for.
