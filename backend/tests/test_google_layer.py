@@ -1224,6 +1224,14 @@ def test_advice_self_promo_and_careers_indexes_are_not_hiring_posts():
         "Remote UX Writer wanted (product / marketing)",
         "To access this whole post, join Patreon today.",
         url="https://www.patreon.com/writejobsplus/posts/remote-ux-writer-64554164")
+    assert pipeline.not_a_hiring_post(
+        "Writer wanted (work, hiring, psychology, etc.)",
+        "Here are today's opportunities: Conversion Copywriter wanted | Writers wanted.",
+        url="https://www.patreon.com/writejobsplus/posts/writer-wanted-66957346")
+    assert not pipeline.not_a_hiring_post(
+        "We're hiring a copywriter",
+        "Here are today's opportunities on the team. We are hiring a copywriter.",
+        url="https://example.com/jobs/copywriter-today")
     assert not pipeline.not_a_hiring_post(
         "We're hiring a copywriter",
         "Unlock this post on Patreon after you apply. We are hiring.",

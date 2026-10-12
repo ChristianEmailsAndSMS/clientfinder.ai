@@ -238,6 +238,12 @@ _PATRON_PAYWALL = re.compile(
     r"|\bjoin patreon today\b|\baccess this whole post\b",
     re.I,
 )
+# "Here are today's opportunities" lists several gigs in one post.
+# A post that is also hiring someone stays.
+_TODAYS_OPPORTUNITIES = re.compile(
+    r"\bhere are today['’]?s opportunities\b",
+    re.I,
+)
 # "Copywriter Hiring • 500+ reels on Instagram" is a topic page. Title only.
 _INSTAGRAM_REEL_INDEX = re.compile(r"\breels on instagram\b", re.I)
 # "Free and customizable copywriting templates" is a design gallery. Title only.
@@ -409,6 +415,8 @@ def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str =
     if _ARTICLE_FOR_YOU.search(blob) and not _HIRING_SOMEONE.search(blob):
         return True
     if _PATRON_PAYWALL.search(blob) and not _HIRING_SOMEONE.search(blob):
+        return True
+    if _TODAYS_OPPORTUNITIES.search(blob) and not _HIRING_SOMEONE.search(blob):
         return True
     # LinkedIn and Equip how-to-hire pages are sample descriptions, not openings.
     if "how-to-hire" in (url or "").lower() or _JOB_TEMPLATE.search(title):
