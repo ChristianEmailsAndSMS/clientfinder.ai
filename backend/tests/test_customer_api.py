@@ -734,3 +734,19 @@ def test_only_one_pitch_draft_runs_at_a_time_per_customer(env, pitch, monkeypatc
     monkeypatch.setattr(assist, "_call_model", slow)
     assert ask(c, job_id=pitch.job).status_code == 200 and seen["second"] == 409
     assert ask(c, job_id=pitch.job).status_code in (200, 409)                         # and the lock is released afterwards
+
+
+def test_a_request_holding_a_stale_balance_cannot_overdraw(env, pitch):
+    """Parallel requests each read the balance before any of them is charged; the check must be repeated on fresh data once the slot is taken."""
+    c = member(env)
+    with env.scope() as db:
+        credits.apply(db, c.uid, assist.typical_micro() + 100, "grant", "just over one draft", ref="race-test")
+    with env.scope() as s1, env.scope() as s2:
+        u1, u2 = s1.get(User, c.uid), s2.get(User, c.uid)               # both requests saw the full balance
+        assert u1.balance_micro == u2.balance_micro >= assist.typical_micro()
+        kw = dict(job_id=pitch.job, job_text="", thread="", image_b64=None, note="")
+        assert assist.generate(s1, u1, "first_message", **kw)["text"]
+        with pytest.raises(assist.AssistError) as e:
+            assist.generate(s2, u2, "first_message", **kw)
+        assert e.value.status == 402
+    assert balance(env, c.uid) >= 0 and len(pitch.calls) == 1

@@ -5,6 +5,7 @@ the real token counts. The job post, the pasted conversation and the screenshot 
 as data and the model is told to ignore any instructions inside them. The answer is shown as plain text, never as HTML."""
 from __future__ import annotations
 
+import threading
 import base64
 import logging
 import re
@@ -70,6 +71,7 @@ def ready() -> tuple[bool, str]:
 
 _today_counts: dict[int, list[float]] = {}
 _inflight: set[int] = set()
+_inflight_lock = threading.Lock()
 
 
 def _count_today(db: Session, user_id: int) -> int:
@@ -166,22 +168,29 @@ def generate(db: Session, user: User, mode: str, *, job_id: int | None, job_text
         raise AssistError(422, "Paste their reply or add a screenshot so we can see what they said.")
     if _count_today(db, user.id) >= settings.assist_per_day:
         raise AssistError(429, f"Daily limit of {settings.assist_per_day} drafts reached. It resets within 24 hours.")
+    with _inflight_lock:                            # one at a time: claimed atomically, held until the charge is written
+        if user.id in _inflight:
+            raise AssistError(409, "A draft is already being written. Wait for it to finish.")
+        _inflight.add(user.id)
+    try:
+        return _generate_claimed(db, user, mode, job_id, job_text, thread, image_b64, note)
+    finally:
+        _inflight.discard(user.id)
+
+
+def _generate_claimed(db: Session, user: User, mode: str, job_id: int | None, job_text: str, thread: str, image_b64: str | None, note: str) -> dict:
     need = typical_micro()
+    db.refresh(user)                                # parallel requests read the balance before anyone was charged: check again, now alone
     if not user.unlimited_credits and user.balance_micro < need:
         raise AssistError(402, f"Not enough credit. A draft costs about ${need / credits.MICRO:.3f}.")
     image = check_image(image_b64)
     messages = build_messages(mode, user, job_context(db, job_id, job_text), thread, image, note)
-    if user.id in _inflight:                        # one at a time: stops parallel calls slipping past the balance check
-        raise AssistError(409, "A draft is already being written. Wait for it to finish.")
     _note_call(user.id)
-    _inflight.add(user.id)
     try:
         text, usage, stop = _call_model(messages)
     except Exception as e:
         log.warning("assist call failed: %s", type(e).__name__)
         raise AssistError(502, "The writing service did not answer. You were not charged. Try again.")
-    finally:
-        _inflight.discard(user.id)
     if stop == "refusal" or not text.strip():                      # nothing usable: we absorb the cost rather than bill for it
         raise AssistError(422, "The writing service could not help with that one. You were not charged.")
     cost = pricing.charge_micro(usage["model"], usage["input_tokens"], usage["output_tokens"])
