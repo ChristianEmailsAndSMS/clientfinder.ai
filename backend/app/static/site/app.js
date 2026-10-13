@@ -36,9 +36,14 @@
     if (me.onboarded && !urlSetsFilters() && !setupOff()) applyPrefs(me.prefs);       // returning customers land on their own setup, unless they cleared it this session
     $("btn-run").addEventListener("click", () => openSearch());
     $("btn-credits").addEventListener("click", openCredits);
-    $("btn-filters").addEventListener("click", () => $("filters").classList.add("open"));
+    $("btn-filters").addEventListener("click", openFilters);
+    document.addEventListener("click", (e) => { if (filtersOpen() && !$("filters").contains(e.target) && !$("btn-filters").contains(e.target) && e.target.isConnected) closeFilters(); });   // tap outside the drawer
     document.addEventListener("keydown", (e) => {
       const dialogOpen = !!$("modal-root").firstChild;
+      if (filtersOpen() && !dialogOpen) {
+        if (e.key === "Escape") { closeFilters(); return; }
+        if (e.key === "Tab") trapIn($("filters"), e);
+      }
       if (e.key === "/" && !dialogOpen && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); $("q").focus(); }
       if (e.key === "Escape" && !$("modal-root").querySelector("[data-lock]")) closeModal();      // the first-run wizard has no Close button, so Escape must not drop it
     });
@@ -76,12 +81,37 @@
   }
 
   // ---------------------------------------------------------------- filters
+  // On a phone the filters are a drawer: it behaves as a dialog (takes focus, keeps Tab inside, closes on Escape or a tap outside, hands focus back).
+  let filtersOpener = null;
+  const filtersOpen = () => $("filters").classList.contains("open");
+  function openFilters() {
+    const f = $("filters");
+    filtersOpener = document.activeElement;
+    f.classList.add("open"); f.setAttribute("role", "dialog"); f.setAttribute("aria-modal", "true");
+    f.tabIndex = -1; f.focus({ preventScroll: true });
+  }
+  function closeFilters() {
+    const f = $("filters");
+    f.classList.remove("open"); f.removeAttribute("role"); f.removeAttribute("aria-modal"); f.removeAttribute("tabindex");
+    if (filtersOpener && filtersOpener.isConnected && filtersOpener.offsetParent !== null) filtersOpener.focus();
+    else if ($("btn-filters").offsetParent !== null) $("btn-filters").focus();
+    filtersOpener = null;
+  }
+  function trapIn(box, e) {
+    const f = [...box.querySelectorAll("button, a[href], input, select, textarea, [tabindex]")].filter((x) => !x.disabled && !x.hidden && x.tabIndex >= 0 && x.offsetParent !== null);
+    if (!f.length) { e.preventDefault(); box.focus(); return; }
+    const a = document.activeElement, first = f[0], last = f[f.length - 1];
+    if (!box.contains(a) || a === box) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+    else if (e.shiftKey && a === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && a === last) { e.preventDefault(); first.focus(); }
+  }
+
   function buildFilters() {
     const root = clear($("filters"));
     const toggle = (set, v, el) => { set.has(v) ? set.delete(v) : set.add(v); if (el) el.classList.toggle("on", set.has(v)); loadJobs(true); };
 
     root.appendChild(h("div", { class: "row mobile-only" }, h("strong", { text: "Filters" }), h("span", { class: "grow" }),
-      h("button", { class: "btn sm", type: "button", text: "Done", onclick: () => root.classList.remove("open") })));
+      h("button", { class: "btn sm", type: "button", text: "Done", onclick: closeFilters })));
 
     root.appendChild(section("What you do", h("div", { class: "chips mt12" },
       ROLES.map(([k, l]) => { const b = h("button", { type: "button", class: "chip" + (state.roles.has(k) ? " on" : ""), text: l }); b.addEventListener("click", () => toggle(state.roles, k, b)); return b; }))));
