@@ -59,7 +59,7 @@ def clean_query(raw: str) -> str:
         raise SearchRefused(422, "Leave out site: in your words. Pick a site from the site list instead.")
     # Unquoted "funnel builder" matches a company named Builder Funnel. The phrase does not.
     q = re.sub(r'(?<!")\bfunnel builder\b(?!")', lambda m: f'"{m.group(0)}"', q, count=1, flags=re.I)
-    if not 3 <= len(q) <= 120:
+    if not 3 <= len(q) <= 120 or not any(c.isalnum() for c in q):
         raise SearchRefused(422, "Type between 3 and 120 characters, for example: hiring email copywriter klaviyo")
     return q
 
