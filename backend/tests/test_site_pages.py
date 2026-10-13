@@ -147,3 +147,12 @@ def test_robots_txt_keeps_private_areas_out_of_search_engines(env):
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/plain")
     for path in ("/app", "/admin", "/auth/", "/account/", "/jobs", "/assist", "/webhooks/"):
         assert f"Disallow: {path}" in r.text, path
+
+
+def test_mobile_filter_drawer_fills_the_screen_height_so_it_can_scroll():
+    # .filters is align-self:start on desktop; a fixed box with that is only as tall as its content, so on a phone
+    # it could not scroll and the lower filters and "Clear all filters" were unreachable.
+    css = (SITE / "site.css").read_text()
+    media = css[css.index("@media (max-width:960px)"):]
+    rule = re.search(r"\.filters\{[^}]*position:fixed[^}]*\}", media).group(0)
+    assert "align-self:stretch" in rule or "height:100" in rule
