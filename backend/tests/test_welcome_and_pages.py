@@ -102,7 +102,7 @@ def test_home_preview_rows_open_the_sign_up_panel():
 
 def test_wizard_shows_job_counts_per_region_and_the_filter_offers_unspecified_posts():
     js = (SITE / "app.js").read_text()
-    assert "regionShown(r, true, true)" in js and "jobs`" in js
+    assert "regionShown(r, true, true)" in js and "jobs in total`" in js
     assert "Also show posts that do not say where" in js and "include_unspecified" in js
 
 
@@ -126,3 +126,8 @@ def test_daily_cap_check_takes_a_postgres_lock(monkeypatch):
             return 0
     assert auth_api.welcome_bonus_available(FakeDb()) is True
     assert "pg_advisory_xact_lock" in seen[0] and seen[1:] == ["count"]
+
+def test_wizard_tile_counts_are_labelled_as_totals_not_as_what_the_list_will_show():
+    # The tiles count every job in a region or source; the list also applies the roles and on-site choice made earlier.
+    js = (SITE / "app.js").read_text()
+    assert "jobs in total" in js and "${num(k.count)} jobs ·" not in js

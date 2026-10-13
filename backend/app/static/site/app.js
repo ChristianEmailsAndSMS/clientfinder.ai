@@ -327,13 +327,13 @@
       { title: "What kind of work do you do?", sub: "Pick everything you sell. We will show the jobs and posts that need it.",
         body: () => h("div", { class: "tiles" }, ROLES.map(([k, l]) => tile(l, null, draft.roles.has(k), flip(draft.roles, k)))), ok: () => draft.roles.size > 0, why: "Pick at least one so we know what to look for." },
       { title: "Where do you want your clients to be based?", sub: "Pick the time zones you want to work with. Posts that do not say where are still shown. Leave all unselected if clients anywhere are fine.",
-        body: () => h("div", {}, h("div", { class: "tiles" }, (facets.regions || []).filter((r) => r.value !== "unspecified" && r.value !== "worldwide").map((r) => tile(r.label, [r.offset, `${num(regionShown(r, true, true))} jobs`].filter(Boolean).join(" · "), draft.regions.has(r.value), flip(draft.regions, r.value)))),
+        body: () => h("div", {}, h("div", { class: "tiles" }, (facets.regions || []).filter((r) => r.value !== "unspecified" && r.value !== "worldwide").map((r) => tile(r.label, [r.offset, `${num(regionShown(r, true, true))} jobs in total`].filter(Boolean).join(" · "), draft.regions.has(r.value), flip(draft.regions, r.value)))),
           h("div", { class: "mt16" }, h("div", { class: "hint", text: "On-site or remote?" }), (() => { const wrap = h("div", { class: "seg" }); const paint = () => { for (const b of wrap.children) b.classList.toggle("on", b.dataset.v === draft.remote); };
             for (const [v, l] of [["", "Either"], ["true", "Remote only"], ["false", "On-site"]]) wrap.appendChild(h("button", { type: "button", "data-v": v, text: l, onclick: () => { draft.remote = v; paint(); } })); paint(); return wrap; })())) },
       { title: "Where should we look?", sub: "Choose All of them, or pick just the places you want. Job boards list real openings; social posts are people asking for help, often before a job is formally posted.",
         body: () => h("div", { class: "tiles" },
             tile("All of them", "Search job boards, social media and other websites at once", draft.all, () => { draft.all = true; draft.kinds.clear(); paint(); return true; }),
-            (facets.kinds || []).map((k) => tile(k.label, `${num(k.count)} jobs · ${KIND_HELP[k.value]}`, !draft.all && draft.kinds.has(k.value), () => {
+            (facets.kinds || []).map((k) => tile(k.label, `${num(k.count)} jobs in total · ${KIND_HELP[k.value]}`, !draft.all && draft.kinds.has(k.value), () => {
               if (draft.all) { draft.all = false; draft.kinds = new Set([k.value]); } else { draft.kinds.has(k.value) ? draft.kinds.delete(k.value) : draft.kinds.add(k.value); }
               if (draft.kinds.size === 0 || draft.kinds.size === kindsAll.length) { draft.all = true; draft.kinds.clear(); }      // none or every place is the same as "All of them"
               paint(); return !draft.all && draft.kinds.has(k.value); }))),
