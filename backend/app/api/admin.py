@@ -26,7 +26,13 @@ from ..schemas import BodyId, PathId
 from ..tagging import retag
 
 
-router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(current_admin), Depends(csrf_guard)])
+def _no_nul_in_query(request: Request) -> None:
+    """PostgreSQL text cannot hold a NUL byte: a filter such as ?q=%00x was a 500 there (SQLite lets it through, so tests never saw it)."""
+    if any("\x00" in v for v in request.query_params.values()):
+        raise HTTPException(422, "Text contains characters we cannot use")
+
+
+router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(current_admin), Depends(csrf_guard), Depends(_no_nul_in_query)])
 
 _running: set[str] = set()
 _lock = threading.Lock()
@@ -297,7 +303,7 @@ def user_ledger(user_id: PathId, limit: int = Query(100, ge=1, le=500), db: Sess
 class CreditAdjust(BaseModel):
     amount_usd: str | float | int = Field(description="positive dollar amount, up to 6 decimals")
     kind: str = Field(pattern="^(grant|revoke|refund)$")
-    reason: str = Field(min_length=3, max_length=200)
+    reason: str = Field(min_length=3, max_length=200, pattern=r"^[^\x00]*$")     # no NUL byte: PostgreSQL would answer 500
 
 
 @router.post("/users/{user_id}/credits")
