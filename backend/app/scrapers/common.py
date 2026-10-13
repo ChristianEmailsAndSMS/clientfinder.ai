@@ -19,7 +19,7 @@ from ..dates import sane_posted_at
 from ..dedup import dedupe_hash, find_same_job
 from ..models import Job, ScrapeRun, Source
 from ..security_utils import safe_job_url
-from ..tagging import mask_noise, set_tags
+from ..tagging import kw_in, mask_noise, set_tags
 
 log = logging.getLogger(__name__)
 
@@ -31,7 +31,11 @@ TITLE_KEYWORDS = (
     "email copy", "email specialist", "email manager", "email strategist", "lifecycle",
     "landing page", "funnel", "creative strategist", "creative director", "growth marketing",
     "crm manager", "direct response", "conversion",
+    "sms marketing", "sms marketer", "text message marketing", "head of email", "email campaign",
+    "email developer", "email designer", "klaviyo", "creative strategy", "conversion rate",
 )
+# Short words that must match as a whole word ("micro", "macro" contain "cro").
+WHOLE_WORD_KEYWORDS = ("cro",)
 
 
 # VARCHAR limits on `jobs`. Postgres (unlike sqlite) rejects longer text, which would drop a good job.
@@ -53,7 +57,10 @@ def clean(value, field: str | None = None):
 
 def title_matches(title: str | None, extra: tuple[str, ...] = ()) -> bool:
     t = mask_noise((title or "").lower())
-    return any(k in t for k in TITLE_KEYWORDS + extra)
+    # Spelling variants: "E-mail", "Copy-writer", "Landing-page", "Email/SMS", "Email & SMS".
+    t = t.replace("e-mail", "email").replace("copy-writer", "copywriter").replace("copy-writing", "copywriting")
+    t = t.replace("landing-page", "landing page").replace("&", " and ").replace("/", " and ")
+    return any(k in t for k in TITLE_KEYWORDS + extra) or any(kw_in(t, k) for k in WHOLE_WORD_KEYWORDS)
 
 
 @dataclass
