@@ -5,6 +5,7 @@ This is a best guess: posts often give no location, or a vague one. A job with n
 from __future__ import annotations
 
 import re
+import unicodedata
 
 # key -> (label, UTC offsets). Order matters for the UI: west to east.
 BANDS: dict[str, tuple[str, str]] = {
@@ -27,7 +28,7 @@ _US_WEST = ("california", "oregon", "washington state", "nevada", "arizona", "ut
             "los angeles", "san francisco", "san diego", "seattle", "portland", "las vegas", "phoenix", "denver", "salt lake", "austin",
             "dallas", "houston", "san antonio", "chicago", "minneapolis", "st. louis", "kansas city", "nashville", "silicon valley", "spokane", "tacoma", "bellevue", "olympia", "bay area", "sf bay", "west coast", "midwest", "pacific northwest",
             "pacific time", "mountain time", "central time", "alberta", "british columbia", "saskatchewan", "manitoba", "pst", "pdt", "mst", "mdt", "cst", "cdt",
-            "vancouver", "calgary", "edmonton", "winnipeg", "mexico", "guadalajara", "monterrey", "costa rica", "guatemala", "el salvador", "honduras", "nicaragua")
+            "vancouver", "calgary", "edmonton", "winnipeg", "mexico", "guadalajara", "monterrey", "costa rica", "guatemala", "el salvador", "honduras", "nicaragua", "honolulu", "memphis", "new orleans", "sacramento")
 _US_WEST_ABBR = ("ca", "or", "wa", "nv", "az", "ut", "co", "id", "mt", "wy", "nm", "ak", "hi", "tx", "ok", "ks", "ne", "nd", "sd", "mn", "ia",
                  "mo", "ar", "la", "wi", "il", "ms", "al", "tn", "ky", "bc", "ab", "sk", "mb")
 _AM_EAST = ("new york", "nyc", "new york city", "florida", "indiana", "savannah", "east coast", "mid-atlantic", "eastern time", "est", "edt",
@@ -36,24 +37,38 @@ _AM_EAST = ("new york", "nyc", "new york city", "florida", "indiana", "savannah"
             "michigan", "district of columbia", "washington, d.c.", "boston", "miami", "atlanta", "philadelphia", "orlando",
             "tampa", "charlotte", "raleigh", "detroit", "cleveland", "pittsburgh", "toronto", "montreal", "ottawa", "quebec", "nova scotia",
             "colombia", "peru", "ecuador", "panama", "cuba", "jamaica", "dominican", "puerto rico", "venezuela", "bolivia", "chile", "santiago",
-            "brazil", "são paulo", "sao paulo", "rio de janeiro", "argentina", "buenos aires", "uruguay", "paraguay", "bogota", "bogotá", "lima")
+            "brazil", "brasil", "são paulo", "sao paulo", "rio de janeiro", "argentina", "buenos aires", "uruguay", "paraguay", "bogota", "bogotá", "lima")
 _AM_EAST_ABBR = ("ny", "fl", "ga", "nc", "sc", "va", "wv", "md", "de", "pa", "nj", "ct", "ri", "ma", "vt", "nh", "me", "oh", "mi", "dc", "on", "qc", "ns", "nb", "in")
 _EUROPE_WEST = ("united kingdom", "uk", "england", "scotland", "wales", "ireland", "london", "manchester", "edinburgh", "dublin", "portugal",
                 "lisbon", "spain", "madrid", "barcelona", "france", "paris", "germany", "berlin", "munich", "netherlands", "amsterdam", "belgium",
                 "brussels", "luxembourg", "switzerland", "zurich", "austria", "vienna", "italy", "rome", "milan", "denmark", "copenhagen",
-                "norway", "oslo", "sweden", "stockholm", "iceland", "morocco", "ghana", "senegal", "ivory coast", "nigeria", "lagos", "europe", "eu")
+                "norway", "oslo", "sweden", "stockholm", "iceland", "morocco", "ghana", "senegal", "ivory coast", "nigeria", "lagos", "europe", "eu",
+                "great britain", "britain", "scandinavia", "nordic", "nordics", "dach", "leeds", "glasgow", "hamburg", "frankfurt", "deutschland",
+                "munchen", "cologne", "koln", "belfast", "bristol", "birmingham", "liverpool", "cardiff", "geneva", "benelux")
 _EUROPE_EAST_MEA = ("poland", "warsaw", "czech", "prague", "slovakia", "hungary", "budapest", "romania", "bucharest", "bulgaria", "greece", "athens",
                     "finland", "helsinki", "estonia", "latvia", "lithuania", "ukraine", "kyiv", "belarus", "serbia", "croatia", "slovenia", "turkey",
                     "istanbul", "russia", "moscow", "israel", "tel aviv", "egypt", "cairo", "saudi", "riyadh", "uae", "united arab emirates", "dubai",
                     "abu dhabi", "qatar", "doha", "kuwait", "jordan", "lebanon", "iraq", "south africa", "johannesburg", "cape town", "kenya", "nairobi",
-                    "ethiopia", "tanzania", "uganda", "zimbabwe", "zambia", "africa", "middle east", "tbilisi", "georgia (country)", "country of georgia", "republic of georgia", "armenia", "azerbaijan", "oman", "bahrain", "cyprus", "malta")
+                    "ethiopia", "tanzania", "uganda", "zimbabwe", "zambia", "africa", "middle east", "tbilisi", "georgia (country)", "country of georgia", "republic of georgia", "armenia", "azerbaijan", "oman", "bahrain", "cyprus", "malta",
+                    "czechia", "turkiye", "krakow", "baltics", "baltic", "wroclaw", "gdansk", "belgrade", "sofia", "vilnius", "riga", "tallinn", "bratislava", "zagreb")
 _SOUTH_ASIA = ("india", "bangalore", "bengaluru", "mumbai", "delhi", "hyderabad", "chennai", "pune", "kolkata", "pakistan", "karachi", "lahore",
                "bangladesh", "dhaka", "sri lanka", "colombo", "nepal", "kathmandu", "bhutan", "maldives", "uzbekistan", "kazakhstan")
 _ASIA_PACIFIC = ("china", "beijing", "shanghai", "shenzhen", "hong kong", "taiwan", "taipei", "japan", "tokyo", "osaka", "korea", "seoul", "singapore",
                  "malaysia", "kuala lumpur", "indonesia", "jakarta", "bali", "thailand", "bangkok", "vietnam", "hanoi", "ho chi minh", "philippines",
                  "manila", "cambodia", "myanmar", "laos", "mongolia", "asia", "apac")
-_OCEANIA = ("australia", "sydney", "melbourne", "brisbane", "perth", "adelaide", "new zealand", "auckland", "wellington", "fiji", "oceania", "anz")
+_OCEANIA = ("australia", "sydney", "melbourne", "brisbane", "perth", "adelaide", "new zealand", "auckland", "wellington", "fiji", "oceania", "anz", "nz")
 _US_CANADA_GENERIC = ("united states", "usa", "u.s.", "u.s.a", "canada", "north america", "americas", "latam", "latin america")
+
+
+# "Eastern Europe" is its own band; plain "europe" would otherwise file it under the western one.
+_EAST_EUROPE = re.compile(r"(?<![a-z0-9])(?:central\s+and\s+)?(?:eastern|east)\s+europe(?:an)?(?![a-z0-9])")
+# "(excluding US)", "except United States", "not US", "no US applicants": the clause names what is left OUT, so it is dropped before matching.
+_EXCLUDE = re.compile(r"\b(?:excluding|excludes?|except(?:ing)?|outside(?:\s+of)?|other\s+than|without|not|no)\b[^,;()|/\n]*", re.I)
+
+
+def _plain(text: str) -> str:
+    """Accents folded to ASCII ("Zürich" -> "Zurich", "Kraków" -> "Krakow"); the word lists are ASCII."""
+    return unicodedata.normalize("NFKD", text.replace("ß", "ss").replace("ł", "l")).encode("ascii", "ignore").decode()
 
 
 def _rx(words: tuple[str, ...]) -> re.Pattern:
@@ -100,9 +115,12 @@ def classify(location: str | None) -> str | None:
     "Austin, TX" -> "americas_west"; "United States" -> both American bands; "US or Europe" -> both American bands + europe_west."""
     if not location:
         return None
-    orig = _NAMESAKE.sub(" ", location.strip())
+    orig = _NAMESAKE.sub(" ", _EXCLUDE.sub(" ", _plain(location.strip())))
     t = " " + orig.lower() + " "
     found: set[str] = set()
+    if _EAST_EUROPE.search(t):
+        found.add("europe_east_mea")
+        t = _EAST_EUROPE.sub(" ", t)
     for key, rx in _ORDER:
         if rx.search(t):
             found.add(key)
