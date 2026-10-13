@@ -86,7 +86,7 @@
     b.addEventListener("click", () => {
       const input = b.parentElement.querySelector("input");
       const show = input.type === "password";
-      input.type = show ? "text" : "password"; b.textContent = show ? "Hide" : "Show";
+      input.type = show ? "text" : "password"; b.textContent = show ? "Hide" : "Show"; b.setAttribute("aria-pressed", String(show));
     });
   }
 

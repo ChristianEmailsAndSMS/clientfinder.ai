@@ -31,7 +31,7 @@
         <form id="form-in" role="tabpanel" aria-labelledby="tab-in" autocomplete="on" novalidate>
           <label class="field">Email<input class="input" name="email" type="email" required autocomplete="username" autofocus></label>
           <label class="field">Password
-            <span class="pwrow"><input class="input" name="password" type="password" required autocomplete="current-password" maxlength="256"><button type="button" class="link" data-show>Show</button></span>
+            <span class="pwrow"><input class="input" name="password" type="password" aria-label="Password" required autocomplete="current-password" maxlength="256"><button type="button" class="link" data-show aria-label="Show password" aria-pressed="false">Show</button></span>
           </label>
           <label class="field" id="row-code" hidden>6-digit code from your authenticator app
             <input class="input" name="totp_code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="123456">
@@ -45,7 +45,7 @@
         <form id="form-up" role="tabpanel" aria-labelledby="tab-up" autocomplete="on" novalidate hidden>
           <label class="field">Email<input class="input" name="email" type="email" required autocomplete="username"></label>
           <label class="field">Password
-            <span class="pwrow"><input class="input" name="password" type="password" minlength="12" autocomplete="new-password" maxlength="256"><button type="button" class="link" data-show>Show</button></span>
+            <span class="pwrow"><input class="input" name="password" type="password" aria-label="Password" minlength="12" autocomplete="new-password" maxlength="256"><button type="button" class="link" data-show aria-label="Show password" aria-pressed="false">Show</button></span>
             <span class="hint">At least 12 characters. A few random words works well.</span>
           </label>
           <p class="error" id="err-up" hidden></p>
