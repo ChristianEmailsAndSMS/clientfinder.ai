@@ -157,7 +157,7 @@ def process(db: Session, event_id: str, body: dict) -> PaymentEvent:
         db.rollback()
         return db.scalar(select(PaymentEvent).where(PaymentEvent.provider == "whop", PaymentEvent.event_id == event_id[:128]))
     if ev.status == "credited":
-        credits.apply(db, ev.user_id, ev.amount_micro, "topup", "Whop payment", ref=f"whop:{ev.event_id}",
+        credits.apply(db, ev.user_id, ev.amount_micro, "topup", "Whop payment", ref=credits.make_ref("whop", ev.event_id),
                       meta={"payment_event_id": ev.id, "email": ev.email})
     return ev
 
@@ -168,7 +168,7 @@ def resolve(db: Session, ev: PaymentEvent, user_id: int, actor_id: int) -> Payme
         raise ValueError("this payment cannot be credited")
     if ev.event_type not in CREDIT_TYPES:
         raise ValueError("only a payment can be credited, not a refund or dispute")
-    credits.apply(db, user_id, ev.amount_micro, "topup", "Whop payment (resolved by owner)", ref=f"whop:{ev.event_id}",
+    credits.apply(db, user_id, ev.amount_micro, "topup", "Whop payment (resolved by owner)", ref=credits.make_ref("whop", ev.event_id),
                   actor_user_id=actor_id, meta={"payment_event_id": ev.id, "email": ev.email})
     ev.status, ev.user_id, ev.note = "credited", user_id, "resolved by owner"
     return ev

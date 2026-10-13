@@ -121,7 +121,7 @@ def signup(body: SignupBody, request: Request, response: Response, db: Session =
         reject(409, "An account with this email already exists. Sign in instead.")
     welcome_note = None                          # set only when a credit was advertised but not given, so the page can say why
     if welcome_bonus_available(db):
-        entry = credits.apply(db, user.id, credits.usd_to_micro(settings.signup_bonus_usd), "grant", "Welcome credit", ref="welcome:" + mailbox_key(email))
+        entry = credits.apply(db, user.id, credits.usd_to_micro(settings.signup_bonus_usd), "grant", "Welcome credit", ref=credits.make_ref("welcome", mailbox_key(email)))
         if entry.user_id != user.id:             # idempotent replay: this mailbox already claimed it on another account
             welcome_note = "The welcome credit was already used for this mailbox, so this account starts at $0.00."
     elif settings.signup_bonus_usd > 0:

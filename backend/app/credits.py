@@ -9,6 +9,7 @@ Rules:
   * Price charged = Claude API cost x CREDIT_MARKUP (app/pricing.py), rounded up."""
 from __future__ import annotations
 
+import hashlib
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from sqlalchemy import select, update
@@ -22,6 +23,18 @@ MICRO = 1_000_000
 MAX_USD = Decimal("1000000")       # hard ceiling for any single amount; stays far inside BIGINT
 CREDIT_KINDS = {"topup", "grant", "refund"}
 DEBIT_KINDS = {"usage", "revoke"}
+
+
+REF_MAX = 128                      # width of credit_ledger.ref
+
+
+def make_ref(prefix: str, key: str) -> str:
+    """'prefix:key' as a ledger ref. Short keys stay readable (and match refs already stored); a key that would not fit the
+    column is replaced by its SHA-256, so PostgreSQL never rejects the row (SQLite would not notice)."""
+    ref = f"{prefix}:{key}"
+    if len(ref) <= REF_MAX:
+        return ref
+    return f"{prefix}:h{hashlib.sha256(key.encode()).hexdigest()}"
 
 
 class InsufficientCredits(Exception):
