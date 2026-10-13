@@ -335,6 +335,15 @@ def test_logout_clears_cookie(env, admin):
     assert c.get("/auth/me").status_code == 401
 
 
+def test_logout_kills_a_copied_cookie(env, admin):
+    c = signed_in(env, admin)
+    token = c.cookies.get("cf_session")
+    assert c.post("/auth/logout", headers=CSRF).status_code == 200
+    thief = TestClient(app)
+    thief.cookies.set("cf_session", token)
+    assert thief.get("/auth/me").status_code == 401
+
+
 # =============== CSRF ===============
 def test_state_changing_requests_need_the_custom_header_and_same_origin(env, admin):
     c = signed_in(env, admin)

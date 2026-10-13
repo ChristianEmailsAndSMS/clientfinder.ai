@@ -193,8 +193,12 @@ def me(user: User = Depends(current_user)) -> dict:
 
 
 @router.post("/logout")
-def logout(request: Request, response: Response) -> dict:
+def logout(request: Request, response: Response, user: User | None = Depends(session_user), db: Session = Depends(get_db)) -> dict:
     csrf_guard(request)
+    if user is not None:                           # end the session on the server too, so a copied cookie stops working
+        user.session_version += 1
+        log_event(db, "logout", request, user=user)
+        db.commit()
     clear_session_cookie(response)
     return {"ok": True}
 

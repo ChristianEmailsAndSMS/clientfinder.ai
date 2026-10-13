@@ -67,7 +67,7 @@ Each item below was reproduced or tested; the tests live in `backend/tests/` and
 - Lockout: 5 failures locks the account 15 minutes; 20 failures from one IP in 10 minutes blocks that IP. Both are stored in the
   database, so a restart does not reset them. An attacker can use lockout to annoy you; clear it with
   `scripts/admin_cli.py unlock EMAIL`.
-- Sessions: 12-hour signed token in an HttpOnly, Secure, SameSite=Strict cookie. "Sign out everywhere" and suspending a user
+- Sessions: 12-hour signed token in an HttpOnly, Secure, SameSite=Strict cookie. Signing out (which also ends the user's other sessions), "Sign out everywhere" and suspending a user
   invalidate every token immediately (server-side version counter).
 - Customer accounts: anyone can sign up with email + password (12+ characters, no 2FA required). Sign-ups are limited to 5 per IP per
   hour and 200 per hour site-wide. New accounts get **$0 credit** (`SIGNUP_BONUS_USD`): until sign-up verifies email addresses, free credit
