@@ -16,6 +16,20 @@ TRACKING_PARAMS: set[str] = {
 # "s" and "t" are Twitter/X share trackers, but on other sites they are real ids (forum ?t=<thread>, search ?s=<term>): strip them there only.
 TWITTER_ONLY_PARAMS: set[str] = {"s", "t"}
 _TWITTER_HOSTS = {"twitter.com", "x.com", "mobile.twitter.com", "www.twitter.com", "www.x.com"}
+# Same site under another name: fold to one host so one page gets one hash.
+_HOST_ALIASES = {"twitter.com": "x.com", "mobile.twitter.com": "x.com", "m.twitter.com": "x.com",
+                 "old.reddit.com": "reddit.com", "np.reddit.com": "reddit.com", "new.reddit.com": "reddit.com",
+                 "i.reddit.com": "reddit.com", "m.reddit.com": "reddit.com"}
+# Extra tracking params that are only noise on one site (the job id is elsewhere in the URL).
+_SITE_TRACKING = {"indeed.com": {"from", "vjs", "q", "l"}, "reddit.com": {"utm_name", "context", "share_id"},
+                  "glassdoor.com": {"pos", "ao", "src", "vt", "cs", "guid"}}
+
+
+def _site_key(host: str) -> str:
+    for d in _SITE_TRACKING:
+        if host == d or host.endswith("." + d):
+            return d
+    return ""
 
 
 def normalize_url(url: str) -> str:
@@ -23,11 +37,17 @@ def normalize_url(url: str) -> str:
     IMPORTANT: keep non-tracking query params — many job IDs live there (e.g. ?gh_jid=12345)."""
     try:
         p = urlparse(url.strip())
-        scheme = (p.scheme or "https").lower()
+        scheme = "https" if (p.scheme or "https").lower() == "http" else (p.scheme or "https").lower()
         netloc = p.netloc.lower()
+        is_twitter = netloc in _TWITTER_HOSTS
+        if netloc.startswith("www.") and "@" not in netloc:
+            netloc = netloc[4:]
+        netloc = _HOST_ALIASES.get(netloc, netloc)
         path = p.path.rstrip("/")
-        drop = TRACKING_PARAMS | (TWITTER_ONLY_PARAMS if netloc in _TWITTER_HOSTS else set())
+        drop = TRACKING_PARAMS | (TWITTER_ONLY_PARAMS if is_twitter else set()) | _SITE_TRACKING.get(_site_key(netloc), set())
         kept = [(k, v) for (k, v) in parse_qsl(p.query, keep_blank_values=False) if k.lower() not in drop]
+        if (netloc == "linkedin.com" or netloc.endswith(".linkedin.com")) and path.startswith("/jobs/view/"):
+            kept = []  # the job id is in the path; every query param there is tracking
         kept.sort()  # stable order for stable hashing
         query = urlencode(kept)
         return urlunparse((scheme, netloc, path, "", query, ""))
