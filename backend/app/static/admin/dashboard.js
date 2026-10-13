@@ -187,7 +187,7 @@
     panel.appendChild(h("div", { class: "row" },
       h("button", { onclick: () => act(`/admin/users/${id}/limits`, { unlimited: !u.unlimited }, u.unlimited ? "Unlimited credits turned off." : "Unlimited credits turned on: this person's searches are free."), class: u.unlimited ? "ghost" : "" },
         u.unlimited ? "Turn off unlimited credits" : "Give unlimited credits"),
-      h("form", { class: "row", onsubmit: (e) => { e.preventDefault(); act(`/admin/users/${id}/limits`, { daily_search_limit: Number(limit.value || 0) }, "Daily search limit saved."); } },
+      h("form", { class: "row", onsubmit: (e) => { e.preventDefault(); const raw = limit.value.trim(); if (raw && !/^\d+$/.test(raw)) { flash("Enter a whole number (or leave blank for the site default).", true); return; } act(`/admin/users/${id}/limits`, { daily_search_limit: Number(raw || 0) }, "Daily search limit saved."); } },
         h("label", {}, "New searches per day (blank = site default)", limit), h("button", { type: "submit", class: "ghost" }, "Save limit"))));
     if (u.prefs && (u.prefs.roles || []).length) panel.appendChild(h("p", { class: "muted" }, "Looking for: " + u.prefs.roles.join(", ") + (u.prefs.regions && u.prefs.regions.length ? " · regions: " + u.prefs.regions.join(", ") : "")));
     panel.appendChild(h("form", { class: "row", onsubmit: (e) => { e.preventDefault(); act(`/admin/users/${id}/credits`, { amount_usd: amount.value, kind: kind.value, reason: reason.value }, "Credit updated."); } },

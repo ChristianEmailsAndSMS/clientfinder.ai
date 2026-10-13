@@ -610,6 +610,9 @@ def test_owner_can_raise_or_reset_a_users_daily_search_limit(env, live, monkeypa
     assert run(c, "three").status_code == 202
     assert a.post(f"/admin/users/{c.uid}/limits", json={"daily_search_limit": 0}, headers=CSRF).json()["daily_search_limit"] is None
     assert a.post(f"/admin/users/{c.uid}/limits", json={"daily_search_limit": 5000}, headers=CSRF).status_code == 422
+    # an empty body (what a NaN in the dashboard becomes) must be an error, not a silent "saved"
+    assert a.post(f"/admin/users/{c.uid}/limits", json={"daily_search_limit": None}, headers=CSRF).status_code == 400
+    assert a.post(f"/admin/users/{c.uid}/limits", json={}, headers=CSRF).status_code == 400
     assert member(env, "other@example.com").post(f"/admin/users/{c.uid}/limits", json={"unlimited": True}, headers=CSRF).status_code in (401, 403)
 
 
@@ -763,3 +766,9 @@ def test_a_request_holding_a_stale_balance_cannot_overdraw(env, pitch):
             assist.generate(s2, u2, "first_message", **kw)
         assert e.value.status == 402
     assert balance(env, c.uid) >= 0 and len(pitch.calls) == 1
+
+def test_admin_dashboard_validates_daily_limit_input():
+    from pathlib import Path
+    js = (Path(__file__).resolve().parent.parent / "app" / "static" / "admin" / "dashboard.js").read_text()
+    assert "Number(limit.value" not in js
+    assert "Enter a whole number" in js

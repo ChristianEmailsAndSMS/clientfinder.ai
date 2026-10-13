@@ -330,6 +330,8 @@ class LimitsBody(BaseModel):
 @router.post("/users/{user_id}/limits")
 def set_limits(user_id: PathId, body: LimitsBody, request: Request, admin: User = Depends(current_admin), db: Session = Depends(get_db)) -> dict:
     u = _get_user(db, user_id)
+    if body.unlimited is None and body.daily_search_limit is None:
+        raise HTTPException(400, "Nothing to change: send unlimited and/or daily_search_limit.")
     changes = []
     if body.unlimited is not None:
         u.unlimited_credits = body.unlimited
