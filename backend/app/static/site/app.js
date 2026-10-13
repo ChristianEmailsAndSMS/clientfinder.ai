@@ -204,6 +204,12 @@
     if (token !== loadToken) return;                       // a newer request replaced this one
     state.loading = false;
     if (r.status === 401) { location.replace("/login?next=" + encodeURIComponent("/app")); return; }
+    if (!r.ok && !reset) {                                   // a failed "Show more" keeps the jobs already on screen and offers a retry
+      const more = clear($("more"));
+      more.appendChild(h("p", { class: "muted", text: `Could not load more jobs. ${detail(r)}` }));
+      more.appendChild(h("button", { class: "btn", type: "button", text: "Try again", onclick: () => loadJobs(false) }));
+      return;
+    }
     if (!r.ok) { $("count").textContent = ""; clear($("list")).appendChild(empty("Could not load jobs", detail(r))); return; }
     state.total = Number(r.headers.get("X-Total-Count") || 0);
     $("count").textContent = `${num(state.total)} ${state.total === 1 ? "job" : "jobs"}`;
