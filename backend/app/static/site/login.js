@@ -19,6 +19,8 @@
   status.then((r) => (r.ok && r.data.signed_in ? api("GET", "/auth/me") : { ok: false })).then((r) => {
     if (!r.ok) return;
     if (!onHome) { go(); return; }                       // /login: skip the form
+    const ni = document.getElementById("nav-signin"), nu = document.getElementById("nav-signup");     // header: one "Open the app" entry instead of sign-in / sign-up
+    if (ni && nu) { nu.replaceWith(h("a", { class: "btn sm primary", href: "/app", text: "Open the app" })); ni.remove(); }   // new node: the old one carries the #signup click handler
     const panel = clear($("auth-panel"));                 // home: replace the form with a welcome panel
     panel.append(h("div", { class: "welcome" },
       h("h2", { class: "authtitle", text: "Welcome back" }),
