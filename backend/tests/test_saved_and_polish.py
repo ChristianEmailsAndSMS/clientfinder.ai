@@ -114,3 +114,8 @@ def test_save_buttons_share_one_repaint():
     assert "function repaintSaved" in app_js and 'data-save-id' in app_js
     assert app_js.count("repaintSaved()") >= 3                  # after a toggle, after a failed toggle, and after the window loads
     assert "count.hidden = !n" in app_js                         # the "N saved jobs" line follows the window
+
+def test_wizard_allows_clearing_roles_after_first_run():
+    app_js = (SITE / "app.js").read_text()
+    assert "ok: () => !first || draft.roles.size > 0" in app_js            # only first run insists on a role; later edits can return to "everything"
+    assert "Leave all unselected to see every job" in app_js

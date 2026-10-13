@@ -324,8 +324,8 @@
       b.addEventListener("click", () => { const now = fn(); b.classList.toggle("on", now); b.setAttribute("aria-pressed", String(now)); }); return b; };
     const flip = (set, v) => () => { set.has(v) ? set.delete(v) : set.add(v); return set.has(v); };
     const steps = [
-      { title: "What kind of work do you do?", sub: "Pick everything you sell. We will show the jobs and posts that need it.",
-        body: () => h("div", { class: "tiles" }, ROLES.map(([k, l]) => tile(l, null, draft.roles.has(k), flip(draft.roles, k)))), ok: () => draft.roles.size > 0, why: "Pick at least one so we know what to look for." },
+      { title: "What kind of work do you do?", sub: first ? "Pick everything you sell. We will show the jobs and posts that need it." : "Pick everything you sell. Leave all unselected to see every job.",
+        body: () => h("div", { class: "tiles" }, ROLES.map(([k, l]) => tile(l, null, draft.roles.has(k), flip(draft.roles, k)))), ok: () => !first || draft.roles.size > 0, why: "Pick at least one so we know what to look for, or use Skip for now." },      // later edits may clear everything: "no preferences" must stay reachable
       { title: "Where do you want your clients to be based?", sub: "Pick the time zones you want to work with. Posts that do not say where are still shown. Leave all unselected if clients anywhere are fine.",
         body: () => h("div", {}, h("div", { class: "tiles" }, (facets.regions || []).filter((r) => r.value !== "unspecified" && r.value !== "worldwide").map((r) => tile(r.label, [r.offset, `${num(regionShown(r, true, true))} jobs in total`].filter(Boolean).join(" · "), draft.regions.has(r.value), flip(draft.regions, r.value)))),
           h("div", { class: "mt16" }, h("div", { class: "hint", text: "On-site or remote?" }), (() => { const wrap = h("div", { class: "seg" }); const paint = () => { for (const b of wrap.children) b.classList.toggle("on", b.dataset.v === draft.remote); };
