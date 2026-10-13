@@ -606,11 +606,14 @@
 
   async function follow(id, out, btn, after) {
     clear(out).append(h("div", { class: "sresult mt16" }, h("span", { class: "spinner" }), " Searching the web and reading posts. The searches run one after another, so this can take several minutes."));
+    let bad = 0;                                           // polls in a row that failed for a passing reason (offline, 429, 5xx during a restart)
     for (let i = 0; i < 400; i++) {                        // about 10 minutes: the server gives up on a search after that (STALE_AFTER)
       if (!out.isConnected) return;                        // the modal was closed: a reopened one follows the search itself
       const r = await api("GET", "/searches/" + id);
       if (!out.isConnected) return;
-      if (!r.ok) { clear(out).append(h("div", { class: "sresult fail", text: detail(r) })); if (btn) btn.disabled = false; return; }
+      if (!r.ok && (r.status === 0 || r.status === 429 || r.status >= 500) && ++bad < 8) { await new Promise((res) => setTimeout(res, 1500)); continue; }   // the search keeps running on the server: ask again
+      if (!r.ok) { clear(out).append(h("div", { class: "sresult fail", text: detail(r) + " The search may still have finished: check your search history." })); if (btn) btn.disabled = false; await refreshBalance(); if (after) after(); return; }
+      bad = 0;
       if (r.data.status === "done" || r.data.status === "failed") { await showResult(r.data, out); if (btn) btn.disabled = false; await refreshBalance(); if (after) after(); return; }
       await new Promise((res) => setTimeout(res, 1500));
     }
