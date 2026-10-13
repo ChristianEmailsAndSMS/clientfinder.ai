@@ -2,6 +2,8 @@ from contextlib import asynccontextmanager
 
 from fastapi.responses import JSONResponse
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.encoders import jsonable_encoder
 from .api.account import router as account_router
 from .api.admin import router as admin_router
 from .api.webhooks import router as webhooks_router
@@ -44,6 +46,13 @@ async def _http_error(request: Request, exc: StarletteHTTPException):
     if exc.status_code == 404 and request.method == "GET" and "text/html" in request.headers.get("accept", ""):
         return not_found_page()
     return await http_exception_handler(request, exc)
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error(request: Request, exc: RequestValidationError):
+    """The default 422 body echoes the rejected input; a lone surrogate in it cannot be encoded and turned the answer into a 500."""
+    errors = [{k: v for k, v in e.items() if k not in ("input", "ctx")} for e in exc.errors()]
+    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})
 
 
 _BASE_HEADERS = {
