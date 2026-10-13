@@ -18,6 +18,7 @@ from .api.jobs import router as jobs_router
 from .api.public import router as public_router
 from .api.site import router as site_router, not_found_page
 from fastapi.exception_handlers import http_exception_handler
+from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from .api.searches import router as searches_router
 
@@ -39,6 +40,13 @@ app = FastAPI(
     redoc_url=None,
     openapi_url="/openapi.json" if settings.enable_docs else None,
 )
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error(request: Request, exc: RequestValidationError):
+    """422 without echoing the submitted value: a lone surrogate (\\ud800) in it cannot be encoded and turned the reply into a 500."""
+    errors = [{"type": e.get("type"), "loc": list(e.get("loc", ())), "msg": e.get("msg")} for e in exc.errors()]
+    return JSONResponse({"detail": errors}, status_code=422)
+
 
 @app.exception_handler(StarletteHTTPException)
 async def _http_error(request: Request, exc: StarletteHTTPException):
