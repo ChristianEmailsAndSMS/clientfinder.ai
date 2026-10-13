@@ -148,7 +148,7 @@
     // (1,000 or more means per year, less means per hour) instead of leaving a greyed-out box that silently does nothing.
     const minPay = h("input", { class: "input", type: "number", min: "0", step: "1", placeholder: "Minimum pay, e.g. 50000", value: state.minPay, "aria-label": "Minimum pay" });
     minPay.addEventListener("input", debounce(() => {
-      state.minPay = minPay.value;
+      state.minPay = normPay(minPay.value);
       if (state.minPay !== "" && !state.payPeriod) { state.payPeriod = Number(state.minPay) >= 1000 ? "year" : "hour"; per.value = state.payPeriod; }
       loadJobs(true);
     }, 350));
@@ -211,6 +211,8 @@
     if (offset != null) { p.set("limit", PAGE); p.set("offset", offset); }
     return p;
   }
+  // "1e5" is a valid number-box value but not a plain amount readUrl() accepts, so turn it into 100000 when typed (else a reload drops it).
+  function normPay(v) { const n = Number(v); const s = v === "" || !isFinite(n) || n < 0 ? "" : String(n); return /^\d+(\.\d+)?$/.test(s) ? s : ""; }
   function writeUrl() { const s = params().toString(); history.replaceState(null, "", "/app" + (s ? "?" + s : "")); }
   const FILTER_KEYS = ["q", "remote", "has_pay", "pay_period", "min_pay", "posted_within_days", "sort", "location", "include_worldwide", "include_unspecified", "platform", "type", "tag", "any_tag", "region", "kind"];
   function urlSetsFilters() { const p = new URLSearchParams(location.search); return FILTER_KEYS.some((k) => p.has(k)); }
