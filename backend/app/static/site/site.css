@@ -1,7 +1,7 @@
 /* Clientfinder design system. Dark, blue accent. No external fonts or images (strict CSP). */
 :root{
   --bg:#0a0c11; --bg2:#0f1218; --card:#141821; --card2:#181d28; --line:#222937; --line2:#2d3647;
-  --ink:#eef1f6; --muted:#8e98a9; --dim:#5f6a7d;
+  --ink:#eef1f6; --muted:#8e98a9; --dim:#8591a5;
   --accent:#4ea1ff; --accent2:#8b7bff; --accent-ink:#06101f;
   --good:#34d399; --warn:#f5b544; --bad:#ff6b6b;
   --radius:14px; --shadow:0 10px 40px -12px rgba(0,0,0,.6);
@@ -44,7 +44,7 @@ select.input{appearance:none;background-image:linear-gradient(45deg,transparent 
   background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px;background-repeat:no-repeat;padding-right:34px}
 .hint{color:var(--muted);font-size:12.5px;margin-top:6px;font-weight:400}
 .error{color:var(--bad);font-size:13.5px;min-height:20px;margin-top:10px}
-.pwrow{display:block;position:relative}.pwrow .input{padding-right:62px}.pwrow .link{position:absolute;right:13px;top:calc(50% + 3px);transform:translateY(-50%);font-size:12.5px;color:var(--muted);font-weight:600}.pwrow .link:hover{color:var(--ink)}
+.pwrow{display:block;position:relative}.pwrow .input{padding-right:66px}.pwrow .link{position:absolute;right:6px;top:calc(50% + 3px);transform:translateY(-50%);font-size:13.5px;padding:10px 8px;min-width:44px;min-height:40px;color:var(--muted);font-weight:600}.pwrow .link:hover{color:var(--ink)}
 
 /* ---------- surfaces ---------- */
 .card{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);border-radius:var(--radius)}

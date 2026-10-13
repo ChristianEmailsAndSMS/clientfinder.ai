@@ -26,6 +26,7 @@ from ..security import (LOCKOUT_AFTER, LOCKOUT_MINUTES, _ph, admin_emails, aware
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 GENERIC_LOGIN_ERROR = "Invalid email, password or code"
+LOCKED_MESSAGE = f"Too many sign-in attempts. Wait {LOCKOUT_MINUTES} minutes, then try again."      # same words for every address, real or not
 
 
 class LoginBody(BaseModel):
@@ -146,6 +147,18 @@ def login(body: LoginBody, request: Request, response: Response, db: Session = D
         raise HTTPException(401, GENERIC_LOGIN_ERROR)
     user = db.scalar(select(User).where(User.email == email))
     now = utcnow()
+    # Failures are counted per ADDRESS (real or made up), so the lock-out answer is identical for both and does not reveal which accounts exist.
+    # Before this, a customer who mistyped five times got "Invalid email or password" for 15 minutes with no hint that they were locked out.
+    shown = loggable_email(email)
+    # Only failures after the last successful sign-in (or owner unlock) for this address count; the audit rows themselves are never edited.
+    fresh_since = func.coalesce(select(func.max(AuthEvent.created_at)).where(AuthEvent.event.in_(("login_ok", "lock_cleared")), AuthEvent.email == shown).scalar_subquery(),
+                                now - timedelta(minutes=LOCKOUT_MINUTES))
+    if shown and (db.scalar(select(func.count(AuthEvent.id)).where(
+            AuthEvent.event.in_(("login_fail", "totp_fail")), AuthEvent.email == shown,
+            AuthEvent.created_at >= now - timedelta(minutes=LOCKOUT_MINUTES), AuthEvent.created_at > fresh_since)) or 0) >= LOCKOUT_AFTER:
+        db.add(AuthEvent(event="login_locked", email=shown, ip=client_ip(request), user_agent=request.headers.get("user-agent", "")[:200]))
+        db.commit()
+        raise HTTPException(429, LOCKED_MESSAGE)
     # Count this attempt BEFORE the slow password check and commit it, so a burst of simultaneous guesses cannot
     # all be checked against the same stale counter (per-IP row below, per-account counter via an atomic UPDATE).
     attempt = AuthEvent(event="login_fail", email=loggable_email(email), ip=client_ip(request),
@@ -157,9 +170,7 @@ def login(body: LoginBody, request: Request, response: Response, db: Session = D
         verify_password(user.password_hash, body.password)           # same work as any other attempt, so timing does not give the lock away
         attempt.event, attempt.user_id = "login_locked", user.id
         db.commit()
-        if email in admin_emails():                                  # the owner's address is public anyway: tell them why
-            raise HTTPException(429, "Too many attempts. Try again later.")
-        raise HTTPException(401, GENERIC_LOGIN_ERROR)                # unknown emails never lock, so a distinct answer would reveal the account
+        raise HTTPException(429, LOCKED_MESSAGE)                     # unknown addresses lock the same way (see above), so this reveals nothing
 
     password_ok = verify_password(user.password_hash if user else None, body.password)     # same work for unknown emails
     if not (password_ok and user and user.is_active):

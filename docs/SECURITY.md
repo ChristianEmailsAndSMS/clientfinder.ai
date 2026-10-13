@@ -305,3 +305,17 @@ keyboard walkthroughs, a route-by-route access matrix, and a mutation test of th
   change may be collected once more under a new hash).
 - **Tests.** Mutation testing found security guards and money paths whose removal left the suite green; the new tests in `tests/test_sw4_*.py` close
   those gaps. The old string-matching frontend tests remain a weak spot: a small browser smoke test is the next step.
+
+## 15. Combined live test (2026-10-13): lock-out message, dead links, crawler files
+
+- **Lock-out is now spoken.** Five wrong sign-ins for an address (real or made up) within 15 minutes give 429 "Too many sign-in attempts. Wait 15 minutes,
+  then try again." for every address, so the answer still reveals nothing about which accounts exist; before, a locked customer saw the normal
+  "Invalid email or password" for 15 minutes. A correct sign-in or an admin unlock (`lock_cleared` event) restarts the count; audit rows are never edited.
+- **Placeholder and truncated job addresses** (`.../jobs/view/[job-id]`, `workable.com/...`, anything with `{}`, `<>`, `%7B`, `...` or an ellipsis) are never
+  stored (`security_utils.looks_templated`). `scripts/purge_listing_urls.py` hides stored ones; `scripts/check_links.py` opens every stored link (slowly,
+  dry run by default) and hides 404/410 pages and expired postings that bounce to a search page; `scripts/clean_data.py` hides duplicate listings that
+  share a company, title and place and job-board feed jobs whose title names none of our roles. None of them delete anything.
+- `/sitemap.xml`, `/favicon.ico`, Open Graph and Twitter tags, one spelling of the brand ("Clientfinder.ai"), AA-contrast muted text.
+- **Not code, done in Cloudflare/Caddy by the owner:** HTTP to HTTPS redirect (Cloudflare: SSL/TLS > Edge Certificates > Always Use HTTPS), `www` to the
+  main domain (Cloudflare redirect rule, or `www.clientfinder.ai { redir https://clientfinder.ai{uri} permanent }` in the Caddyfile), turning off
+  automatic Web Analytics (the CSP blocks its script on purpose), and the three Whop brand names.

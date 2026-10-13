@@ -8,3 +8,5 @@ Disallow: /searches
 Disallow: /jobs
 Disallow: /assist
 Disallow: /webhooks/
+
+Sitemap: https://clientfinder.ai/sitemap.xml

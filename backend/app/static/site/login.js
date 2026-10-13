@@ -51,6 +51,7 @@
     $("tab-in").classList.toggle("on", !up); $("tab-up").classList.toggle("on", up);
     $("tab-in").setAttribute("aria-selected", String(!up)); $("tab-up").setAttribute("aria-selected", String(up));
     $("form-in").hidden = up; $("form-up").hidden = !up;
+    say($("err-in"), ""); say($("err-up"), ""); $("forgot-note").hidden = true;
     if ($("auth-title")) $("auth-title").textContent = up ? "Create your free account" : "Welcome back";
     if ($("auth-sub")) $("auth-sub").textContent = up ? signupLine : "Sign in to pick up where you left off.";
     if (focus) (up ? $("form-up") : $("form-in")).elements.email.focus({ preventScroll: false });
@@ -59,7 +60,7 @@
   CF.publicConfig.then((r) => {                                               // advertise the welcome credit only while it is really on
     if (!r.ok || !(r.data.signup_bonus_usd > 0)) return;
     const b = r.data.signup_bonus_usd;
-    signupLine = `No card needed. ${b >= r.data.search_price_usd ? "Your first live search is on us" : `You get $${b.toFixed(2)} in free credit`}, and browsing is always free.`;
+    signupLine = `No card needed. ${b >= r.data.search_price_usd ? "Your first live search is free" : `You get $${b.toFixed(2)} in free credit`}, and browsing is always free.`;
     if (!$("form-up").hidden && $("auth-sub")) $("auth-sub").textContent = signupLine;
   });
   $("tab-in").addEventListener("click", () => { tab("in", true); setHash("#signin"); });
@@ -114,7 +115,7 @@
       if (r.data.welcome_note) { try { sessionStorage.setItem("cf_welcome_note", r.data.welcome_note); } catch (x) { /* storage blocked: the note is optional */ } }
       go(r.data); return;
     }
-    busy(btn, false, "Create my account");
+    busy(btn, false, "Create free account");
     say(err, detail(r));
     if (r.status === 409) { $("form-in").elements.email.value = f.elements.email.value; }
   });

@@ -265,6 +265,7 @@ def test_account_locks_after_five_failures_even_for_the_right_password(env, admi
     assert r.status_code == 429
     with env.scope() as db:                                    # lock expires
         db.query(User).update({User.locked_until: sec.utcnow() - timedelta(seconds=1)})
+        db.query(AuthEvent).update({AuthEvent.created_at: sec.utcnow() - timedelta(minutes=16)})
     assert login(env, env.client, EMAIL, secret=admin.secret).status_code == 200
     with env.scope() as db:
         assert db.scalar(select(User)).failed_logins == 0
@@ -293,7 +294,7 @@ def test_login_events_are_audited(env, admin):
     login(env, env.client, EMAIL, secret=admin.secret)
     with env.scope() as db:
         events = [e.event for e in db.scalars(select(AuthEvent).order_by(AuthEvent.id))]
-    assert events == ["login_fail", "login_ok"]
+    assert events == ["login_fail", "login_ok"]                  # the audit rows are never edited
 
 
 # =============== sessions ===============

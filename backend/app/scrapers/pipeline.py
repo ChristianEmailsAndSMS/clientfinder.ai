@@ -408,7 +408,8 @@ def _marketplace_index(url: str) -> bool:
 
 def is_listing_url(url: str) -> bool:
     """True when the address is a search, list or company page rather than one job (used to purge existing rows too)."""
-    return _marketplace_index(url)
+    from ..security_utils import looks_templated
+    return _marketplace_index(url) or looks_templated(url)
 
 
 def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str = "") -> bool:

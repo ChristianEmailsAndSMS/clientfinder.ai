@@ -41,7 +41,7 @@
     if (!r.ok) return;
     if (r.data.signup_bonus_usd > 0) {                                      // only while the welcome credit is really on
       const li = document.querySelector(".ticks li:nth-child(2)");
-      if (li) li.textContent = r.data.signup_bonus_usd >= r.data.search_price_usd ? "Run your own search for the exact role you sell: your first one is free" : "Run your own search for the exact role you sell: free credit to start";
+      if (li) li.textContent = r.data.signup_bonus_usd >= r.data.search_price_usd ? "Run your own search for the exact role you sell (your first one is free)" : "Run your own search for the exact role you sell (free credit to start)";
     }
     const line = document.getElementById("price-line");
     line.textContent = `About ${CF.money(r.data.search_price_usd)} per search, billed from credits`;

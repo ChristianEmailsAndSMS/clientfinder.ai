@@ -27,7 +27,7 @@ def test_overlapping_wrong_guesses_still_lock_the_account(monkeypatch):
     with env.scope() as db:
         u = db.scalar(select(User).where(User.email == "v@example.com"))
         assert u.locked_until is not None                      # 5 failures in total, however they overlapped
-    assert login(env, env.client, "v@example.com").status_code == 401   # even the right password is refused while locked
+    assert login(env, env.client, "v@example.com").status_code == 429   # even the right password is refused while locked, and the answer says so
 
 
 def test_ip_limit_counts_attempts_still_in_flight(monkeypatch):

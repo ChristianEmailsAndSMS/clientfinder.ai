@@ -54,7 +54,7 @@ def test_a_locked_account_looks_like_an_unknown_one(env):
     c = TestClient(app)
     ghost = [c.post("/auth/login", json={**BAD, "email": "ghost@example.com"}, headers=CSRF).status_code for _ in range(7)]
     real = [c.post("/auth/login", json=BAD, headers=CSRF).status_code for _ in range(7)]
-    assert ghost == real == [401] * 7                  # same answers whether or not the account exists or is locked
+    assert ghost == real == [401] * 5 + [429] * 2      # same answers whether or not the account exists, and the lock says so
 
 
 def test_the_right_password_does_not_open_a_locked_account(env):
@@ -63,7 +63,8 @@ def test_the_right_password_does_not_open_a_locked_account(env):
     c = TestClient(app)
     for _ in range(5):
         c.post("/auth/login", json=BAD, headers=CSRF)
-    assert c.post("/auth/login", json={"email": "real@example.com", "password": authkit.PW}, headers=CSRF).status_code == 401
+    r = c.post("/auth/login", json={"email": "real@example.com", "password": authkit.PW}, headers=CSRF)
+    assert r.status_code == 429 and "Wait 15 minutes" in r.json()["detail"]                 # the customer is told, not left guessing
 
 
 def test_owner_address_is_told_when_locked(env):

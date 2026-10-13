@@ -3,8 +3,9 @@ import hashlib
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
+from ..config import settings
 from ..models import User
 from ..security import session_user
 
@@ -53,6 +54,18 @@ def home():
 @router.get("/robots.txt")
 def robots():
     return FileResponse(_DIR / "robots.txt", media_type="text/plain")
+
+
+@router.get("/sitemap.xml")
+def sitemap():
+    base = settings.public_url.rstrip("/")
+    return Response(f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>{base}/</loc></url></urlset>\n',
+                    media_type="application/xml", headers={"Cache-Control": "public, max-age=3600"})
+
+
+@router.get("/favicon.ico")
+def favicon_ico():
+    return FileResponse(_DIR / "favicon.png", media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
 
 
 @router.get("/login")

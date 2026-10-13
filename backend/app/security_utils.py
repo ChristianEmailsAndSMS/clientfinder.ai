@@ -79,6 +79,14 @@ def assert_public_url(url: str) -> None:
             raise UnsafeUrl(f"{host} resolves to a non-public address")
 
 
+_TEMPLATE_URL = re.compile(r"\[[^\]/]*\]|\{[^}/]*\}|%5B|%5D|%7B|%7D|<[^>]*>|\.\.\.|\u2026|%E2%80%A6|(?:^|[/=])(?:job[-_]?id|jobid|your[-_]?job)(?:$|[/?&])", re.I)
+
+
+def looks_templated(url: str | None) -> bool:
+    """A placeholder or truncated address ('.../jobs/view/[job-id]', 'workable.com/...', a Google snippet cut with '...'): it can never open one job."""
+    return bool(url and _TEMPLATE_URL.search(url))
+
+
 def safe_job_url(url: str | None) -> str | None:
     """Validate a URL we will store and later show to users as a clickable link. http(s) only, no credentials,
     no control characters, bounded length. Returns the stripped URL or None. No DNS lookup (storing is not fetching)."""
@@ -93,5 +101,7 @@ def safe_job_url(url: str | None) -> str | None:
     except ValueError:
         return None
     if p.scheme not in ("http", "https") or not p.hostname or p.username or p.password:
+        return None
+    if looks_templated(u):
         return None
     return u

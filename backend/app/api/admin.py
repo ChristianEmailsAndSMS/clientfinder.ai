@@ -18,7 +18,7 @@ from ..config import settings
 from ..db import get_db
 from .. import credits, schema_check, whop
 from ..models import AuthEvent, CreditEntry, FailedUrl, Job, PaymentEvent, ScrapeRun, SearchQuery, Source, User, UserSearch
-from ..security import aware, csrf_guard, current_admin, log_event
+from ..security import aware, client_ip, csrf_guard, current_admin, log_event
 from ..scrapers import pipeline, query_plan
 from ..scrapers.registry import DURABLE
 from ..security import admin_emails
@@ -371,6 +371,7 @@ def set_active(user_id: PathId, body: ActiveBody, request: Request, admin: User 
 def unlock_user(user_id: PathId, request: Request, admin: User = Depends(current_admin), db: Session = Depends(get_db)) -> dict:
     u = _get_user(db, user_id)
     u.locked_until, u.failed_logins = None, 0
+    db.add(AuthEvent(event="lock_cleared", email=u.email, user_id=u.id, ip=client_ip(request)))      # the per-address failure count restarts here
     log_event(db, "user_unlocked", request, user=admin, detail=f"user {u.id}")
     db.commit()
     return _user_row(u)

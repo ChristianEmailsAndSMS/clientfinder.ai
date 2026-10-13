@@ -390,7 +390,7 @@
     const body = h("div", { class: "body" }), foot = h("div", { class: "row end mt20" });
     const dots = h("div", { class: "dots" });
     const m = h("div", { class: "modal wiz", role: "dialog", "aria-modal": "true", "aria-label": "Set up your job search" },
-      h("header", {}, h("h2", { text: first ? "Welcome to Clientfinder" : "Your job search setup" }), dots, first ? null : h("button", { class: "btn sm icon", type: "button", "aria-label": "Close", onclick: closeModal }, CF.icon("x", 16))), body);
+      h("header", {}, h("h2", { text: first ? "Welcome to Clientfinder.ai" : "Your job search setup" }), dots, first ? null : h("button", { class: "btn sm icon", type: "button", "aria-label": "Close", onclick: closeModal }, CF.icon("x", 16))), body);
     const ov = h("div", { class: "overlay" }, m); root.appendChild(ov);
     if (first) m.dataset.lock = "1";
     trapFocus(ov, m);

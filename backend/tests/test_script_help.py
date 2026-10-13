@@ -9,7 +9,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 
 
-@pytest.mark.parametrize("script", ["backfill_tags.py", "recompute_platforms.py", "run_durable_sources.py"])
+@pytest.mark.parametrize("script", ["backfill_tags.py", "recompute_platforms.py", "run_durable_sources.py", "check_links.py", "clean_data.py", "purge_listing_urls.py"])
 def test_help_prints_usage_and_does_nothing(script, tmp_path):
     env = dict(os.environ, DATABASE_URL=f"sqlite:///{tmp_path / 'none.db'}")
     env.pop("DEV_FIXTURES", None)

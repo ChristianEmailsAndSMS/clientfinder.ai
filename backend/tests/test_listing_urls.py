@@ -31,3 +31,23 @@ def test_freelancer_com_rule_does_not_match_other_sites_with_the_same_ending():
     assert is_listing_url("https://www.freelancer.com/jobs/copywriting/")
     assert is_listing_url("https://freelancer.com/job-search/copywriter")
     assert not is_listing_url("https://getfreelancer.com/jobs/engaging-website-copywriter-wanted-cf167b76")
+
+
+TEMPLATES = [
+    "https://www.linkedin.com/jobs/view/[job-id]", "https://apply.workable.com/acme/j/...", "https://jobs.example.com/%7Bjob_id%7D",
+    "https://example.com/jobs/{{id}}", "https://boards.greenhouse.io/acme/jobs/<id>", "https://example.com/careers/copywriter-…",
+    "https://example.com/jobs/job-id",
+]
+
+
+@pytest.mark.parametrize("url", TEMPLATES)
+def test_placeholder_and_truncated_addresses_are_never_stored_and_are_purged(url):
+    from app.security_utils import looks_templated, safe_job_url
+    assert looks_templated(url) and safe_job_url(url) is None and is_listing_url(url)
+
+
+@pytest.mark.parametrize("url", ["https://boards.greenhouse.io/acme/jobs/4012345", "https://apply.workable.com/acme/j/ABC123DEF4/", "https://www.linkedin.com/jobs/view/3876543210",
+                                 "https://example.com/careers/copywriter-lead?utm_source=x&gh_jid=77"])
+def test_real_addresses_are_untouched_by_the_placeholder_rule(url):
+    from app.security_utils import looks_templated, safe_job_url
+    assert not looks_templated(url) and safe_job_url(url) == url
