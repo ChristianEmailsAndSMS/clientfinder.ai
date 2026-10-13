@@ -68,7 +68,11 @@
     const d = hr / 24; if (d < 60) return `${Math.round(d)}d ago`;
     return `${Math.round(d / 30)}mo ago`;
   };
-  CF.money = (n, max = 2) => (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: max });
+  // The minus sign follows the ROUNDED text, so -$0.0004 shown to 2 places reads "$0.00", never "-$0.00".
+  CF.money = (n, max = 2) => {
+    const t = Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: max });
+    return (n < 0 && /[1-9]/.test(t) ? "-$" : "$") + t;
+  };
   CF.num = (n) => Number(n || 0).toLocaleString();
 
   CF.PLATFORM = { remoteok: "RemoteOK", weworkremotely: "We Work Remotely", remotive: "Remotive", greenhouse: "Greenhouse", lever: "Lever", ashby: "Ashby",
