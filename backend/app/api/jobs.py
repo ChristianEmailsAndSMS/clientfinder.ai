@@ -84,6 +84,9 @@ def list_jobs(
     limit: int = Query(30, ge=1, le=100),
     offset: int = Query(0, ge=0, le=10_000),
 ):
+    for val in [q, location, *(platform or []), *(type or []), *(tag or []), *(any_tag or []), *(kind or []), *(region or [])]:
+        if val and "\x00" in val:                   # PostgreSQL rejects NUL in text: that was a 500 (SQLite let it through, so tests never saw it)
+            raise HTTPException(422, "Search text contains characters we cannot use")
     if (min_pay is not None or max_pay is not None) and not pay_period:
         # $40 an hour and $40,000 a year are not comparable numbers: make the caller say which one they mean.
         raise HTTPException(422, "Choose a pay period (hour, year or project) to filter by minimum or maximum pay")

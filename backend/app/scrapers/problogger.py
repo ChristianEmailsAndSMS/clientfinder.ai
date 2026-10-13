@@ -16,6 +16,7 @@ from ..models import Job, Source, ScrapeRun
 from ..dedup import dedupe_hash
 from ..security_utils import safe_job_url
 from ..tagging import set_tags
+from .common import CollectResult, ingest
 
 log = logging.getLogger(__name__)
 
@@ -51,6 +52,7 @@ def run() -> dict:
     except Exception as e:
         log.exception("problogger fetch failed")
         stats["error"] = str(e)
+        ingest("problogger", "ProBlogger Jobs", "problogger", CollectResult(errors=[str(e)[:200]]), kind="html_scrape")     # records a failed run, so the dashboard shows the feed as failing
         return stats
 
     stats["fetched"] = len(rows)

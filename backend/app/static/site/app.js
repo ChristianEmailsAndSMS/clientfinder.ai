@@ -51,7 +51,7 @@
   }
 
   function buildHeader() {
-    const input = h("input", { class: "input", id: "q", type: "search", placeholder: "Search jobs…  ( / )", autocomplete: "off", "aria-label": "Search jobs", value: state.q });
+    const input = h("input", { class: "input", id: "q", type: "search", maxlength: "100", placeholder: "Search jobs…  ( / )", autocomplete: "off", "aria-label": "Search jobs", value: state.q });
     input.addEventListener("input", debounce(() => { state.q = input.value.trim(); loadJobs(true); }, 280));
     clear($("search-wrap")).append(CF.icon("search", 17), input);
     $("bal").textContent = me.unlimited ? "Unlimited" : money(me.balance_usd);
@@ -204,7 +204,7 @@
     if (token !== loadToken) return;                       // a newer request replaced this one
     state.loading = false;
     if (r.status === 401) { location.replace("/login?next=" + encodeURIComponent("/app")); return; }
-    if (!r.ok) { clear($("list")).appendChild(empty("Could not load jobs", detail(r))); return; }
+    if (!r.ok) { $("count").textContent = ""; clear($("list")).appendChild(empty("Could not load jobs", detail(r))); return; }
     state.total = Number(r.headers.get("X-Total-Count") || 0);
     $("count").textContent = `${num(state.total)} ${state.total === 1 ? "job" : "jobs"}`;
     const list = $("list");
@@ -569,7 +569,7 @@
       if (input.value.trim().length < 3) {                     // before anything is typed: say the same thing the estimate will say later
         runBtn.textContent = "Run search";
         if (c.unlimited) info.textContent = `Type the service you sell. Your searches are free on this account (${newSearches(c.left_today)} left today).`;
-        else if (c.price_usd && c.balance_usd < c.price_usd) clear(info).append(`Type the service you sell. A search costs about ${money(c.price_usd)} and you have ${money(c.balance_usd)}. `, h("button", { class: "btn sm", type: "button", text: "Add credits", onclick: () => openCredits() }));
+        else if (c.price_usd && c.balance_usd < c.price_usd) clear(info).append(`Type the service you sell. A search costs about ${money(c.price_usd, 3)} and you have ${money(c.balance_usd, 3)}. `, h("button", { class: "btn sm", type: "button", text: "Add credits", onclick: () => openCredits() }));
         else info.textContent = `Type the service you sell. You have ${money(c.balance_usd)} in credits and ${newSearches(c.left_today)} left today.`;
         return;
       }
@@ -583,7 +583,7 @@
       runBtn.textContent = `Run search · about ${money(quote.price_usd)}`;
       if (quote.unlimited) { info.textContent = `Your searches are free on this account (no credits used). ${newSearches(quote.searches_left_today)} left in the last-24-hours limit.`; runBtn.textContent = "Run search"; runBtn.disabled = false; return; }
       if (!quote.affordable) {
-        clear(info).append(`You have ${money(quote.balance_usd)}. This search needs about ${money(quote.price_usd)}. `, h("button", { class: "btn sm", type: "button", text: "Add credits", onclick: () => openCredits() }));
+        clear(info).append(`You have ${money(quote.balance_usd, 3)}. This search needs about ${money(quote.price_usd, 3)}. `, h("button", { class: "btn sm", type: "button", text: "Add credits", onclick: () => openCredits() }));
         return;
       }
       info.textContent = `You have ${money(quote.balance_usd)} in credits. ${newSearches(quote.searches_left_today)} left today.`;

@@ -142,6 +142,8 @@ def login(body: LoginBody, request: Request, response: Response, db: Session = D
     if ip_throttled(db, ip):
         raise HTTPException(429, "Too many attempts. Try again later.")
     email = body.email.strip().lower()
+    if "\x00" in email:                              # PostgreSQL rejects NUL in text: a 500 instead of the normal wrong-login answer
+        raise HTTPException(401, GENERIC_LOGIN_ERROR)
     user = db.scalar(select(User).where(User.email == email))
     now = utcnow()
     if user and user.locked_until and aware(user.locked_until) > now:

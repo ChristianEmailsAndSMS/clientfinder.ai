@@ -81,6 +81,8 @@ def _subkey(label: bytes) -> bytes:
 # ---------- email / password ----------
 def normalize_email(email: str) -> str:
     e = (email or "").strip().lower()
+    if "\x00" in e:
+        raise HTTPException(422, "Enter a valid email address")
     domain = e.rpartition("@")[2]
     if len(e) > 320 or not _EMAIL_RE.match(e) or domain.endswith(".") or ".." in domain:      # "owner@site.com." is the owner's mailbox too
         raise HTTPException(422, "Enter a valid email address")

@@ -404,6 +404,21 @@ def payments(status: str | None = None, limit: int = Query(50, ge=1, le=200), db
             for e in db.scalars(q)]
 
 
+@router.post("/payments/{event_id}/dismiss")
+def dismiss_payment(event_id: PathId, request: Request, admin: User = Depends(current_admin), db: Session = Depends(get_db)) -> dict:
+    """Mark a held payment notice as handled without crediting anything (a refund or dispute you dealt with, or a payment you chose not to credit).
+    Without this, the red 'payments need a decision' alarm on Overview could never clear for a refund."""
+    ev = db.get(PaymentEvent, event_id)
+    if not ev:
+        raise HTTPException(404, "No such payment")
+    if ev.status not in ("unmatched", "review"):
+        raise HTTPException(409, "This payment is not waiting for a decision")
+    ev.status, ev.note = "ignored", "dismissed by owner"
+    log_event(db, "payment_dismissed", request, user=admin, detail=f"event {ev.id}")
+    db.commit()
+    return {"ok": True}
+
+
 @router.post("/payments/{event_id}/credit")
 def credit_payment(event_id: PathId, body: ResolveBody, request: Request, admin: User = Depends(current_admin), db: Session = Depends(get_db)) -> dict:
     ev = db.get(PaymentEvent, event_id)

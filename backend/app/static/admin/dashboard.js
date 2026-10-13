@@ -223,11 +223,18 @@
         flash(x.ok ? "Credited." : detail(x), !x.ok);
         if (x.ok) renderPayments();
       } }, "Credit");
+      const held = e.status === "unmatched" || e.status === "review";
+      const dismiss = h("button", { class: "small", title: "Mark as handled. Nothing is credited.", onclick: async () => {
+        if (!confirm("Mark this payment notice as handled? Nothing will be credited.")) return;
+        const x = await guarded("POST", `/admin/payments/${e.id}/dismiss`, {});
+        flash(x.ok ? "Marked as handled." : detail(x), !x.ok);
+        if (x.ok) renderPayments();
+      } }, "Dismiss");
       return h("tr", {},
         h("td", {}, when(e.created_at)), h("td", {}, e.type || ""),
         h("td", { class: e.status === "credited" ? "good" : e.status === "ignored" ? "muted" : "warn" }, e.status),
         h("td", {}, e.amount_usd == null ? "" : usd(e.amount_usd)), h("td", {}, e.email || ""), h("td", {}, e.note || ""),
-        h("td", {}, canCredit ? h("div", { class: "row" }, email, credit) : ""));
+        h("td", {}, h("div", { class: "row" }, canCredit ? [email, credit] : null, held ? dismiss : null)));
     });
     box.appendChild(table(["When", "Type", "Status", "Amount", "Email", "Note", "Action"], rows));
   }

@@ -274,3 +274,16 @@ platform labels missing for X, Mastodon and others. Remaining low-priority filte
   at ingest and at read time (a customer saw "691 months ago"); migration 0011 clears the bad stored values. Google results on Indeed, jobgether,
   LinkedIn and Glassdoor are accepted only in their single-job address shape; `scripts/purge_listing_urls.py` (dry run by default) hides stored rows
   that open a search or list page. The same company, title and place within 90 days is one job even when reached by two addresses.
+
+## 13. Third audit swarm (2026-10-13): nine testers drove the real app; 41 of 42 findings reproduced and fixed
+
+Nine lenses (visitor, onboarding, browsing, credits and live search, session and saved jobs, admin, hostile user, copy and docs accuracy, deploy and
+performance) ran the app in a browser or over HTTP; a second agent tried to refute each finding and wrote the fix and a test for the real ones.
+Fixed, among others: parallel Pitch help requests could overdraw the balance; sign-out now ends the session on the server (signing out on one device
+signs that account out everywhere, a deliberate simplification); the welcome-credit daily cap could be exceeded by simultaneous sign-ups;
+a non-admin opening /admin looped between /admin and /login; refund and dispute notices could never be dismissed; feeds that fail to fetch
+(remoteok, problogger) were invisible on the dashboard; a NUL byte or an over-large id gave HTTP 500 on PostgreSQL (SQLite hid it);
+one over-long feed value aborted a whole collection run on PostgreSQL; the mobile filter drawer and wizard were unusable or cut off on a phone;
+the search modal showed stale or contradictory balance text; a saved setup was ignored whenever the link carried a tracking parameter;
+the wizard did not trap focus. One finding (the Details button label) did not reproduce. Not covered: PostgreSQL itself could not be run for the
+whole migration chain in the test sandbox, so migrations 0010 and 0011 were reviewed but not run against PostgreSQL there.

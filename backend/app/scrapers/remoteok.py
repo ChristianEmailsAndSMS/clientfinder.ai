@@ -14,7 +14,7 @@ from ..models import Job, Source, ScrapeRun
 from ..dedup import dedupe_hash
 from ..security_utils import safe_job_url
 from ..tagging import set_tags
-from .common import clean, title_matches
+from .common import CollectResult, ingest, clean, title_matches
 
 log = logging.getLogger(__name__)
 
@@ -48,6 +48,7 @@ def run() -> dict:
     except Exception as e:
         log.exception("remoteok fetch failed")
         stats["error"] = str(e)
+        ingest("remoteok", "RemoteOK API", "remoteok", CollectResult(errors=[str(e)[:200]]))     # records a failed run, so the dashboard shows the feed as failing
         return stats
 
     stats["fetched"] = len(rows)

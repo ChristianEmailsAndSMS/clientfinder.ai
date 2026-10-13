@@ -343,3 +343,22 @@ def test_admin_dashboard_has_a_payments_tab_with_a_credit_action_built_without_i
     assert 'data-tab="payments"' in (root / "index.html").read_text() and 'id="tab-payments"' in (root / "index.html").read_text()
     js = (root / "dashboard.js").read_text()
     assert "renderPayments" in js and "/admin/payments/${e.id}/credit" in js and ".innerHTML" not in js
+
+
+def test_owner_can_dismiss_a_refund_so_the_alarm_clears(env):
+    user(env); c = TestClient(app)
+    assert post(c, {"type": "refund.created", "data": {"user": {"email": "buyer@example.com"}, "currency": "usd", "total": 20}}, msg_id="d1").json()["status"] == "review"
+    with env.scope() as db:
+        _, secret = authkit.make_user(db, "christian@emailsandsms.com", admin=True)
+        eid = db.scalar(select(PaymentEvent.id))
+    a = TestClient(app)
+    assert authkit.login(env, a, "christian@emailsandsms.com", secret=secret).status_code == 200
+    assert a.post(f"/admin/payments/{eid}/dismiss", headers=authkit.CSRF).json() == {"ok": True}
+    with env.scope() as db:
+        ev = db.get(PaymentEvent, eid)
+        assert ev.status == "ignored" and "dismissed" in ev.note
+    assert bal(env) == 0                                                                                     # nothing was credited
+    assert a.post(f"/admin/payments/{eid}/dismiss", headers=authkit.CSRF).status_code == 409                  # only held notices
+    assert a.post("/admin/payments/999999/dismiss", headers=authkit.CSRF).status_code == 404
+    assert a.post(f"/admin/payments/{eid}/dismiss").status_code == 403                                        # CSRF header needed
+    assert TestClient(app).post(f"/admin/payments/{eid}/dismiss", headers=authkit.CSRF).status_code in (401, 403)
