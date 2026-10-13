@@ -225,7 +225,7 @@
     if (state.remote) add(state.remote === "true" ? "Remote" : "On-site", () => { state.remote = ""; });
     if (state.posted) add(state.posted === "1" ? "Last 24h" : `Last ${state.posted} days`, () => { state.posted = ""; });
     if (state.hasPay) add("Pay listed", () => { state.hasPay = false; });
-    if (state.minPay !== "" && state.payPeriod) add(`Pay ≥ ${state.minPay}${state.payPeriod ? "/" + PERIOD[state.payPeriod] : ""}`, () => { state.minPay = ""; });
+    if (state.minPay !== "" && state.payPeriod && Number(state.minPay) >= 0) add(`Pay ≥ ${state.minPay}${state.payPeriod ? "/" + PERIOD[state.payPeriod] : ""}`, () => { state.minPay = ""; });
   }
 
   function payText(j) {

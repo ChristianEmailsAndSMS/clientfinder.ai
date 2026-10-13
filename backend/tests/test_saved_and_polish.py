@@ -119,3 +119,9 @@ def test_wizard_allows_clearing_roles_after_first_run():
     app_js = (SITE / "app.js").read_text()
     assert "ok: () => !first || draft.roles.size > 0" in app_js            # only first run insists on a role; later edits can return to "everything"
     assert "Leave all unselected to see every job" in app_js
+
+def test_pay_chip_uses_the_same_validity_check_as_the_request():
+    """A typed negative minimum is not sent to the API, so it must not show a 'Pay ≥ -5/hr' chip either."""
+    app_js = (SITE / "app.js").read_text()
+    assert 'state.minPay !== "" && state.payPeriod && Number(state.minPay) >= 0) add(`Pay' in app_js
+    assert 'state.minPay !== "" && state.payPeriod) add(`Pay' not in app_js
