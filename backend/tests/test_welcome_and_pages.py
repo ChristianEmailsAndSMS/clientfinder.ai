@@ -104,3 +104,25 @@ def test_wizard_shows_job_counts_per_region_and_the_filter_offers_unspecified_po
     js = (SITE / "app.js").read_text()
     assert "regionShown(r, true, true)" in js and "jobs`" in js
     assert "Also show posts that do not say where" in js and "include_unspecified" in js
+
+
+def test_daily_cap_check_takes_a_postgres_lock(monkeypatch):
+    """Sign-ups sent at the same moment must not all read the same count: on Postgres the check first takes an advisory lock."""
+    from types import SimpleNamespace
+    from app.api import auth as auth_api
+    monkeypatch.setattr(settings, "signup_bonus_usd", 0.75)
+    monkeypatch.setattr(settings, "signup_bonus_daily_cap", 3)
+    seen = []
+
+    class FakeDb:
+        def get_bind(self):
+            return SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
+
+        def execute(self, stmt, params=None):
+            seen.append(str(stmt))
+
+        def scalar(self, stmt):
+            seen.append("count")
+            return 0
+    assert auth_api.welcome_bonus_available(FakeDb()) is True
+    assert "pg_advisory_xact_lock" in seen[0] and seen[1:] == ["count"]

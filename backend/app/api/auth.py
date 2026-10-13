@@ -10,7 +10,7 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -71,6 +71,9 @@ def mailbox_key(email: str) -> str:
     return f"{local}@{domain}"
 
 
+WELCOME_LOCK_KEY = 7310120001      # arbitrary app-wide number for the Postgres advisory lock
+
+
 def welcome_bonus_available(db: Session) -> bool:
     """Is the welcome credit switched on and the site-wide daily cap not yet used up?"""
     if settings.signup_bonus_usd <= 0:
@@ -78,6 +81,10 @@ def welcome_bonus_available(db: Session) -> bool:
     cap = settings.signup_bonus_daily_cap
     if cap <= 0:
         return True
+    if db.get_bind().dialect.name == "postgresql":
+        # Serialise the count-then-grant: without this, sign-ups sent at the same moment all read the same count and all get the credit.
+        # The lock lasts until this sign-up commits. (SQLite has one writer at a time, so it needs nothing.)
+        db.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": WELCOME_LOCK_KEY})
     since = utcnow() - timedelta(hours=24)
     given = db.scalar(select(func.count(CreditEntry.id)).where(CreditEntry.reason == "Welcome credit", CreditEntry.created_at >= since)) or 0
     return given < cap

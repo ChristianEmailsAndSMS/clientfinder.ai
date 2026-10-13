@@ -248,7 +248,8 @@ platform labels missing for X, Mastodon and others. Remaining low-priority filte
 - **Welcome credit (`SIGNUP_BONUS_USD`, off by default).** Without email verification, throwaway sign-ups could farm free searches, which cost real money.
   Limits: one grant per real mailbox (`name+tag@`, gmail dots and googlemail.com count as the same mailbox; enforced by the ledger `ref` `welcome:<mailbox>`),
   and a site-wide cap `SIGNUP_BONUS_DAILY_CAP` (default 25) per rolling 24 hours. When the cap is used up the offer disappears from the pages and no credit is
-  given. Residual risk: someone with many real mailboxes (different domains) can still collect it; worst case per day is cap x one search cost. Add email
+  given. The count and the grant are serialised with a Postgres advisory lock (held until the sign-up commits), so simultaneous sign-ups cannot
+  overshoot the cap. Residual risk: someone with many real mailboxes (different domains) can still collect it; worst case per day is cap x one search cost. Add email
   verification (Resend) before raising the cap.
 - **Forgot password.** There is no self-serve reset yet (no email sender). The sign-in form tells the customer to email the owner, who runs
   `admin_cli.py reset-user EMAIL` (new password, signed out everywhere, never makes the account an admin; `reset-admin` would). The owner must be
