@@ -173,7 +173,8 @@ footer.foot{margin-top:80px;padding:28px 0 48px;border-top:1px solid var(--line)
 .job .meta .sep{color:var(--dim)}
 .job .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:11px}
 .job .desc{margin-top:12px;padding-top:12px;border-top:1px dashed var(--line2);color:#b7c0cf;font-size:14px;white-space:pre-wrap}
-.job .actions{display:flex;gap:8px;margin-top:14px;align-items:center}
+.job .actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;align-items:center}
+.layout>main{min-width:0}
 .empty{padding:56px 24px;text-align:center}.empty h3{font-size:19px;margin-bottom:8px}.empty p{color:var(--muted);max-width:460px;margin:0 auto 18px}
 .more{display:flex;justify-content:center;padding:14px}
 .sresult{margin-top:16px;padding:14px 16px;border-radius:12px;background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.3)}

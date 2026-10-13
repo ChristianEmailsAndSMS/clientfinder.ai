@@ -156,3 +156,9 @@ def test_mobile_filter_drawer_fills_the_screen_height_so_it_can_scroll():
     media = css[css.index("@media (max-width:960px)"):]
     rule = re.search(r"\.filters\{[^}]*position:fixed[^}]*\}", media).group(0)
     assert "align-self:stretch" in rule or "height:100" in rule
+
+def test_job_cards_cannot_stretch_the_phone_layout():
+    # the one-column grid track is minmax(auto,1fr); without min-width:0 the unwrapped action row widens <main> past the screen
+    css = (SITE / "site.css").read_text()
+    assert re.search(r"\.layout>main\{[^}]*min-width:0", css)
+    assert re.search(r"\.job \.actions\{[^}]*flex-wrap:wrap", css)
