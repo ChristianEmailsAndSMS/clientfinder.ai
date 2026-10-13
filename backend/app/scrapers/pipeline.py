@@ -224,7 +224,10 @@ _HIRING_SOMEONE = re.compile(
 _HIRING_NOW = re.compile(
     r"\b(we(?:'re| are) hiring|we(?:'re| are) looking|looking for (?:a|someone)|now hiring|is hiring"
     r"|i(?:'m| am) hiring|hiring\s+(?:an?|for)\b|hiring:|(?:we|i) need an?\b|looking to hire"
-    r"|need an? (?:\w+\s+){0,3}(?:copywriters?|marketers?|strategists?|builders?|writers?)\b)",
+    r"|need an? (?:\w+\s+){0,3}(?:copywriters?|marketers?|strategists?|builders?|writers?)\b"
+    r"|\[hiring\]|(?:want|wanting|need) to hire|need (?:someone|somebody)|in need of an?\b"
+    r"|seeking (?:an? )?(?:\w+\s+){0,3}(?:copywriters?|marketers?|strategists?|builders?|writers?)\b(?!\s+(?:role|position|job|work|gig|opportunit))"
+    r")",
     re.I,
 )
 # "is anyone hiring" is a person looking for work, often for a friend. "We're hiring" in the same post is an opening.
