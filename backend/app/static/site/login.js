@@ -43,6 +43,7 @@
   function tab(which, focus) {
     const up = which === "up";
     $("tab-in").classList.toggle("on", !up); $("tab-up").classList.toggle("on", up);
+    $("tab-in").setAttribute("aria-selected", String(!up)); $("tab-up").setAttribute("aria-selected", String(up));
     $("form-in").hidden = up; $("form-up").hidden = !up;
     if ($("auth-title")) $("auth-title").textContent = up ? "Create your free account" : "Welcome back";
     if ($("auth-sub")) $("auth-sub").textContent = up ? signupLine : "Sign in to pick up where you left off.";

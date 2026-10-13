@@ -167,3 +167,12 @@ def test_login_script_reloads_a_page_restored_from_the_back_forward_cache():
     """After signing out in /app, Back restored the home page with its old "Welcome back" panel (the session check ran only at load)."""
     js = (SITE / "login.js").read_text(encoding="utf-8")
     assert re.search(r'addEventListener\("pageshow",[^\n]*persisted[^\n]*location\.reload\(\)', js)
+
+def test_auth_tabs_expose_selected_state_and_panels(env):
+    for path in ("/", "/login"):
+        html = env.client.get(path).text
+        for t, f in (("tab-in", "form-in"), ("tab-up", "form-up")):
+            assert re.search(rf'id="{t}" role="tab" aria-controls="{f}" aria-selected="(true|false)"', html), (path, t)
+            assert re.search(rf'id="{f}" role="tabpanel" aria-labelledby="{t}"', html), (path, f)
+        assert html.count('aria-selected="true"') == 1
+    assert 'setAttribute("aria-selected"' in (SITE / "login.js").read_text()      # kept in step when a tab is clicked

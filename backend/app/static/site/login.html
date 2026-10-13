@@ -24,11 +24,11 @@
       <!-- sign in / create account -->
       <div id="v-main">
         <div class="tabs2" role="tablist">
-          <button id="tab-in" role="tab" type="button" class="on">Sign in</button>
-          <button id="tab-up" role="tab" type="button">Create account</button>
+          <button id="tab-in" role="tab" aria-controls="form-in" aria-selected="true" type="button" class="on">Sign in</button>
+          <button id="tab-up" role="tab" aria-controls="form-up" aria-selected="false" type="button">Create account</button>
         </div>
 
-        <form id="form-in" autocomplete="on" novalidate>
+        <form id="form-in" role="tabpanel" aria-labelledby="tab-in" autocomplete="on" novalidate>
           <label class="field">Email<input class="input" name="email" type="email" required autocomplete="username" autofocus></label>
           <label class="field">Password
             <span class="pwrow"><input class="input" name="password" type="password" required autocomplete="current-password" maxlength="256"><button type="button" class="link" data-show>Show</button></span>
@@ -42,7 +42,7 @@
           <p class="hint" id="forgot-note" hidden>Email <a href="mailto:christian@emailsandsms.com?subject=Reset%20my%20Clientfinder%20password">christian@emailsandsms.com</a> from the address you signed up with and we will reset it for you.</p>
         </form>
 
-        <form id="form-up" autocomplete="on" novalidate hidden>
+        <form id="form-up" role="tabpanel" aria-labelledby="tab-up" autocomplete="on" novalidate hidden>
           <label class="field">Email<input class="input" name="email" type="email" required autocomplete="username"></label>
           <label class="field">Password
             <span class="pwrow"><input class="input" name="password" type="password" minlength="12" autocomplete="new-password" maxlength="256"><button type="button" class="link" data-show>Show</button></span>

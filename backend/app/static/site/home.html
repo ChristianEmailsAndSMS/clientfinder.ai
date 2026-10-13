@@ -46,11 +46,11 @@
           <p class="muted authsub" id="auth-sub">No card needed. Browsing the database is free.</p>
           <p id="notice" class="error" hidden></p>
           <div class="tabs2" role="tablist">
-            <button id="tab-up" role="tab" type="button" class="on">Create account</button>
-            <button id="tab-in" role="tab" type="button">Sign in</button>
+            <button id="tab-up" role="tab" aria-controls="form-up" aria-selected="true" type="button" class="on">Create account</button>
+            <button id="tab-in" role="tab" aria-controls="form-in" aria-selected="false" type="button">Sign in</button>
           </div>
 
-          <form id="form-up" autocomplete="on" novalidate>
+          <form id="form-up" role="tabpanel" aria-labelledby="tab-up" autocomplete="on" novalidate>
             <label class="field">Email<input class="input" name="email" type="email" required autocomplete="username"></label>
             <label class="field">Password
               <span class="pwrow"><input class="input" name="password" type="password" minlength="12" autocomplete="new-password" maxlength="256"><button type="button" class="link" data-show>Show</button></span>
@@ -60,7 +60,7 @@
             <button class="btn primary" type="submit" id="btn-up">Create my account</button>
           </form>
 
-          <form id="form-in" autocomplete="on" novalidate hidden>
+          <form id="form-in" role="tabpanel" aria-labelledby="tab-in" autocomplete="on" novalidate hidden>
             <label class="field">Email<input class="input" name="email" type="email" required autocomplete="username"></label>
             <label class="field">Password
               <span class="pwrow"><input class="input" name="password" type="password" required autocomplete="current-password" maxlength="256"><button type="button" class="link" data-show>Show</button></span>
