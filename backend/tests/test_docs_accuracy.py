@@ -69,3 +69,12 @@ def test_docs_do_not_mention_the_removed_admin_token_header():
         if not p.exists():
             pytest.skip("repo root not present")
         assert "X-Admin-Token" not in p.read_text(), f"{name} documents X-Admin-Token, which was removed (docs/SECURITY.md finding 9)"
+
+
+def test_security_doc_states_welcome_credit_risks():
+    doc = ROOT / "docs" / "SECURITY.md"
+    if not doc.exists():
+        pytest.skip("docs not present")
+    text = doc.read_text()
+    assert "**$0 credit** (`SIGNUP_BONUS_USD`)" not in text        # old claim: credit is off for everyone and farming is prevented
+    assert "zero-width" in text and "first come, first served" in text

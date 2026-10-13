@@ -70,8 +70,8 @@ Each item below was reproduced or tested; the tests live in `backend/tests/` and
 - Sessions: 12-hour signed token in an HttpOnly, Secure, SameSite=Strict cookie. Signing out (which also ends the user's other sessions), "Sign out everywhere" and suspending a user
   invalidate every token immediately (server-side version counter).
 - Customer accounts: anyone can sign up with email + password (12+ characters, no 2FA required). Sign-ups are limited to 5 per IP per
-  hour and 200 per hour site-wide. New accounts get **$0 credit** (`SIGNUP_BONUS_USD`): until sign-up verifies email addresses, free credit
-  could be farmed with throwaway accounts, and live searches cost real money.
+  hour and 200 per hour site-wide. New accounts get **$0 credit** unless the owner sets `SIGNUP_BONUS_USD` (default 0).
+  With it on, the welcome credit is only loosely protected (section 12): sign-up does not verify email addresses, so any made-up address can claim it.
 - The owner address (`ADMIN_EMAILS`) **cannot be registered in the browser**. Without email verification, whoever registered it first
   would own the admin account. The admin account is created on the server with `scripts/admin_cli.py create-admin` (password typed in the
   terminal, never shown), then the first browser sign-in forces 2FA enrolment through a 10-minute token that is not a session. Once Resend
@@ -251,6 +251,10 @@ platform labels missing for X, Mastodon and others. Remaining low-priority filte
   given. The count and the grant are serialised with a Postgres advisory lock (held until the sign-up commits), so simultaneous sign-ups cannot
   overshoot the cap. Residual risk: someone with many real mailboxes (different domains) can still collect it; worst case per day is cap x one search cost. Add email
   verification (Resend) before raising the cap.
+  Accepted risks while the credit is on: (1) addresses are not verified and the mailbox key only folds `+tag`, case and gmail dots, so look-alikes such as
+  `zed@gmail.com` and `zed@gmail.com` plus a zero-width space count as different mailboxes and each get the credit; (2) the daily cap is first come, first served,
+  so a spammer can use up the 25 grants and real visitors get no credit until the rolling 24 hours pass (the sign-up IP limits of section 3 slow this down;
+  they trust the forwarded address from Caddy/Cloudflare). Worst case is still cap x credit per day. Fix properly with email verification.
 - **Forgot password.** There is no self-serve reset yet (no email sender). The sign-in form tells the customer to email the owner, who runs
   `admin_cli.py reset-user EMAIL` (new password, signed out everywhere, never makes the account an admin; `reset-admin` would). The owner must be
   reasonably sure the request comes from the account's own address.
