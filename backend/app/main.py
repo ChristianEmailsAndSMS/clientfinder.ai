@@ -14,7 +14,9 @@ from .db import engine
 from .logging_setup import setup_logging
 from .api.jobs import router as jobs_router
 from .api.public import router as public_router
-from .api.site import router as site_router
+from .api.site import router as site_router, not_found_page
+from fastapi.exception_handlers import http_exception_handler
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from .api.searches import router as searches_router
 
 setup_logging()
@@ -35,6 +37,14 @@ app = FastAPI(
     redoc_url=None,
     openapi_url="/openapi.json" if settings.enable_docs else None,
 )
+
+@app.exception_handler(StarletteHTTPException)
+async def _http_error(request: Request, exc: StarletteHTTPException):
+    """A person who types a wrong address gets a branded page with a way home; fetch() calls and API clients keep the JSON error."""
+    if exc.status_code == 404 and request.method == "GET" and "text/html" in request.headers.get("accept", ""):
+        return not_found_page()
+    return await http_exception_handler(request, exc)
+
 
 _BASE_HEADERS = {
     "X-Content-Type-Options": "nosniff",

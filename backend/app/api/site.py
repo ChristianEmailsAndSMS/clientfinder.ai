@@ -38,6 +38,13 @@ def _page(name: str) -> HTMLResponse:
     return HTMLResponse(html, headers={"Cache-Control": "no-cache"})        # always revalidate the page itself
 
 
+def not_found_page() -> HTMLResponse:
+    """The branded 404 a browser gets for an unknown address (API clients keep the JSON answer)."""
+    r = _page("notfound.html")
+    r.status_code = 404
+    return r
+
+
 @router.get("/")
 def home():
     return _page("home.html")

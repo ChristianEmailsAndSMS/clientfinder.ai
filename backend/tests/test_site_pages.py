@@ -176,3 +176,13 @@ def test_auth_tabs_expose_selected_state_and_panels(env):
             assert re.search(rf'id="{f}" role="tabpanel" aria-labelledby="{t}"', html), (path, f)
         assert html.count('aria-selected="true"') == 1
     assert 'setAttribute("aria-selected"' in (SITE / "login.js").read_text()      # kept in step when a tab is clicked
+
+def test_unknown_address_gets_a_branded_page_for_browsers_and_json_for_api(env):
+    r = env.client.get("/nope", headers={"Accept": "text/html,application/xhtml+xml,*/*;q=0.8"})
+    assert r.status_code == 404 and r.headers["content-type"].startswith("text/html")
+    assert "Page not found" in r.text and 'href="/"' in r.text
+    r = env.client.get("/assets/nope", headers={"Accept": "text/html"})
+    assert r.status_code == 404 and "Page not found" in r.text
+    r = env.client.get("/nope", headers={"Accept": "application/json"})
+    assert r.status_code == 404 and r.json() == {"detail": "Not Found"}
+    assert env.client.get("/nope").json() == {"detail": "Not Found"}                     # no Accept header: API behaviour
