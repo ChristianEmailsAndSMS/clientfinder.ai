@@ -41,13 +41,6 @@ app = FastAPI(
     openapi_url="/openapi.json" if settings.enable_docs else None,
 )
 
-@app.exception_handler(RequestValidationError)
-async def _validation_error(request: Request, exc: RequestValidationError):
-    """422 without echoing the submitted value: a lone surrogate (\\ud800) in it cannot be encoded and turned the reply into a 500."""
-    errors = [{"type": e.get("type"), "loc": list(e.get("loc", ())), "msg": e.get("msg")} for e in exc.errors()]
-    return JSONResponse({"detail": errors}, status_code=422)
-
-
 @app.exception_handler(StarletteHTTPException)
 async def _http_error(request: Request, exc: StarletteHTTPException):
     """A person who types a wrong address gets a branded page with a way home; fetch() calls and API clients keep the JSON error."""
@@ -56,11 +49,20 @@ async def _http_error(request: Request, exc: StarletteHTTPException):
     return await http_exception_handler(request, exc)
 
 
+def _clean(v):
+    """Make a validation-error value safe to JSON-encode (a lone surrogate in a key would otherwise crash the response)."""
+    if isinstance(v, str):
+        return v.encode("utf-8", "replace").decode("utf-8")
+    return v
+
+
 @app.exception_handler(RequestValidationError)
 async def _validation_error(request: Request, exc: RequestValidationError):
-    """The default 422 body echoes the rejected input; a lone surrogate in it cannot be encoded and turned the answer into a 500."""
-    errors = [{k: v for k, v in e.items() if k not in ("input", "ctx")} for e in exc.errors()]
-    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})
+    """422 without the default echo of the submitted value: that echo carried passwords into logs and, for a lone surrogate or Infinity in
+    the body, made the error response itself fail to encode (a 500)."""
+    errors = [{"loc": [_clean(p) for p in e.get("loc", ())], "msg": _clean(str(e.get("msg", ""))), "type": _clean(str(e.get("type", "")))}
+              for e in exc.errors()]
+    return JSONResponse(status_code=422, content={"detail": errors})
 
 
 _BASE_HEADERS = {

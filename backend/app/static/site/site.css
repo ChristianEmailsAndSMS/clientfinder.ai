@@ -190,7 +190,7 @@ html,body{overflow-x:clip}                        /* nothing on a phone may make
   .layout{grid-template-columns:1fr;padding:16px 14px 60px}
   .filters{position:fixed;inset:0 0 0 auto;width:min(340px,92vw);z-index:50;align-self:stretch;max-height:none;background:var(--bg2);padding:18px;border-left:1px solid var(--line2);transform:translateX(105%);visibility:hidden;transition:transform .22s,visibility 0s .22s;overflow-y:auto}
   .filters.open{transform:none;visibility:visible;transition:transform .22s}.mobile-only{display:inline-flex}
-  .apphead{flex-wrap:wrap}.apphead .search{order:5;flex-basis:100%;max-width:none}
+  .apphead{flex-wrap:wrap;position:static}.apphead .search{order:5;flex-basis:100%;max-width:none}
   .apphead .menu{position:static}.apphead .menu .pop{right:14px;max-width:calc(100vw - 28px)}   /* wrapped header: anchor the account menu to the header edge, not the mid-screen avatar */
   
 }

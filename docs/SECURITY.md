@@ -287,3 +287,21 @@ one over-long feed value aborted a whole collection run on PostgreSQL; the mobil
 the search modal showed stale or contradictory balance text; a saved setup was ignored whenever the link carried a tracking parameter;
 the wizard did not trap focus. One finding (the Details button label) did not reproduce. Not covered: PostgreSQL itself could not be run for the
 whole migration chain in the test sandbox, so migrations 0010 and 0011 were reviewed but not run against PostgreSQL there.
+
+## 14. Fourth audit swarm (2026-10-13): PostgreSQL, money, fuzzing, mutation testing
+
+Eight testers ran a real PostgreSQL 16 (the whole migration chain runs on it), 100,000-row loads, random-click fuzzing with network faults, phone and
+keyboard walkthroughs, a route-by-route access matrix, and a mutation test of the suite; 33 of 35 findings were reproduced and fixed. Highlights:
+- **Money.** A model outage no longer charges a customer for a search that read nothing: the search ends as failed ("You were not charged.") and is
+  not cached; a partly read search is still billed but says it may be incomplete. The monthly search budget now counts fallback-provider (Serper) calls.
+  New behavioural tests kill the money mutants that survived (charge rounding, lost-race double credit, billing on failure).
+- **Sign-in throttle.** Concurrent wrong-password requests could get past the lockout; fixed.
+- **PostgreSQL-only 500s** (invisible on SQLite): e-mail addresses over 120 characters at sign-up with the welcome credit on, a lone surrogate (\ud800)
+  or Infinity in any JSON body, NUL bytes in admin filters and pipeline text, non-ASCII digits in a 2FA code, `/health` reporting ok while the database was down.
+- **Live search.** A `-site:` operator in a customer's words inverted the open-web query; a query of only invisible characters ran a paid 20-search fan-out.
+- **Data quality.** Titles such as "Email & SMS Marketing Manager", "E-mail Marketing", "Copy-writer", "CRO" were dropped by the feed filter; real
+  [HIRING] posts with "I have N years" were dropped; region detection treated "excluding US" as US and missed many places (run "rebuild regions" in the
+  admin after deploying); URL normalising now folds www/http/old.reddit/twitter hosts and site-specific tracking parameters (jobs stored before this
+  change may be collected once more under a new hash).
+- **Tests.** Mutation testing found security guards and money paths whose removal left the suite green; the new tests in `tests/test_sw4_*.py` close
+  those gaps. The old string-matching frontend tests remain a weak spot: a small browser smoke test is the next step.
