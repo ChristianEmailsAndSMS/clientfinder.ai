@@ -545,6 +545,7 @@
     input.addEventListener("input", debounce(estimate, 350));
     input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !runBtn.disabled) runBtn.click(); });
 
+    const newSearches = (n) => `${n} new ${n === 1 ? "search" : "searches"}`;
     let quote = null, estSeq = 0;
     async function estimate() {
       const seq = ++estSeq;                                  // only the newest estimate may update the screen
@@ -553,9 +554,9 @@
       willSearch.textContent = q ? `LinkedIn, X, Facebook, Reddit, remote job boards, and the web, for “${q}”` : "";
       if (input.value.trim().length < 3) {                     // before anything is typed: say the same thing the estimate will say later
         runBtn.textContent = "Run search";
-        if (c.unlimited) info.textContent = `Type the service you sell. Your searches are free on this account (${c.left_today} new searches left today).`;
+        if (c.unlimited) info.textContent = `Type the service you sell. Your searches are free on this account (${newSearches(c.left_today)} left today).`;
         else if (c.price_usd && c.balance_usd < c.price_usd) clear(info).append(`Type the service you sell. A search costs about ${money(c.price_usd)} and you have ${money(c.balance_usd)}. `, h("button", { class: "btn sm", type: "button", text: "Add credits", onclick: () => openCredits() }));
-        else info.textContent = `Type the service you sell. You have ${money(c.balance_usd)} in credits and ${c.left_today} new searches left today.`;
+        else info.textContent = `Type the service you sell. You have ${money(c.balance_usd)} in credits and ${newSearches(c.left_today)} left today.`;
         return;
       }
       const r = await api("POST", "/searches/estimate", { query: q, freshness: s.freshness, site: null });
@@ -564,13 +565,14 @@
       quote = r.data;
       if (!quote.ready) { info.textContent = quote.reason; return; }
       if (quote.cached) { info.textContent = `Free: we searched this recently and have ${quote.cached_results} results ready.`; runBtn.textContent = "Show results (free)"; runBtn.disabled = false; return; }
+      if (quote.limit_reached) { info.textContent = "You have used all of your new searches for today. Try again later. Repeat searches from the last few hours are still free."; runBtn.textContent = "Daily limit reached"; return; }
       runBtn.textContent = `Run search · about ${money(quote.price_usd)}`;
-      if (quote.unlimited) { info.textContent = `Your searches are free on this account (no credits used). ${quote.searches_left_today} new searches left in the last-24-hours limit.`; runBtn.textContent = "Run search"; runBtn.disabled = false; return; }
+      if (quote.unlimited) { info.textContent = `Your searches are free on this account (no credits used). ${newSearches(quote.searches_left_today)} left in the last-24-hours limit.`; runBtn.textContent = "Run search"; runBtn.disabled = false; return; }
       if (!quote.affordable) {
         clear(info).append(`You have ${money(quote.balance_usd)}. This search needs about ${money(quote.price_usd)}. `, h("button", { class: "btn sm", type: "button", text: "Add credits", onclick: () => openCredits() }));
         return;
       }
-      info.textContent = `You have ${money(quote.balance_usd)} in credits. ${quote.searches_left_today} new searches left today.`;
+      info.textContent = `You have ${money(quote.balance_usd)} in credits. ${newSearches(quote.searches_left_today)} left today.`;
       runBtn.disabled = false;
     }
     runBtn.addEventListener("click", async () => {

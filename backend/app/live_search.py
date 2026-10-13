@@ -142,10 +142,12 @@ def quote(db: Session, user: User, query: str, freshness: str, site: str | None)
     ready, why = live_search_ready()
     cached = find_cached(db, query_key(q, freshness, site))
     price = 0 if cached else price_for(site)
+    left = max(0, daily_limit(user) - _used_today(db, user.id))
     return {"query": q, "ready": ready, "reason": why, "cached": bool(cached), "cached_results": cached.results_count if cached else 0,
             "price_usd": credits.micro_to_usd(price), "balance_usd": credits.micro_to_usd(user.balance_micro),
             "affordable": user.unlimited_credits or user.balance_micro >= price, "unlimited": user.unlimited_credits,
-            "searches_left_today": max(0, daily_limit(user) - _used_today(db, user.id))}
+            "searches_left_today": left,
+            "limit_reached": not cached and left == 0}      # a repeat search is free, so only a new one is blocked
 
 
 def _check_options(freshness: str, site: str | None) -> tuple[str, str | None]:
@@ -187,7 +189,7 @@ def start_search(db: Session, user: User, query: str, freshness: str, site: str 
         return s
 
     if _used_today(db, user.id) >= daily_limit(user):
-        raise SearchRefused(429, f"Daily limit of {daily_limit(user)} new searches reached. Repeat searches from the last "
+        raise SearchRefused(429, f"Daily limit of {daily_limit(user)} new search{'' if daily_limit(user) == 1 else 'es'} reached. Repeat searches from the last "
                                  f"{settings.search_cache_hours} hours are still free.")
     if db.scalar(select(func.count(UserSearch.id)).where(UserSearch.user_id == user.id, UserSearch.status.in_(("queued", "running")))):
         raise SearchRefused(409, "You already have a search running. Wait for it to finish.")

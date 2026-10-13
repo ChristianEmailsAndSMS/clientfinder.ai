@@ -399,6 +399,19 @@ def test_estimate_reports_affordability_and_never_runs_anything(env, live):
     assert live.searches == []
 
 
+def test_estimate_flags_an_exhausted_daily_limit_but_not_a_free_repeat(env, live):
+    c = member(env, balance_usd=5)
+    with env.scope() as db:
+        db.get(User, c.uid).daily_search_limit = 1
+    est = lambda q: c.post("/searches/estimate", json={"query": q, "freshness": "w"}, headers=CSRF).json()
+    assert est("hiring copywriter")["limit_reached"] is False
+    assert run(c).status_code == 202
+    assert est("klaviyo flow designer")["limit_reached"] is True and est("klaviyo flow designer")["searches_left_today"] == 0
+    assert est("hiring copywriter")["limit_reached"] is False                      # a repeat is free, so still allowed
+    r = run(c, "klaviyo flow designer")
+    assert r.status_code == 429 and "1 new search reached" in r.json()["detail"]
+
+
 def test_cached_results_never_leak_other_peoples_balance_or_identity(env, live):
     a = member(env, "a@example.com", 5)
     run(a)
