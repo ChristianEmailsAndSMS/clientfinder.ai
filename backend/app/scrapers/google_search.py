@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 
 # x.com and twitter.com are the same site. A site:x.com search may still link to twitter.com.
 _HOST_ALIASES = {"x.com": "twitter.com", "twitter.com": "x.com"}
-_SITE = re.compile(r"\bsite:(\S+)", re.I)
+_SITE = re.compile(r"(?<![\w-])site:(\S+)", re.I)
 
 
 class SearchError(RuntimeError):

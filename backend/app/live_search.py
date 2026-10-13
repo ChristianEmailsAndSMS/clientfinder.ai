@@ -54,6 +54,9 @@ def clean_query(raw: str) -> str:
     q = re.sub(r"\s+", " ", (raw or "")).strip()
     if re.search(r"[\x00-\x1f\x7f]", raw or ""):
         raise SearchRefused(422, "That search contains characters we can't use.")
+    # A typed site: (or -site:) would fight the site we add ourselves, or invert the result filter.
+    if re.search(r"(?<![\w])-?site\s*:", q, re.I):
+        raise SearchRefused(422, "Leave out site: in your words. Pick a site from the site list instead.")
     # Unquoted "funnel builder" matches a company named Builder Funnel. The phrase does not.
     q = re.sub(r'(?<!")\bfunnel builder\b(?!")', lambda m: f'"{m.group(0)}"', q, count=1, flags=re.I)
     if not 3 <= len(q) <= 120:
