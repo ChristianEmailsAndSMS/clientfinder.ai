@@ -1,7 +1,14 @@
 (() => {
   "use strict";
-  const { h, api, detail, ago, money, num, clear, debounce } = CF;
+  const { h, detail, ago, money, num, clear, debounce } = CF;
   const $ = (id) => document.getElementById(id);
+  // Every call on this page goes through here: a 401 means the session ended (for example a sign-out in another tab), so go to the sign-in page.
+  const toLogin = () => location.replace("/login?next=" + encodeURIComponent("/app"));
+  const api = async (method, path, body) => {
+    const r = await CF.api(method, path, body);
+    if (r.status === 401) toLogin();
+    return r;
+  };
   const PAGE = 30;
 
   const state = { q: "", posted: "", types: new Set(), platforms: new Set(), tags: new Set(), roles: new Set(), regions: new Set(), kinds: new Set(), location: "", worldwide: true, unspecified: true, remote: "", hasPay: false, payPeriod: "", minPay: "", sort: "newest", offset: 0, total: 0, loading: false };

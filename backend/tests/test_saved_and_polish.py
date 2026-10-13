@@ -125,3 +125,9 @@ def test_pay_chip_uses_the_same_validity_check_as_the_request():
     app_js = (SITE / "app.js").read_text()
     assert 'state.minPay !== "" && state.payPeriod && Number(state.minPay) >= 0) add(`Pay' in app_js
     assert 'state.minPay !== "" && state.payPeriod) add(`Pay' not in app_js
+
+def test_app_js_sends_signed_out_customers_to_login_on_any_call():
+    """A 401 from any call on /app (session ended in another tab) must redirect, not just toast 'Not signed in'."""
+    js = (SITE / "app.js").read_text()
+    assert "const { h, api," not in js and "CF.api(method, path, body)" in js
+    assert "r.status === 401) toLogin()" in js
