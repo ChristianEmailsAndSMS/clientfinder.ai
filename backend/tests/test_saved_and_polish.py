@@ -133,10 +133,6 @@ def test_app_js_sends_signed_out_customers_to_login_on_any_call():
     assert "r.status === 401) toLogin()" in js
 
 def test_out_of_range_job_ids_are_rejected_not_a_server_error(env):
-    c = member(env)
-    for bad in ("99999999999999999999", str(2**31), "0", "-1"):
-
-def test_out_of_range_job_ids_are_rejected_not_a_server_error(env):
     c = TestClient(app, raise_server_exceptions=False)
     assert c.post("/auth/signup", json={"email": "bigid@example.com", "password": PW}, headers=CSRF).status_code == 201
     for bad in ("9223372036854775808", "99999999999999999999", "2147483648", "0", "-1"):
