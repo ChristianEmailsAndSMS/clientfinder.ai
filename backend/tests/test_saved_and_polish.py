@@ -131,3 +131,9 @@ def test_app_js_sends_signed_out_customers_to_login_on_any_call():
     js = (SITE / "app.js").read_text()
     assert "const { h, api," not in js and "CF.api(method, path, body)" in js
     assert "r.status === 401) toLogin()" in js
+
+def test_out_of_range_job_ids_are_rejected_not_a_server_error(env):
+    c = member(env)
+    for bad in ("99999999999999999999", str(2**31), "0", "-1"):
+        assert c.put(f"/account/saved/{bad}", headers=CSRF).status_code == 422, bad
+        assert c.delete(f"/account/saved/{bad}", headers=CSRF).status_code == 422, bad

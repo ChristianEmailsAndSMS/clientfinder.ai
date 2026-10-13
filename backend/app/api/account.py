@@ -12,6 +12,7 @@ from ..config import settings
 from ..credits import micro_to_usd
 from ..db import get_db
 from ..models import CreditEntry, Job, SavedJob, User
+from ..schemas import PathId
 from ..tagging import CATEGORY_RULES
 from .. import geo, platforms
 from ..security import csrf_guard, current_user, rate_limit_guard, utcnow
@@ -132,7 +133,7 @@ def saved_jobs(user: User = Depends(current_user), db: Session = Depends(get_db)
 
 
 @router.put("/saved/{job_id}")
-def save_job(job_id: int, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
+def save_job(job_id: PathId, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
     csrf_guard(request)
     if not db.scalar(select(Job.id).where(Job.id == job_id, Job.is_real_job.is_(True))):
         raise HTTPException(404, "That job is no longer listed.")
@@ -148,7 +149,7 @@ def save_job(job_id: int, request: Request, user: User = Depends(current_user), 
 
 
 @router.delete("/saved/{job_id}")
-def unsave_job(job_id: int, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
+def unsave_job(job_id: PathId, request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
     csrf_guard(request)
     db.execute(delete(SavedJob).where(SavedJob.user_id == user.id, SavedJob.job_id == job_id))
     db.commit()
