@@ -22,6 +22,7 @@
     if (!onHome) { go(r.data); return; }                       // /login: skip the form
     const ni = document.getElementById("nav-signin"), nu = document.getElementById("nav-signup");     // header: one "Open the app" entry instead of sign-in / sign-up
     if (ni && nu) { nu.replaceWith(h("a", { class: "btn sm primary", href: "/app", text: "Open the app" })); ni.remove(); }   // new node: the old one carries the #signup click handler
+    signedInHome = true;                                  // the tabs are gone below: sign-up / sign-in links now lead to the app
     const panel = clear($("auth-panel"));                 // home: replace the form with a welcome panel
     panel.append(h("div", { class: "welcome" },
       h("h2", { class: "authtitle", text: "Welcome back" }),
@@ -43,7 +44,9 @@
   });
 
   // ---------- tabs ----------
+  let signedInHome = false;
   function tab(which, focus) {
+    if (signedInHome || !$("tab-in")) { if (signedInHome) location.assign("/app"); return; }   // signed in: no form to switch, go to the app
     const up = which === "up";
     $("tab-in").classList.toggle("on", !up); $("tab-up").classList.toggle("on", up);
     $("tab-in").setAttribute("aria-selected", String(!up)); $("tab-up").setAttribute("aria-selected", String(up));

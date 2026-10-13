@@ -22,7 +22,9 @@
   api("GET", "/public/preview").then((r) => {
     const box = clear(document.getElementById("preview"));
     if (!r.ok || !r.data.length) { box.appendChild(h("div", { class: "prow" }, h("div", { class: "muted", text: "The first jobs will appear here shortly." }))); return; }
-    const openSignup = () => { document.getElementById("tab-up").click(); document.getElementById("auth-panel").scrollIntoView({ behavior: "smooth", block: "center" }); };
+    const openSignup = () => {
+      if (!document.getElementById("tab-up")) { location.assign("/app"); return; }   // signed in: the sign-up form is gone
+      document.getElementById("tab-up").click(); document.getElementById("auth-panel").scrollIntoView({ behavior: "smooth", block: "center" }); };
     for (const j of r.data) {
       box.appendChild(h("div", { class: "prow", role: "link", tabindex: "0", title: "Create a free account to open this post", onclick: openSignup,
         onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSignup(); } } },
