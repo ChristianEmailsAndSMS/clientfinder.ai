@@ -21,7 +21,7 @@ from ..tagging import set_tags
 from ..config import settings
 from . import google_search, page_fetcher, llm_extractor, query_plan
 from ..security_utils import redact, safe_job_url
-from .common import clip
+from .common import clean, clip
 from .llm_extractor import ExtractionError
 
 log = logging.getLogger(__name__)
@@ -559,6 +559,11 @@ def _upsert_job(db: Session, source: Source, result: SearchResult, extracted: Ex
                 seen_in_batch: set[str], fetched: bool = True) -> tuple[bool, bool, int | None]:
     """Returns (added, updated, job_id)."""
     # The model reads attacker-controlled pages: only ever store a plain http(s) link (never javascript:, data:, etc.)
+    # Model/page text may carry NUL bytes, which PostgreSQL rejects (the whole row would fail and be retried to 'dead')
+    extracted = extracted.model_copy(update={
+        **{f: clean(v) for f, v in extracted.__dict__.items() if isinstance(v, str)},
+        "skills": [clean(x) for x in extracted.skills if isinstance(x, str)]})
+    result = result.model_copy(update={"title": clean(result.title), "snippet": clean(result.snippet)})
     url = safe_job_url(extracted.apply_url) or safe_job_url(result.url)
     if url is None:
         return (False, False, None)
