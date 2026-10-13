@@ -124,9 +124,10 @@ app.include_router(assist_router)
 
 @app.get("/health")
 def health():
-    """200 only when the database schema matches the code. 503 means a migration was not applied (see the server log).
+    """200 only when the database schema matches the code. 503 means a migration was not applied or the database cannot be reached (see the server log).
     Revisions are not shown here (public); the admin overview has them."""
     r = schema_check.check(engine)
-    ok = r["state"] != "behind"
-    body = {"ok": ok, "service": "clientfinder.ai", "schema": "ok" if ok else "behind"}
+    ok = r["state"] not in ("behind", "unreachable")
+    schema = "ok" if ok else ("unreachable" if r["state"] == "unreachable" else "behind")
+    body = {"ok": ok, "service": "clientfinder.ai", "schema": schema}
     return JSONResponse(status_code=200 if ok else 503, content=body)

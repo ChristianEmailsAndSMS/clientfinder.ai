@@ -513,6 +513,9 @@ def test_public_feed_is_rate_limited_per_ip(env, monkeypatch):
     codes = [env.client.get("/jobs").status_code for _ in range(8)]
     assert codes == [200] * 5 + [429] * 3
     assert env.client.get("/jobs/tags").status_code == 429                      # the limit covers every /jobs route
+    import app.main as _m
+    from sqlalchemy import create_engine
+    monkeypatch.setattr(_m, "engine", create_engine("sqlite://"))                # a reachable database (health is 503 otherwise)
     assert env.client.get("/health").status_code == 200                          # health is not rate limited
 
 
