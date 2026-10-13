@@ -578,18 +578,18 @@
       runBtn.disabled = true; const q = asSearch(input.value);
       const r = await api("POST", "/searches", { query: q, freshness: s.freshness, site: null });
       if (!r.ok) { clear(out).append(h("div", { class: "sresult fail", text: detail(r) })); runBtn.disabled = false; return; }
-      follow(r.data.id, out, runBtn);
+      follow(r.data.id, out, runBtn, () => { estimate(); loadHistory(history, out); });   // re-quote: the same search is now cached, and the balance changed
     });
     estimate();
     loadHistory(history, out);
   }
 
-  async function follow(id, out, btn) {
+  async function follow(id, out, btn, after) {
     clear(out).append(h("div", { class: "sresult mt16" }, h("span", { class: "spinner" }), " Searching the web and reading posts. The searches run one after another, so this can take several minutes."));
     for (let i = 0; i < 400; i++) {                        // about 10 minutes: the server gives up on a search after that (STALE_AFTER)
       const r = await api("GET", "/searches/" + id);
       if (!r.ok) { clear(out).append(h("div", { class: "sresult fail", text: detail(r) })); if (btn) btn.disabled = false; return; }
-      if (r.data.status === "done" || r.data.status === "failed") { await showResult(r.data, out); if (btn) btn.disabled = false; refreshBalance(); return; }
+      if (r.data.status === "done" || r.data.status === "failed") { await showResult(r.data, out); if (btn) btn.disabled = false; await refreshBalance(); if (after) after(); return; }
       await new Promise((res) => setTimeout(res, 1500));
     }
     clear(out).append(h("div", { class: "sresult fail", text: "This is taking longer than expected. Check the search history in a minute; you are only charged if it completes." }));

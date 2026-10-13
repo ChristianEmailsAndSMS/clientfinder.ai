@@ -47,3 +47,10 @@ def test_pay_minimum_is_only_sent_with_a_pay_period():
 def test_home_page_does_not_promise_what_the_search_form_lacks():
     assert "where to look" not in HOME                             # there is no site picker in the search dialog
     assert "exact price before you run it" not in HOME             # the dialog shows "about $x"; the charge is from real usage
+
+
+def test_search_modal_requotes_and_refreshes_history_after_a_search_finishes():
+    """After a search is charged, the open modal must show the new balance, the cached (free) quote and the new history row."""
+    assert "function follow(id, out, btn, after)" in APP
+    assert "await refreshBalance(); if (after) after(); return; }" in APP
+    assert "follow(r.data.id, out, runBtn, () => { estimate(); loadHistory(history, out); })" in APP
