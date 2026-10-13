@@ -16,6 +16,7 @@ from ..schemas import PathId
 from ..tagging import CATEGORY_RULES
 from .. import geo, platforms
 from ..security import csrf_guard, current_user, rate_limit_guard, utcnow
+from ..schemas import PathId
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/account", tags=["account"])
