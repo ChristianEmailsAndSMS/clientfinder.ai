@@ -698,6 +698,8 @@ def _run_one(db: Session, source: Source, result: SearchResult, seen: set[str], 
     except ExtractionError as e:
         log.warning("skipping %s: %s", result.url, e)
         stats["skipped"] += 1
+        if e.model_down:
+            stats["model_failed"] = stats.get("model_failed", 0) + 1
         if e.usage:                                          # the model WAS called: those tokens cost money, so they are counted
             _add_usage(stats, e.usage)
         _record_failure(db, source.key, result, f"extraction: {e}")

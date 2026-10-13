@@ -218,7 +218,7 @@ def start_search(db: Session, user: User, query: str, freshness: str, site: str 
 
 # ---------- running it (background) ----------
 def _merge(combined: dict, stats: dict) -> None:
-    for key in ("search_hits", "added", "updated", "skipped", "errors", "tokens_in", "tokens_out"):
+    for key in ("search_hits", "added", "updated", "skipped", "errors", "model_failed", "tokens_in", "tokens_out"):
         combined[key] += int(stats.get(key) or 0)
     combined.setdefault("calls", []).extend(stats.get("calls") or [])
     for jid in stats.get("job_ids") or []:
@@ -253,7 +253,7 @@ def run_search(search_id: int) -> None:
         s.status = "running"
         query, fresh, site, user_id = s.query, s.freshness, s.site, s.user_id
     targets = search_targets(query, site)
-    combined = {"searched": False, "search_hits": 0, "added": 0, "updated": 0, "skipped": 0, "errors": 0,
+    combined = {"searched": False, "search_hits": 0, "added": 0, "updated": 0, "skipped": 0, "errors": 0, "model_failed": 0,
                 "tokens_in": 0, "tokens_out": 0, "job_ids": [], "calls": [], "searches_ok": 0, "search_error": None, "_seen": set()}
     try:
         failures: list[str] = []
@@ -296,7 +296,10 @@ def run_search(search_id: int) -> None:
 def _partial_note(stats: dict, ok: int) -> str | None:
     """A finished search where some of the Google searches failed is still 'done', but the customer must be told the list is incomplete."""
     bad = int(stats.get("failed_searches") or 0)
+    unread = int(stats.get("model_failed") or 0)
     if not bad:
+        if unread:
+            return f"{unread} pages could not be read because our reader was unavailable, so this list may be incomplete."
         return None
     return f"Only {ok} of {ok + bad} Google searches could run, so this list may be incomplete. You were charged only for the {ok} that ran."
 
@@ -314,6 +317,11 @@ def _finish(search_id: int, user_id: int, stats: dict) -> None:
         if stats.get("error") or not stats.get("searched") or stats.get("search_error") or ok == 0:
             s.status = "failed"
             s.error = redact(stats.get("search_error") or stats.get("error") or "Search did not run") + " You were not charged."
+            return
+        if stats.get("model_failed") and not stats.get("job_ids"):
+            # Every page that needed the model failed (outage): nothing was delivered, so nothing is charged and nothing is cached.
+            s.status = "failed"
+            s.error = "Our page reader was unavailable, so no results could be read. Please try again later. You were not charged."
             return
         calls = stats.get("calls") or []
         if calls:

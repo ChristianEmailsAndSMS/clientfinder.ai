@@ -22,9 +22,10 @@ class ExtractionError(Exception):
     """The page could not be turned into a job. Callers skip the row; they must not store a guess.
     `usage` is set when the model WAS called (refusal, cut-off, bad JSON): those tokens cost real money and are billed."""
 
-    def __init__(self, message: str, usage: dict | None = None):
+    def __init__(self, message: str, usage: dict | None = None, model_down: bool = False):
         super().__init__(message)
         self.usage = usage
+        self.model_down = model_down                    # the model call itself failed (outage, overload): not the page's fault
 
 EXTRACTION_PROMPT = """You are a job-posting extractor. Read the HTML/text below and return STRICT JSON with the shape:
 {
@@ -153,7 +154,7 @@ def _claude_extract(result: SearchResult, page_html: str) -> ExtractedJob:
     try:
         text, usage, stop = _call_model(prompt)
     except Exception as e:
-        raise ExtractionError(f"model call failed: {type(e).__name__}") from e
+        raise ExtractionError(f"model call failed: {type(e).__name__}", model_down=True) from e
     log.info("extract %s tokens_in=%s tokens_out=%s stop=%s", result.url, usage["input_tokens"], usage["output_tokens"], stop)
     if stop == "refusal":                                   # safety classifier declined; there is no server-side fallback on Haiku 5.5
         raise ExtractionError("model declined this page", usage)
