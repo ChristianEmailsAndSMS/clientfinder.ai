@@ -166,7 +166,7 @@ def qr_data_uri(uri: str) -> str:
 def check_totp(user: User, code: str, *, now: float | None = None) -> bool:
     """True if `code` is valid for the user and has not been used before. Marks the step as used."""
     code = re.sub(r"\s+", "", code or "")
-    if not re.fullmatch(r"\d{6}", code) or not user.totp_secret_enc:
+    if not re.fullmatch(r"[0-9]{6}", code) or not user.totp_secret_enc:
         return False
     secret = decrypt_secret(user.totp_secret_enc)
     if not secret:

@@ -51,7 +51,7 @@ def verify(secret: str, msg_id: str, timestamp: str, signature_header: str, body
     given = [p.split(",", 1)[1] for p in signature_header.split() if p.startswith("v1,") and len(p) > 3]
     for key in _keys(secret):
         expected = base64.b64encode(hmac.new(key, signed, hashlib.sha256).digest()).decode()
-        if any(hmac.compare_digest(expected, g) for g in given):
+        if any(hmac.compare_digest(expected.encode(), g.encode("utf-8", "replace")) for g in given):
             return True
     return False
 
