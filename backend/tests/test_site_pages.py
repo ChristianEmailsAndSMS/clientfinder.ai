@@ -162,3 +162,8 @@ def test_job_cards_cannot_stretch_the_phone_layout():
     css = (SITE / "site.css").read_text()
     assert re.search(r"\.layout>main\{[^}]*min-width:0", css)
     assert re.search(r"\.job \.actions\{[^}]*flex-wrap:wrap", css)
+
+def test_login_script_reloads_a_page_restored_from_the_back_forward_cache():
+    """After signing out in /app, Back restored the home page with its old "Welcome back" panel (the session check ran only at load)."""
+    js = (SITE / "login.js").read_text(encoding="utf-8")
+    assert re.search(r'addEventListener\("pageshow",[^\n]*persisted[^\n]*location\.reload\(\)', js)

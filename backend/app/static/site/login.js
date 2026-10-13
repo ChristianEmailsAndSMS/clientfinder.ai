@@ -28,6 +28,10 @@
       h("button", { class: "btn", type: "button", text: "Sign out", onclick: async () => { if (await CF.signOut()) location.reload(); else CF.toast("Could not sign you out. Check your connection and try again.", "bad"); } })));
   });
 
+  // The back button can restore this page from the browser's back/forward cache with the old "Welcome back" panel (or form) frozen in it,
+  // e.g. after signing out in /app. A restored page re-checks the session by loading afresh.
+  window.addEventListener("pageshow", (e) => { if (e.persisted) location.reload(); });
+
   status.then((r) => {
     if (r.ok && !r.data.auth_configured && $("notice")) {
       const n = $("notice"); n.hidden = false;
