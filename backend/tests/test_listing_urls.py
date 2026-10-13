@@ -25,3 +25,9 @@ def test_search_and_list_pages_are_not_jobs(url):
 @pytest.mark.parametrize("url", SINGLE)
 def test_single_job_addresses_are_kept(url):
     assert not is_listing_url(url)
+
+
+def test_freelancer_com_rule_does_not_match_other_sites_with_the_same_ending():
+    assert is_listing_url("https://www.freelancer.com/jobs/copywriting/")
+    assert is_listing_url("https://freelancer.com/job-search/copywriter")
+    assert not is_listing_url("https://getfreelancer.com/jobs/engaging-website-copywriter-wanted-cf167b76")

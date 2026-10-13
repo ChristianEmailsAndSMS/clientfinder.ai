@@ -373,7 +373,8 @@ def _marketplace_index(url: str) -> bool:
         return True
     if "fiverr.com" in u and "/cat/" in u:
         return True
-    if "freelancer.com/job-search/" in u or "freelancer.com/jobs/" in u:
+    # Freelancer.com only: "getfreelancer.com/jobs/<one project>" is a different site and a single job.
+    if re.search(r"(?:^|//|\.)freelancer\.com/(?:job-search|jobs)/", u):
         return True
     # PeoplePerHour /freelance-…-jobs is a category. A project URL has more path after it.
     if "peopleperhour.com" in u:
