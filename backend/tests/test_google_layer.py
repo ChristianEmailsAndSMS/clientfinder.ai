@@ -111,10 +111,10 @@ def test_budget_counts_only_successful_searches_this_month(db):
             SearchQuery(query_key="a", provider="serpapi", ran_at=NOW),
             SearchQuery(query_key="b", provider="serpapi", ran_at=NOW, error="x"),                       # failed: not billed
             SearchQuery(query_key="c", provider="serpapi", ran_at=NOW - timedelta(days=40)),             # last month
-            SearchQuery(query_key="d", provider="serper", ran_at=NOW),                                   # other provider
+            SearchQuery(query_key="d", provider="serper", ran_at=NOW),                                   # fallback provider: real spend, counted
         ])
         s.flush()
-        assert searches_used_this_month(s, NOW) == 1
+        assert searches_used_this_month(s, NOW) == 2
 
 
 def test_tick_stops_when_budget_exhausted(db, monkeypatch):

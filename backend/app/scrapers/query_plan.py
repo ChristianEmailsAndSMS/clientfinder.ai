@@ -118,10 +118,9 @@ def month_start(now: datetime) -> datetime:
 
 def searches_used_this_month(db: Session, now: datetime | None = None) -> int:
     now = now or datetime.now(timezone.utc)
+    # Every provider counts: searches that fell back to the second provider are real spend too, so the budget is a hard stop for both.
     return db.scalar(
-        select(func.count(SearchQuery.id)).where(
-            SearchQuery.provider == _provider(), SearchQuery.ran_at >= month_start(now), SearchQuery.error.is_(None)
-        )
+        select(func.count(SearchQuery.id)).where(SearchQuery.ran_at >= month_start(now), SearchQuery.error.is_(None))
     ) or 0
 
 
