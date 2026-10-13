@@ -107,3 +107,10 @@ def test_dialogs_take_focus_trap_tab_and_return_focus():
     assert 'e.key !== "Tab"' in app_js
     assert "data-lock" in app_js and "m.dataset.lock" in app_js                         # Escape does not drop the first-run wizard
     assert "!dialogOpen" in app_js                                                      # "/" does not jump to the page behind a dialog
+
+def test_save_buttons_share_one_repaint():
+    """Unsaving inside the Saved jobs window must repaint the Save button in the main list (it used to stay on "Saved" and then re-save on click)."""
+    app_js = (SITE / "app.js").read_text()
+    assert "function repaintSaved" in app_js and 'data-save-id' in app_js
+    assert app_js.count("repaintSaved()") >= 3                  # after a toggle, after a failed toggle, and after the window loads
+    assert "count.hidden = !n" in app_js                         # the "N saved jobs" line follows the window

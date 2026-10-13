@@ -239,18 +239,20 @@
 
   // Bookmark toggle; "Saved jobs" in the account menu lists them.
   function saveButton(j, onUnsave) {
-    const b = h("button", { class: "btn sm", type: "button", "aria-pressed": String(saved.has(j.id)) });
-    const paint = () => { const on = saved.has(j.id); b.textContent = on ? "Saved" : "Save"; b.setAttribute("aria-pressed", String(on)); b.classList.toggle("on", on); b.title = on ? "Remove from your saved jobs" : "Save this job to come back to"; };
+    const b = h("button", { class: "btn sm", type: "button", "data-save-id": String(j.id), "aria-pressed": String(saved.has(j.id)) });
     b.addEventListener("click", async () => {
       const want = !saved.has(j.id); b.disabled = true;
       const r = await api(want ? "PUT" : "DELETE", "/account/saved/" + j.id);
       b.disabled = false;
-      if (!r.ok) { CF.toast(detail(r), "bad"); if (r.status === 404) saved.delete(j.id); paint(); return; }
-      want ? saved.add(j.id) : saved.delete(j.id); paint();
+      if (!r.ok) { CF.toast(detail(r), "bad"); if (r.status === 404) saved.delete(j.id); repaintSaved(); return; }
+      want ? saved.add(j.id) : saved.delete(j.id); repaintSaved();
       if (!want && onUnsave) onUnsave();
     });
-    paint(); return b;
+    paintSave(b); return b;
   }
+  // One shared `saved` set drives every Save button on screen (the list and the Saved jobs window), so repaint them all together.
+  function paintSave(b) { const on = saved.has(Number(b.dataset.saveId)); b.textContent = on ? "Saved" : "Save"; b.setAttribute("aria-pressed", String(on)); b.classList.toggle("on", on); b.title = on ? "Remove from your saved jobs" : "Save this job to come back to"; }
+  function repaintSaved() { for (const b of document.querySelectorAll("button[data-save-id]")) paintSave(b); }
 
   async function openSaved() {
     const body = h("div", {}, h("span", { class: "spinner" }));
@@ -262,10 +264,11 @@
     }
     saved = new Set(r.data.map((j) => j.id));
     const list = h("div", {});
-    const note = () => { if (!list.children.length) clear(list).append(h("p", { class: "muted", text: "Nothing saved yet. Press Save on any job to keep it here." })); };
+    const count = h("p", { class: "muted" });
+    const note = () => { const n = list.querySelectorAll("article").length; count.textContent = `${n} saved ${n === 1 ? "job" : "jobs"}, most recently saved first.`; count.hidden = !n; if (!n) clear(list).append(h("p", { class: "muted", text: "Nothing saved yet. Press Save on any job to keep it here." })); };
     for (const j of r.data) { const card = jobCard(j, () => { card.remove(); note(); }); list.appendChild(card); }
-    clear(body).append(h("p", { class: "muted", text: `${r.data.length} saved ${r.data.length === 1 ? "job" : "jobs"}, most recently saved first.` }), list);
-    note();
+    clear(body).append(count, list);
+    note(); repaintSaved();
   }
 
   function jobCard(j, onUnsave) {
