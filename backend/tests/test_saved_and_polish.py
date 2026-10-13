@@ -98,3 +98,12 @@ def test_frontend_polish_round_two():
     assert "Copy email" in app_js and "use this email so we can match the payment" in app_js
     assert "A search costs about" in app_js                                                                                    # no more "20 searches left" next to "$0.00"
     assert ".innerHTML" not in app_js + common + login + home
+
+
+def test_dialogs_take_focus_trap_tab_and_return_focus():
+    app_js = (SITE / "app.js").read_text()
+    assert "function trapFocus" in app_js and app_js.count("trapFocus(ov, m);") == 2     # wizard and every other modal
+    assert "opener.focus()" in app_js                                                  # focus goes back to the button that opened it
+    assert 'e.key !== "Tab"' in app_js
+    assert "data-lock" in app_js and "m.dataset.lock" in app_js                         # Escape does not drop the first-run wizard
+    assert "!dialogOpen" in app_js                                                      # "/" does not jump to the page behind a dialog

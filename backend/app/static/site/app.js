@@ -30,8 +30,9 @@
     $("btn-credits").addEventListener("click", openCredits);
     $("btn-filters").addEventListener("click", () => $("filters").classList.add("open"));
     document.addEventListener("keydown", (e) => {
-      if (e.key === "/" && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); $("q").focus(); }
-      if (e.key === "Escape") closeModal();
+      const dialogOpen = !!$("modal-root").firstChild;
+      if (e.key === "/" && !dialogOpen && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); $("q").focus(); }
+      if (e.key === "Escape" && !$("modal-root").querySelector("[data-lock]")) closeModal();      // the first-run wizard has no Close button, so Escape must not drop it
     });
     const sv = await api("GET", "/account/saved/ids"); if (sv.ok) saved = new Set(sv.data);
     const f = await api("GET", "/jobs/facets");
@@ -339,6 +340,8 @@
     const m = h("div", { class: "modal wiz", role: "dialog", "aria-modal": "true", "aria-label": "Set up your job search" },
       h("header", {}, h("h2", { text: first ? "Welcome to Clientfinder" : "Your job search setup" }), dots, first ? null : h("button", { class: "btn sm icon", type: "button", "aria-label": "Close", onclick: closeModal }, CF.icon("x", 16))), body);
     const ov = h("div", { class: "overlay" }, m); root.appendChild(ov);
+    if (first) m.dataset.lock = "1";
+    trapFocus(ov, m);
 
     // "See my matches" means the jobs for the setup just chosen: clear whatever search or filters were on screen, and say so.
     function showMine() {
@@ -380,14 +383,29 @@
   }
 
   // ---------------------------------------------------------------- modals
-  function closeModal() { clear($("modal-root")); }
+  // A dialog takes focus when it opens, keeps Tab inside itself, and hands focus back to whatever opened it.
+  let opener = null;
+  function closeModal() { clear($("modal-root")); if (opener && opener.isConnected) opener.focus(); opener = null; }
+  function trapFocus(ov, m) {
+    if (!opener) opener = document.activeElement;
+    m.tabIndex = -1; m.focus({ preventScroll: true });
+    ov.addEventListener("keydown", (e) => {
+      if (e.key !== "Tab") return;
+      const f = [...m.querySelectorAll("button, a[href], input, select, textarea, [tabindex]")].filter((x) => !x.disabled && !x.hidden && x.tabIndex >= 0 && x.offsetParent !== null);
+      if (!f.length) { e.preventDefault(); m.focus(); return; }
+      const a = document.activeElement, first = f[0], last = f[f.length - 1];
+      if (!m.contains(a) || a === m) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+      else if (e.shiftKey && a === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && a === last) { e.preventDefault(); first.focus(); }
+    });
+  }
   function modal(title, ...body) {
     const root = clear($("modal-root"));
     const m = h("div", { class: "modal", role: "dialog", "aria-modal": "true", "aria-label": title },
       h("header", {}, h("h2", { text: title }), h("button", { class: "btn sm icon", type: "button", "aria-label": "Close", onclick: closeModal }, CF.icon("x", 16))),
       h("div", { class: "body" }, body));
     const ov = h("div", { class: "overlay", onclick: (e) => { if (e.target === ov) closeModal(); } }, m);
-    root.appendChild(ov);
+    root.appendChild(ov); trapFocus(ov, m);
     return m;
   }
   async function refreshBalance() { const r = await api("GET", "/auth/me"); if (r.ok) { me = r.data; $("bal").textContent = me.unlimited ? "Unlimited" : money(me.balance_usd); } }
