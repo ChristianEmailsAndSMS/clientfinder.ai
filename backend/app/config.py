@@ -96,7 +96,6 @@ class Settings(BaseSettings):
     data_encryption_key: str = ""
     data_encryption_key_previous: str = ""
     jwt_secret: str = "change-me-dev-only"
-    jwt_alg: str = "HS256"
 
     resend_api_key: str = ""
     email_from: str = "noreply@clientfinder.ai"

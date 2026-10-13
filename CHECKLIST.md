@@ -74,8 +74,8 @@ The approach: Google is already indexing Twitter/X, Reddit, LinkedIn posts, rand
 - [ ] **For hostile sites** (LinkedIn in particular): optional **Bright Data** / **Apify** residential proxy integration. Add later if LinkedIn consistently fails from the VPS IP.
 - [x] **LLM extractor** (Claude Haiku 5.5, billed at 1.5x; was: Claude Sonnet or Haiku): single prompt that reads any page HTML and returns `{is_real_job, title, company_or_poster, pay, type, apply_url, posted_at, platform, raw_snippet}`. Haiku is cheaper per call; Sonnet is more accurate — benchmark both.
 - [x] **Durable sources, direct ingestion** (no Google needed, free): RemoteOK API, Remotive API, We Work Remotely RSS, ProBlogger, Greenhouse/Lever/Ashby public boards filtered to copywriter/email/marketing. (Mediabistro, Braintrust and Upwork RSS are NOT built; Upwork posts only arrive through the Google layer.) These give us a clean baseline the Google-based layer can't miss.
-- [x] Dedupe (hash of normalized title + company + poster)
-- [x] Postgres schema: `jobs` + `sources` + `job_tags` + `search_queries` + `scrape_runs` + `failed_urls` (migrations 0001-0008 now, which also add users, credit ledger, searches and payments; tested on Postgres 16)
+- [x] Dedupe (hash of the normalized URL; title + company only when a post has no URL)
+- [x] Postgres schema: `jobs` + `sources` + `job_tags` + `search_queries` + `scrape_runs` + `failed_urls` (migrations 0001-0011 now, which also add users, credit ledger, searches and payments; tested on Postgres 16)
 - [x] Scraper runs scheduled via **APScheduler** (`clientfinder-scheduler`) (hourly for Google-search layer, 4x/day for durable sources)
 - [x] Admin: "re-run source X now" + "requeue failed URLs" endpoints (`/admin/*`, behind the admin session login and CSRF header)
 
@@ -120,7 +120,7 @@ The approach: Google is already indexing Twitter/X, Reddit, LinkedIn posts, rand
   - Convert to cost via the price table in `app/pricing.py` (verify prices against Anthropic's pricing page; recheck on each model change)
   - `charge_usd()` multiplies by 1.5 and rounds UP; an unpriced model must be refused, never charged at a guess
   - Debit atomically (row lock or single `UPDATE ... WHERE balance >= x`) so concurrent requests cannot overdraw a balance
-  - Charge for failed/unparseable calls too: we still paid Anthropic for the tokens
+  - Failed, refused or empty calls are NOT charged ("You were not charged"); usage is charged only after a call succeeds
   - If balance insufficient → block the operation + prompt to buy more
 - [ ] **Margin math (1.5× = 50% of cost per call).** Scraping (SerpAPI + extraction, roughly $35–$45/month at full speed, unmeasured) is a *shared fixed* cost that does not scale with users. Credit margin covers it only if users' raw Claude spend reaches about 2× that figure per month (~$70–$90). Whop/processor fees also come out of the margin; confirm their rate. Re-run `scripts/cost_report.py` monthly. If margin falls short, options: a small platform/subscription fee, or a higher markup. Scraping features stay free for all users.
 - [x] Credit purchase flow via Whop checkout ($27 / $47 / $97 bundles, links made by the Whop API per click; needs the first real test purchase)
