@@ -485,6 +485,16 @@ def test_dashboard_script_only_calls_our_own_endpoints():
     assert "http://" not in code and "https://" not in code
 
 
+def test_dashboard_sends_signed_in_non_admin_to_app_not_login():
+    """/login bounces a signed-in visitor to ?next=/admin, so sending a customer there loops forever."""
+    code = (STATIC / "dashboard.js").read_text()
+    boot = code[code.index("async function boot()"):]
+    boot = boot[:boot.index("\n  }\n")]
+    non_admin = boot.index("me.ok && !me.data.is_admin")
+    assert 'location.replace("/app")' in boot[non_admin:non_admin + 200]
+    assert boot.index("/login?next=") > non_admin
+
+
 # =============== public job feed: rate limit + optional login ===============
 def test_public_feed_is_rate_limited_per_ip(env, monkeypatch):
     from app import security

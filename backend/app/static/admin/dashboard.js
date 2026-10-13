@@ -53,7 +53,9 @@
   // Sign-in lives on /login. Anyone who is not a signed-in admin is sent there and returned here afterwards.
   async function boot() {
     const me = await api("GET", "/auth/me");
-    if (!me.ok || !me.data.is_admin) { location.replace("/login?next=" + encodeURIComponent("/admin")); return; }
+    // Signed in but not an admin: /login would bounce straight back here (endless loop), so go to the customer app.
+    if (me.ok && !me.data.is_admin) { location.replace("/app"); return; }
+    if (!me.ok) { location.replace("/login?next=" + encodeURIComponent("/admin")); return; }
     enterDashboard(me.data);
   }
   $("btn-logout").addEventListener("click", async () => { await api("POST", "/auth/logout"); location.replace("/login"); });
