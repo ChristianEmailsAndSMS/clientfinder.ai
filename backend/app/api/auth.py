@@ -119,13 +119,18 @@ def signup(body: SignupBody, request: Request, response: Response, db: Session =
     except IntegrityError:                       # two sign-ups for the same address raced
         db.rollback()
         reject(409, "An account with this email already exists. Sign in instead.")
+    welcome_note = None                          # set only when a credit was advertised but not given, so the page can say why
     if welcome_bonus_available(db):
-        credits.apply(db, user.id, credits.usd_to_micro(settings.signup_bonus_usd), "grant", "Welcome credit", ref="welcome:" + mailbox_key(email))
+        entry = credits.apply(db, user.id, credits.usd_to_micro(settings.signup_bonus_usd), "grant", "Welcome credit", ref="welcome:" + mailbox_key(email))
+        if entry.user_id != user.id:             # idempotent replay: this mailbox already claimed it on another account
+            welcome_note = "The welcome credit was already used for this mailbox, so this account starts at $0.00."
+    elif settings.signup_bonus_usd > 0:
+        welcome_note = "Today's free welcome credits have all been given out, so this account starts at $0.00."
     user.last_login_at = utcnow()
     log_event(db, "signup", request, user=user)
     db.commit()
     set_session_cookie(response, user)
-    return _me(user)
+    return {**_me(user), "welcome_note": welcome_note}
 
 
 # ---------- sign in / out ----------

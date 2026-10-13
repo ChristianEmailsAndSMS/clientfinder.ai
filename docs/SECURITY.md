@@ -255,6 +255,9 @@ platform labels missing for X, Mastodon and others. Remaining low-priority filte
   `zed@gmail.com` and `zed@gmail.com` plus a zero-width space count as different mailboxes and each get the credit; (2) the daily cap is first come, first served,
   so a spammer can use up the 25 grants and real visitors get no credit until the rolling 24 hours pass (the sign-up IP limits of section 3 slow this down;
   they trust the forwarded address from Caddy/Cloudflare). Worst case is still cap x credit per day. Fix properly with email verification.
+
+  given. Residual risk: someone with many real mailboxes (different domains) can still collect it; worst case per day is cap x one search cost. Add email
+  verification (Resend) before raising the cap. When the credit is withheld at sign-up (mailbox already used, or the cap ran out between page load and sign-up) `/auth/signup` returns a `welcome_note` and the app shows it once as a toast.
 - **Forgot password.** There is no self-serve reset yet (no email sender). The sign-in form tells the customer to email the owner, who runs
   `admin_cli.py reset-user EMAIL` (new password, signed out everywhere, never makes the account an admin; `reset-admin` would). The owner must be
   reasonably sure the request comes from the account's own address.

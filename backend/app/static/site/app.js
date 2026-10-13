@@ -24,6 +24,7 @@
     const r = await api("GET", "/auth/me");
     if (!r.ok) { location.replace("/login?next=" + encodeURIComponent("/app")); return; }
     me = r.data;
+    try { const note = sessionStorage.getItem("cf_welcome_note"); if (note) { sessionStorage.removeItem("cf_welcome_note"); CF.toast(note); } } catch (x) { /* storage blocked */ }
     readUrl(); buildHeader(); buildSort();
     if (me.onboarded && !location.search && !setupOff()) applyPrefs(me.prefs);       // returning customers land on their own setup, unless they cleared it this session
     $("btn-run").addEventListener("click", () => openSearch());

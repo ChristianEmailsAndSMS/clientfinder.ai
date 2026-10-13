@@ -103,7 +103,10 @@
     if (!err.hidden) return;
     busy(btn, true);
     const r = await api("POST", "/auth/signup", { email: f.elements.email.value, password: f.elements.password.value });
-    if (r.ok) { go(); return; }
+    if (r.ok) {
+      if (r.data.welcome_note) { try { sessionStorage.setItem("cf_welcome_note", r.data.welcome_note); } catch (x) { /* storage blocked: the note is optional */ } }
+      go(); return;
+    }
     busy(btn, false, "Create my account");
     say(err, detail(r));
     if (r.status === 409) { $("form-in").elements.email.value = f.elements.email.value; }

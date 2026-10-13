@@ -42,7 +42,7 @@ def test_signup_creates_an_account_and_signs_the_person_in(env):
     r = signup(env.client)
     assert r.status_code == 201
     assert r.json() == {"id": r.json()["id"], "email": "new.person@example.com", "is_admin": False, "totp_enabled": False, "balance_usd": 0.0,
-                    "unlimited": False, "onboarded": False, "prefs": {}}
+                    "unlimited": False, "onboarded": False, "prefs": {}, "welcome_note": None}
     assert "cf_session" in r.cookies
     assert env.client.get("/auth/me").json()["email"] == "new.person@example.com"
     with env.scope() as db:
@@ -583,3 +583,18 @@ def test_job_feed_requires_login_by_default(env):
         assert anon.get(path).status_code == 401
     signup(env.client)
     assert env.client.get("/jobs").status_code == 200
+
+
+def test_signup_says_so_when_the_welcome_credit_is_withheld(env, monkeypatch):
+    monkeypatch.setattr(settings, "signup_bonus_usd", 0.75)
+    first = signup(env.client, "dave@gmail.com").json()
+    assert first["balance_usd"] == 0.75 and first["welcome_note"] is None
+    again = signup(TestClient(app), "d.ave+x@gmail.com").json()           # same mailbox
+    assert again["balance_usd"] == 0.0 and "already used" in again["welcome_note"]
+    monkeypatch.setattr(settings, "signup_bonus_daily_cap", 1)             # cap used up
+    capped = signup(TestClient(app), "other@example.com").json()
+    assert capped["balance_usd"] == 0.0 and "given out" in capped["welcome_note"]
+
+
+def test_signup_has_no_welcome_note_when_the_credit_is_off(env):
+    assert signup(env.client, "plain@example.com").json()["welcome_note"] is None
