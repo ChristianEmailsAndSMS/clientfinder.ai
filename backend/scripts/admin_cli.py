@@ -101,8 +101,9 @@ def cmd_reset(args) -> int:
 
 def cmd_reset_user(args) -> int:
     """Forgot-password help for a CUSTOMER: new password, signed out everywhere, and NOT made an admin (reset-admin would)."""
-    email = _email(args.email)
+    email = (args.email or "").strip().lower()                   # a customer address: it is NOT in ADMIN_EMAILS
     if not email:
+        print("Give the customer's email address: admin_cli.py reset-user EMAIL")
         return 1
     with session_scope() as db:
         u = db.scalar(select(User).where(User.email == email))
