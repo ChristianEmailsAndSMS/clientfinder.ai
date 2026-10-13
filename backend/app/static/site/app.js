@@ -33,7 +33,7 @@
     me = r.data;
     try { const note = sessionStorage.getItem("cf_welcome_note"); if (note) { sessionStorage.removeItem("cf_welcome_note"); CF.toast(note); } } catch (x) { /* storage blocked */ }
     readUrl(); buildHeader(); buildSort();
-    if (me.onboarded && !location.search && !setupOff()) applyPrefs(me.prefs);       // returning customers land on their own setup, unless they cleared it this session
+    if (me.onboarded && !urlSetsFilters() && !setupOff()) applyPrefs(me.prefs);       // returning customers land on their own setup, unless they cleared it this session
     $("btn-run").addEventListener("click", () => openSearch());
     $("btn-credits").addEventListener("click", openCredits);
     $("btn-filters").addEventListener("click", () => $("filters").classList.add("open"));
@@ -182,6 +182,8 @@
     return p;
   }
   function writeUrl() { const s = params().toString(); history.replaceState(null, "", "/app" + (s ? "?" + s : "")); }
+  const FILTER_KEYS = ["q", "remote", "has_pay", "pay_period", "min_pay", "posted_within_days", "sort", "location", "include_worldwide", "include_unspecified", "platform", "type", "tag", "any_tag", "region", "kind"];
+  function urlSetsFilters() { const p = new URLSearchParams(location.search); return FILTER_KEYS.some((k) => p.has(k)); }
   function readUrl() {
     const p = new URLSearchParams(location.search);
     state.q = p.get("q") || ""; state.remote = ["true", "false"].includes(p.get("remote")) ? p.get("remote") : "";
@@ -594,14 +596,20 @@
       if (!r.ok) { clear(out).append(h("div", { class: "sresult fail", text: detail(r) })); runBtn.disabled = false; return; }
       follow(r.data.id, out, runBtn, () => { estimate(); loadHistory(history, out); });   // re-quote: the same search is now cached, and the balance changed
     });
-    estimate();
-    loadHistory(history, out);
+    const recent = await loadHistory(history, out);
+    const running = (recent || []).find((x) => x.status === "queued" || x.status === "running");
+    if (running) {                                          // reopened mid-search: show it, don't offer a second run that the server refuses
+      runBtn.disabled = true; info.textContent = `Your search for “${running.query}” is still running. The result will show here when it finishes.`;
+      follow(running.id, out, runBtn, () => { estimate(); loadHistory(history, out); });
+    } else estimate();
   }
 
   async function follow(id, out, btn, after) {
     clear(out).append(h("div", { class: "sresult mt16" }, h("span", { class: "spinner" }), " Searching the web and reading posts. The searches run one after another, so this can take several minutes."));
     for (let i = 0; i < 400; i++) {                        // about 10 minutes: the server gives up on a search after that (STALE_AFTER)
+      if (!out.isConnected) return;                        // the modal was closed: a reopened one follows the search itself
       const r = await api("GET", "/searches/" + id);
+      if (!out.isConnected) return;
       if (!r.ok) { clear(out).append(h("div", { class: "sresult fail", text: detail(r) })); if (btn) btn.disabled = false; return; }
       if (r.data.status === "done" || r.data.status === "failed") { await showResult(r.data, out); if (btn) btn.disabled = false; await refreshBalance(); if (after) after(); return; }
       await new Promise((res) => setTimeout(res, 1500));
@@ -628,10 +636,11 @@
 
   async function loadHistory(box, out) {
     const r = await api("GET", "/searches?limit=6");
-    if (!r.ok || !r.data.length) return;
+    if (!r.ok || !r.data.length) return [];
     CF.put(clear(box), h("h3", { class: "mt20", text: "Your recent searches" }),
       r.data.map((s) => h("div", { class: "row mt12" }, h("div", { class: "grow" }, h("div", { text: s.query + (s.site ? `  ·  ${s.site}` : "") }), h("div", { class: "hint", text: `${ago(s.created_at)} · ${s.status === "done" ? s.results + " results" : s.status}${s.cost_usd ? " · " + money(s.cost_usd, 4) : ""}` })),
         s.status === "done" ? h("button", { class: "btn sm", type: "button", text: "View", onclick: () => showResult(s, out) }) : null)));
+    return r.data;
   }
 
   boot();

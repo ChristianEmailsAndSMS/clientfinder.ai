@@ -49,6 +49,16 @@ def test_home_page_does_not_promise_what_the_search_form_lacks():
     assert "exact price before you run it" not in HOME             # the dialog shows "about $x"; the charge is from real usage
 
 
+def test_tracking_params_do_not_switch_off_the_saved_setup():
+    # /app?utm_source=x showed the unfiltered list because any query string at all skipped the customer's saved setup
+    assert "!location.search" not in APP
+    assert "!urlSetsFilters()" in APP
+    keys = re.search(r"FILTER_KEYS = \[(.*?)\]", APP).group(1)
+    for k in ("q", "any_tag", "region", "kind", "platform", "remote"):
+        assert f'"{k}"' in keys
+    assert "utm_source" not in keys and "fbclid" not in keys
+
+
 def test_search_modal_requotes_and_refreshes_history_after_a_search_finishes():
     """After a search is charged, the open modal must show the new balance, the cached (free) quote and the new history row."""
     assert "function follow(id, out, btn, after)" in APP

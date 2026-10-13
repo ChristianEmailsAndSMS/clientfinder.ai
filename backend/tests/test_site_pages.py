@@ -149,6 +149,16 @@ def test_robots_txt_keeps_private_areas_out_of_search_engines(env):
         assert f"Disallow: {path}" in r.text, path
 
 
+def test_mobile_closed_filters_drawer_cannot_widen_the_page():
+    """The off-canvas filters drawer (fixed + translateX) widened the phone layout to ~451px and cut off the wizard."""
+    css = (SITE / "site.css").read_text()
+    mobile = css.split("@media (max-width:960px){", 1)[1].split("\n}", 1)[0]
+    rule = re.search(r"\.filters\{([^}]*)\}", mobile).group(1)
+    assert "visibility:hidden" in rule
+    assert re.search(r"\.filters\.open\{[^}]*visibility:visible", mobile)
+    assert re.search(r"html,body\{overflow-x:clip\}", css)
+
+
 def test_mobile_filter_drawer_fills_the_screen_height_so_it_can_scroll():
     # .filters is align-self:start on desktop; a fixed box with that is only as tall as its content, so on a phone
     # it could not scroll and the lower filters and "Clear all filters" were unreachable.

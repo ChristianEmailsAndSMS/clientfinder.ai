@@ -7,14 +7,14 @@ from datetime import datetime, timezone
 
 import httpx
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DataError, IntegrityError
 
 from ..db import session_scope
 from ..models import Job, Source, ScrapeRun
 from ..dedup import dedupe_hash
 from ..security_utils import safe_job_url
 from ..tagging import set_tags
-from .common import title_matches
+from .common import clean, title_matches
 
 log = logging.getLogger(__name__)
 
@@ -90,14 +90,14 @@ def run() -> dict:
                 dedupe_hash=h,
                 source_url=url,
                 platform="remoteok",
-                title=title[:512],
-                company_or_poster=company,
-                raw_snippet=(row.get("description") or "")[:200],
-                description=row.get("description"),
+                title=clean(title, "title"),
+                company_or_poster=clean(company, "company_or_poster"),
+                raw_snippet=clean((row.get("description") or "")[:200]),
+                description=clean(row.get("description")),
                 type="full_time",
                 pay_text=f"${pay_min:,}-${pay_max:,}" if pay_min and pay_max else None,
                 pay_min=pay_min, pay_max=pay_max, pay_period="year" if (pay_min or pay_max) else None,
-                location=row.get("location"),
+                location=clean(row.get("location"), "location"),
                 remote=True,
                 skills=row.get("tags") or None,
                 posted_at=posted_at,
@@ -116,6 +116,8 @@ def run() -> dict:
             except IntegrityError:
                 sp.rollback()
                 stats["updated"] += 1
+            except DataError:  # a value the database refuses: skip this one post, keep the batch
+                sp.rollback()
 
         run.finished_at = now
         run.status = "ok"

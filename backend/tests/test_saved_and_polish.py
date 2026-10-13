@@ -100,6 +100,18 @@ def test_frontend_polish_round_two():
     assert ".innerHTML" not in app_js + common + login + home
 
 
+def test_admin_sign_in_lands_on_dashboard_like_the_2fa_enrolment_path():
+    login = (SITE / "login.js").read_text()
+    assert 'me && me.is_admin && next === "/app" ? "/admin" : next' in login
+    assert login.count("go(r.data)") == 3 and "go();" not in login      # sign-in and the already-signed-in /login visit both pass the user
+
+
+def test_reopened_search_modal_follows_running_search():
+    app_js = (SITE / "app.js").read_text()
+    assert "is still running. The result will show here" in app_js and "if (!out.isConnected) return;" in app_js
+    assert "if (after) after(); return; }" in app_js and "const running = (recent || []).find" in app_js
+
+
 def test_dialogs_take_focus_trap_tab_and_return_focus():
     app_js = (SITE / "app.js").read_text()
     assert "function trapFocus" in app_js and app_js.count("trapFocus(ov, m);") == 2     # wizard and every other modal

@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 import httpx
 from bs4 import BeautifulSoup
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DataError, IntegrityError
 
 from ..db import session_scope
 from ..dates import sane_posted_at
@@ -42,6 +42,13 @@ LIMITS = {"title": 512, "company_or_poster": 256, "pay_text": 128, "pay_period":
 def clip(value, field: str):
     n = LIMITS.get(field)
     return value[:n] if isinstance(value, str) and n else value
+
+
+def clean(value, field: str | None = None):
+    """Text from an outside feed made safe for Postgres: no NUL bytes (it rejects them), and cut to the column width when `field` is given."""
+    if isinstance(value, str):
+        value = value.replace("\x00", "")
+    return clip(value, field) if field else value
 
 
 def title_matches(title: str | None, extra: tuple[str, ...] = ()) -> bool:
@@ -141,10 +148,10 @@ def ingest(source_key: str, display_name: str, platform: str, result: CollectRes
                 continue
             job = Job(
                 dedupe_hash=h, source_url=nj.url, platform=platform,
-                title=clip(nj.title, "title"), company_or_poster=clip(nj.company, "company_or_poster"),
-                raw_snippet=(nj.description or nj.title)[:200], description=nj.description,
+                title=clean(nj.title, "title"), company_or_poster=clean(nj.company, "company_or_poster"),
+                raw_snippet=clean((nj.description or nj.title)[:200]), description=clean(nj.description),
                 type=clip(nj.type, "type"), pay_text=clip(nj.pay_text, "pay_text"), pay_min=nj.pay_min, pay_max=nj.pay_max,
-                pay_period=clip(nj.pay_period, "pay_period"), location=clip(nj.location, "location"), remote=nj.remote,
+                pay_period=clip(nj.pay_period, "pay_period"), location=clean(nj.location, "location"), remote=nj.remote,
                 skills=nj.skills or None, posted_at=sane_posted_at(nj.posted_at),
                 first_seen_at=now, last_seen_at=now, source_key=source_key,
                 is_real_job=True, extraction_model="direct_api",
@@ -159,6 +166,9 @@ def ingest(source_key: str, display_name: str, platform: str, result: CollectRes
             except IntegrityError:
                 sp.rollback()
                 stats["updated"] += 1
+            except DataError:  # a value the database refuses: skip this one post, keep the batch
+                sp.rollback()
+                stats["errors"] += 1
 
         run.finished_at = now
         run.jobs_added, run.jobs_updated = stats["added"], stats["updated"]

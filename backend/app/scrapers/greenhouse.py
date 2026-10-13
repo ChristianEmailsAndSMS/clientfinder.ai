@@ -9,14 +9,14 @@ from datetime import datetime, timezone
 
 import httpx
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DataError, IntegrityError
 
 from ..db import session_scope
 from ..models import Job, Source, ScrapeRun
 from ..dedup import dedupe_hash
 from ..security_utils import safe_job_url
 from ..tagging import set_tags
-from .common import title_matches
+from .common import clean, title_matches
 
 log = logging.getLogger(__name__)
 
@@ -90,7 +90,7 @@ def run() -> dict:
                 stats["updated"] += 1
                 continue
 
-            location = (j.get("location") or {}).get("name")
+            location = clean((j.get("location") or {}).get("name"), "location")
             posted_at = None
             if j.get("updated_at"):
                 try: posted_at = datetime.fromisoformat(j["updated_at"].replace("Z", "+00:00"))
@@ -100,10 +100,10 @@ def run() -> dict:
                 dedupe_hash=h,
                 source_url=url,
                 platform="greenhouse",
-                title=title[:512],
-                company_or_poster=company,
-                raw_snippet=title[:200],
-                description=(j.get("content") or "")[:4000] or None,
+                title=clean(title, "title"),
+                company_or_poster=clean(company, "company_or_poster"),
+                raw_snippet=clean(title[:200]),
+                description=clean((j.get("content") or "")[:4000]) or None,
                 type="full_time",
                 location=location,
                 remote=("remote" in (location or "").lower()) if location else None,
@@ -125,6 +125,8 @@ def run() -> dict:
                 sp.rollback()
                 stats["updated"] += 1  # someone else inserted this hash since our SELECT
                 log.debug("race: hash %s already present, skipping", h)
+            except DataError:  # a value the database refuses: skip this one post, keep the batch
+                sp.rollback()
 
         run.finished_at = now
         run.status = "ok" if stats["errors"] == 0 else "failed"

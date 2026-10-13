@@ -182,13 +182,14 @@ footer.foot{margin-top:80px;padding:28px 0 48px;border-top:1px solid var(--line)
 table.t{width:100%;border-collapse:collapse;font-size:14px}table.t th{color:var(--dim);font-weight:600;text-align:left;padding:8px 6px;font-size:12.5px}table.t td{padding:9px 6px;border-top:1px solid var(--line)}
 .bal{font-size:40px;font-weight:800;letter-spacing:-.03em}
 .mobile-only{display:none}
+html,body{overflow-x:clip}                        /* nothing on a phone may make the page wider than the screen (sign-up wizard was cut off) */
 @media (max-width:960px){
   .topbar nav a.navlink{display:none}.topbar{padding:16px 0}.topbar nav{gap:8px}
   .auth.inhero{justify-self:stretch;max-width:none}
   .hero{grid-template-columns:1fr;gap:32px;padding-top:12px}.two{grid-template-columns:1fr}
   .layout{grid-template-columns:1fr;padding:16px 14px 60px}
-  .filters{position:fixed;inset:0 0 0 auto;width:min(340px,92vw);z-index:50;align-self:stretch;max-height:none;background:var(--bg2);padding:18px;border-left:1px solid var(--line2);transform:translateX(105%);transition:transform .22s;overflow-y:auto}
-  .filters.open{transform:none}.mobile-only{display:inline-flex}
+  .filters{position:fixed;inset:0 0 0 auto;width:min(340px,92vw);z-index:50;align-self:stretch;max-height:none;background:var(--bg2);padding:18px;border-left:1px solid var(--line2);transform:translateX(105%);visibility:hidden;transition:transform .22s,visibility 0s .22s;overflow-y:auto}
+  .filters.open{transform:none;visibility:visible;transition:transform .22s}.mobile-only{display:inline-flex}
   .apphead{flex-wrap:wrap}.apphead .search{order:5;flex-basis:100%;max-width:none}
   
 }

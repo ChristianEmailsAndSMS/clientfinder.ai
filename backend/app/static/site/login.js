@@ -8,7 +8,8 @@
   const next = safeNext(params.get("next"), "/app");
   let setupToken = null;
 
-  const go = () => location.replace(next);
+  // The owner signing in with no destination of their own lands on the dashboard, the same place the 2FA enrolment sends them.
+  const go = (me) => location.replace(me && me.is_admin && next === "/app" ? "/admin" : next);
   // An error line is hidden (and silent for screen readers) until it has something to say.
   const say = (el, msg) => { el.textContent = msg || ""; el.hidden = !msg; if (msg) el.setAttribute("role", "alert"); else el.removeAttribute("role"); };
   CF.publicConfig = CF.publicConfig || api("GET", "/public/config");        // home.js reads the same answer
@@ -18,7 +19,7 @@
   const status = api("GET", "/auth/status");
   status.then((r) => (r.ok && r.data.signed_in ? api("GET", "/auth/me") : { ok: false })).then((r) => {
     if (!r.ok) return;
-    if (!onHome) { go(); return; }                       // /login: skip the form
+    if (!onHome) { go(r.data); return; }                       // /login: skip the form
     const ni = document.getElementById("nav-signin"), nu = document.getElementById("nav-signup");     // header: one "Open the app" entry instead of sign-in / sign-up
     if (ni && nu) { nu.replaceWith(h("a", { class: "btn sm primary", href: "/app", text: "Open the app" })); ni.remove(); }   // new node: the old one carries the #signup click handler
     const panel = clear($("auth-panel"));                 // home: replace the form with a welcome panel
@@ -108,7 +109,7 @@
     const r = await api("POST", "/auth/signup", { email: f.elements.email.value, password: f.elements.password.value });
     if (r.ok) {
       if (r.data.welcome_note) { try { sessionStorage.setItem("cf_welcome_note", r.data.welcome_note); } catch (x) { /* storage blocked: the note is optional */ } }
-      go(); return;
+      go(r.data); return;
     }
     busy(btn, false, "Create my account");
     say(err, detail(r));
@@ -123,7 +124,7 @@
     if (!err.hidden) return;
     busy(btn, true);
     const r = await api("POST", "/auth/login", { email: f.elements.email.value, password: f.elements.password.value, totp_code: f.elements.totp_code.value || null });
-    if (r.ok) { go(); return; }
+    if (r.ok) { go(r.data); return; }
     busy(btn, false, "Sign in");
     const d = r.data && r.data.detail;
     if (r.status === 401 && d === "totp_required") {

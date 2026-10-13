@@ -185,3 +185,26 @@ def test_ingest_partial_failure_is_ok_with_note(db):
     with db() as s:
         run = s.scalar(select(ScrapeRun))
         assert run.status == "ok" and "lever/x" in run.error
+
+
+# ---------- over-long / NUL text from a feed must not abort the run on Postgres ----------
+def test_remoteok_and_greenhouse_clip_long_fields_and_strip_nul(db, monkeypatch):
+    from app.scrapers import greenhouse, remoteok
+    monkeypatch.setattr(remoteok, "session_scope", db)
+    monkeypatch.setattr(greenhouse, "session_scope", db)
+    long_loc = "Worldwide, " + "Anywhere, " * 40
+    monkeypatch.setattr(remoteok, "fetch_jobs", lambda: [
+        {"position": "Email Copywriter A", "url": "https://remoteok.com/remote-jobs/a1", "company": "C" * 400, "location": long_loc,
+         "description": "bad\x00text", "tags": []},
+        {"position": "Email Copywriter B", "url": "https://remoteok.com/remote-jobs/b2", "company": "Beta", "location": "Remote",
+         "description": "ok", "tags": []}])
+    assert remoteok.run()["added"] == 2
+    monkeypatch.setattr(greenhouse, "GREENHOUSE_COMPANIES", ["acme"])
+    monkeypatch.setattr(greenhouse, "fetch_board", lambda c: [
+        {"title": "Email Copywriter", "absolute_url": "https://boards.greenhouse.io/acme/jobs/1", "location": {"name": long_loc},
+         "content": "x\x00y"}])
+    assert greenhouse.run()["added"] == 1
+    with db() as s:
+        for j in s.scalars(select(Job)):
+            assert len(j.location or "") <= 128 and len(j.company_or_poster or "") <= 256
+            assert "\x00" not in (j.description or "")
