@@ -12,10 +12,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
+from ..dates import sane_posted_at
 from ..db import session_scope
 from ..models import FailedUrl, Job, Source, ScrapeRun
 from ..schemas import SearchResult, ExtractedJob
-from ..dedup import dedupe_hash
+from ..dedup import dedupe_hash, find_same_job
 from ..tagging import set_tags
 from ..config import settings
 from . import google_search, page_fetcher, llm_extractor, query_plan
@@ -386,7 +387,24 @@ def _marketplace_index(url: str) -> bool:
         return True
     if "simplyhired.com/search" in u:
         return True
+    # "Open post" must open ONE job. On these sites only the single-job address shape is accepted; every other page is a search, a
+    # location or category list, or a company page (customers landed on Indeed and jobgether search pages and expired LinkedIn redirects).
+    if "indeed.com" in u:
+        single = "jk=" in u or "/viewjob" in u or ("/cmp/" in u and "/jobs/" in u and u.split("/jobs/", 1)[1].strip("/?") != "")
+        if not single:
+            return True
+    if "jobgether.com" in u and "/offer/" not in u:
+        return True
+    if "linkedin.com/jobs" in u and "/jobs/view" not in u:
+        return True
+    if "glassdoor." in u and "/job-listing/" not in u:
+        return True
     return False
+
+
+def is_listing_url(url: str) -> bool:
+    """True when the address is a search, list or company page rather than one job (used to purge existing rows too)."""
+    return _marketplace_index(url)
 
 
 def not_a_hiring_post(title: str, snippet: str = "", query: str = "", url: str = "") -> bool:
@@ -545,7 +563,7 @@ def _upsert_job(db: Session, source: Source, result: SearchResult, extracted: Ex
     if h in seen_in_batch:
         return (False, False, None)
     seen_in_batch.add(h)
-    existing = db.scalar(select(Job).where(Job.dedupe_hash == h))
+    existing = db.scalar(select(Job).where(Job.dedupe_hash == h)) or find_same_job(db, extracted.title, extracted.company_or_poster, extracted.location)
     now = datetime.now(timezone.utc)
     if existing:
         existing.last_seen_at = now
@@ -577,7 +595,7 @@ def _upsert_job(db: Session, source: Source, result: SearchResult, extracted: Ex
         location=clip(extracted.location, "location"),
         remote=extracted.remote,
         skills=extracted.skills or None,
-        posted_at=extracted.posted_at,
+        posted_at=sane_posted_at(extracted.posted_at),
         first_seen_at=now,
         last_seen_at=now,
         source_key=source.key,

@@ -48,3 +48,24 @@ def dedupe_hash(*, url: str | None, title: str, company: str | None = None) -> s
     else:
         key = f"{norm_text(title)}|{norm_text(company)}"
     return hashlib.sha256(key.encode("utf-8")).hexdigest()[:32]
+
+
+_GENERIC_COMPANIES = {"", "confidential", "anonymous", "unknown", "n/a", "na", "company", "hiring", "stealth", "undisclosed"}
+
+
+def find_same_job(db, title: str | None, company: str | None, location: str | None, *, within_days: int = 90):
+    """An existing real job with the same company, title and place (the same posting reached through another address, e.g. the company
+    site and a board). Needs a real company name: without one, two posts with the same title are not known to be the same job."""
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import func, select
+
+    from .models import Job
+    c, t, loc = norm_text(company), norm_text(title), norm_text(location)
+    if c in _GENERIC_COMPANIES or not t:
+        return None
+    since = datetime.now(timezone.utc) - timedelta(days=within_days)
+    q = select(Job).where(Job.is_real_job.is_(True), func.lower(func.trim(Job.company_or_poster)) == c,
+                          func.lower(func.trim(Job.title)) == t, Job.first_seen_at >= since)
+    q = q.where(func.lower(func.trim(func.coalesce(Job.location, ""))) == loc)
+    return db.scalar(q.order_by(Job.id).limit(1))

@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session
 
 from .. import geo, platforms
+from ..dates import MIN_POSTED, latest_posted
 from ..db import get_db
 from ..models import Job, JobTag
 from ..schemas import JobOut
@@ -28,11 +29,14 @@ _PAY_BOTTOM = func.coalesce(Job.pay_min, Job.pay_max)
 
 # The card shows posted_at (falling back to first_seen_at) and the "Posted" filter uses the same date, so "Newest first" must sort by it too.
 # first_seen_at alone put a 40-day-old post that we scraped today above one posted yesterday.
-_SHOWN_DATE = func.coalesce(Job.posted_at, Job.first_seen_at)
+def _shown_date():
+    """posted_at when it is believable (see dates.py), else when we first saw the post."""
+    return case((and_(Job.posted_at >= MIN_POSTED, Job.posted_at <= latest_posted()), Job.posted_at), else_=Job.first_seen_at)
+
 
 SORTS = {
-    "newest": lambda: (_SHOWN_DATE.desc(), Job.id.desc()),
-    "oldest": lambda: (_SHOWN_DATE.asc(), Job.id.asc()),
+    "newest": lambda: (_shown_date().desc(), Job.id.desc()),
+    "oldest": lambda: (_shown_date().asc(), Job.id.asc()),
     "pay_high": lambda: (_yearly(_PAY_TOP).desc().nulls_last(), Job.first_seen_at.desc(), Job.id.desc()),
     "pay_low": lambda: (_yearly(_PAY_BOTTOM).asc().nulls_last(), Job.first_seen_at.desc(), Job.id.desc()),
 }
@@ -118,7 +122,7 @@ def list_jobs(
         conds.append(Job.remote.is_(remote))      # "On-site" means the post says on-site; unknown is not on-site
     if posted_within_days:
         cutoff = datetime.now(timezone.utc) - timedelta(days=posted_within_days)
-        conds.append(or_(Job.posted_at >= cutoff, (Job.posted_at.is_(None)) & (Job.first_seen_at >= cutoff)))
+        conds.append(_shown_date() >= cutoff)
     if any_tag:
         conds.append(Job.id.in_(select(JobTag.job_id).where(JobTag.tag.in_([t.lower() for t in any_tag]))))
     for t in tag or []:

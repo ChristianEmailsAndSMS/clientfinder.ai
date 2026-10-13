@@ -262,3 +262,7 @@ platform labels missing for X, Mastodon and others. Remaining low-priority filte
   customer, and a job removed from the database drops out of the list. Nothing is shared between customers.
 - **Sign-out.** The page now confirms with `/auth/status` that the session is really gone and signs out a second time if it is not (a customer reported
   that the first click sometimes did not stick on the live site; the cause was not reproduced locally, so this verifies instead of assuming).
+- **Believable dates and "Open post" addresses (2026-10-13, migration 0011).** `app/dates.py` rejects posting dates before 2015 or more than a day ahead
+  at ingest and at read time (a customer saw "691 months ago"); migration 0011 clears the bad stored values. Google results on Indeed, jobgether,
+  LinkedIn and Glassdoor are accepted only in their single-job address shape; `scripts/purge_listing_urls.py` (dry run by default) hides stored rows
+  that open a search or list page. The same company, title and place within 90 days is one job even when reached by two addresses.

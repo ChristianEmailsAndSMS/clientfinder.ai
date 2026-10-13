@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..db import get_db
+from .jobs import _shown_date
 from ..models import Job, ScrapeRun, Source
 from ..security import rate_limit_guard
 
@@ -48,7 +49,7 @@ def public_stats(db: Session = Depends(get_db)) -> dict:
             last = last.replace(tzinfo=timezone.utc)
         return {
             "jobs_total": db.scalar(select(func.count(Job.id)).where(real)) or 0,
-            "jobs_new_24h": db.scalar(select(func.count(Job.id)).where(real, Job.first_seen_at >= now - timedelta(hours=24))) or 0,
+            "jobs_new_24h": db.scalar(select(func.count(Job.id)).where(real, _shown_date() >= now - timedelta(hours=24))) or 0,       # same date rule as the app's 24h filter
             "sources": db.scalar(select(func.count(func.distinct(Job.platform))).where(real)) or 0,
             "live": bool(last and now - last < timedelta(hours=30)),
             "last_update": last.isoformat() if last else None,

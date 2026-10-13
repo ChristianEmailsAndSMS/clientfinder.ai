@@ -15,7 +15,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from ..db import session_scope
-from ..dedup import dedupe_hash
+from ..dates import sane_posted_at
+from ..dedup import dedupe_hash, find_same_job
 from ..models import Job, ScrapeRun, Source
 from ..security_utils import safe_job_url
 from ..tagging import mask_noise, set_tags
@@ -102,9 +103,9 @@ def parse_dt(value) -> datetime | None:
     try:
         if isinstance(value, (int, float)):
             secs = value / 1000 if value > 1e11 else value
-            return datetime.fromtimestamp(secs, tz=timezone.utc)
+            return sane_posted_at(datetime.fromtimestamp(secs, tz=timezone.utc))
         dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        return sane_posted_at(dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc))
     except (ValueError, OverflowError, OSError):
         return None
 
@@ -133,7 +134,7 @@ def ingest(source_key: str, display_name: str, platform: str, result: CollectRes
             if h in seen:
                 continue
             seen.add(h)
-            existing = db.scalar(select(Job).where(Job.dedupe_hash == h))
+            existing = db.scalar(select(Job).where(Job.dedupe_hash == h)) or find_same_job(db, nj.title, nj.company, nj.location)
             if existing:
                 existing.last_seen_at = now
                 stats["updated"] += 1
@@ -144,7 +145,7 @@ def ingest(source_key: str, display_name: str, platform: str, result: CollectRes
                 raw_snippet=(nj.description or nj.title)[:200], description=nj.description,
                 type=clip(nj.type, "type"), pay_text=clip(nj.pay_text, "pay_text"), pay_min=nj.pay_min, pay_max=nj.pay_max,
                 pay_period=clip(nj.pay_period, "pay_period"), location=clip(nj.location, "location"), remote=nj.remote,
-                skills=nj.skills or None, posted_at=nj.posted_at,
+                skills=nj.skills or None, posted_at=sane_posted_at(nj.posted_at),
                 first_seen_at=now, last_seen_at=now, source_key=source_key,
                 is_real_job=True, extraction_model="direct_api",
             )

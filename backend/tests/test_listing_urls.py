@@ -1,0 +1,27 @@
+"""'Open post' must open one job, not a search, location list or company page."""
+import pytest
+
+from app.scrapers.pipeline import is_listing_url, not_a_hiring_post
+
+LISTINGS = [
+    "https://www.indeed.com/jobs?q=copywriter&l=remote", "https://www.indeed.com/q-copywriter-jobs.html", "https://uk.indeed.com/l-london-jobs.html",
+    "https://www.indeed.com/cmp/Acme", "https://jobgether.com/remote-jobs/copywriter", "https://jobgether.com/location/united-states",
+    "https://www.linkedin.com/jobs/search/?keywords=copywriter", "https://www.linkedin.com/jobs/copywriter-jobs-new-york",
+    "https://www.linkedin.com/jobs/collections/recommended", "https://www.glassdoor.com/Job/copywriter-jobs-SRCH_KO0,10.htm",
+]
+SINGLE = [
+    "https://www.indeed.com/viewjob?jk=abc123def456", "https://www.indeed.com/rc/clk?jk=abc123&from=serp", "https://www.indeed.com/cmp/Acme/jobs/Copywriter-1a2b3c",
+    "https://jobgether.com/offer/65f0c1-senior-copywriter", "https://www.linkedin.com/jobs/view/3876543210",
+    "https://www.glassdoor.com/job-listing/copywriter-acme-JV_IC1132348_KO0,10_KE11,15.htm?jl=1",
+    "https://remoteok.com/remote-jobs/remote-copywriter-acme-12345", "https://www.reddit.com/r/forhire/comments/abc/hiring_copywriter/",
+]
+
+
+@pytest.mark.parametrize("url", LISTINGS)
+def test_search_and_list_pages_are_not_jobs(url):
+    assert is_listing_url(url) and not_a_hiring_post("Copywriter jobs", "", "hiring copywriter", url)
+
+
+@pytest.mark.parametrize("url", SINGLE)
+def test_single_job_addresses_are_kept(url):
+    assert not is_listing_url(url)

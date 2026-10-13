@@ -41,7 +41,7 @@ def test_unlimited_accounts_are_not_told_they_have_unlimited_searches():
 
 def test_pay_minimum_is_only_sent_with_a_pay_period():
     assert re.search(r'if \(state\.minPay !== "" && state\.payPeriod', APP)     # $60 per hour and $60k per year were compared as the same number
-    assert "Pick a pay period first" in APP
+    assert "picks the obvious one" in APP and 'Number(state.minPay) >= 1000 ? "year" : "hour"' in APP          # no greyed-out box that silently does nothing
 
 
 def test_home_page_does_not_promise_what_the_search_form_lacks():

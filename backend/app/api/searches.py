@@ -13,7 +13,7 @@ from ..db import get_db
 from ..models import Job, User, UserSearch, UserSearchJob
 from ..schemas import JobOut, PathId
 from ..security import csrf_guard, current_user, rate_limit_guard
-from .jobs import serialize_jobs
+from .jobs import _shown_date, serialize_jobs
 
 router = APIRouter(prefix="/searches", tags=["searches"], dependencies=[Depends(rate_limit_guard)])
 
@@ -90,5 +90,5 @@ def jobs(search_id: PathId, limit: int = Query(100, ge=1, le=300), user: User = 
     s = _mine(db, user, search_id)
     rows = db.scalars(select(Job).join(UserSearchJob, UserSearchJob.job_id == Job.id)
                       .where(UserSearchJob.search_id == s.id, Job.is_real_job.is_(True))
-                      .order_by(func.coalesce(Job.posted_at, Job.first_seen_at).desc(), Job.id.desc()).limit(limit)).all()
+                      .order_by(_shown_date().desc(), Job.id.desc()).limit(limit)).all()
     return serialize_jobs(db, rows)

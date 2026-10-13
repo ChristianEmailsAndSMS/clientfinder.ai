@@ -15,7 +15,7 @@
       ? `Live: updated ${ago(d.last_update)}`
       : "Updating the database";
     const box = clear(document.getElementById("stats"));
-    for (const [n, l] of [[num(d.jobs_total), "jobs in the database"], [num(d.jobs_new_24h), "added in the last 24 hours"], [num(d.sources), "platforms covered"]])
+    for (const [n, l] of [[num(d.jobs_total), "jobs in the database"], [num(d.jobs_new_24h), "posted in the last 24 hours"], [num(d.sources), "platforms covered"]])
       box.appendChild(h("div", { class: "card s" }, h("div", { class: "n grad", text: n }), h("div", { class: "l", text: l })));
   });
 

@@ -25,7 +25,7 @@
     if (!r.ok) { location.replace("/login?next=" + encodeURIComponent("/app")); return; }
     me = r.data;
     readUrl(); buildHeader(); buildSort();
-    if (me.onboarded && !location.search) applyPrefs(me.prefs);                      // returning customers land on their own setup
+    if (me.onboarded && !location.search && !setupOff()) applyPrefs(me.prefs);       // returning customers land on their own setup, unless they cleared it this session
     $("btn-run").addEventListener("click", () => openSearch());
     $("btn-credits").addEventListener("click", openCredits);
     $("btn-filters").addEventListener("click", () => $("filters").classList.add("open"));
@@ -57,6 +57,7 @@
     const btn = h("button", { class: "btn icon", type: "button", "aria-haspopup": "true", "aria-label": "Account menu", text: me.email.slice(0, 1).toUpperCase(), onclick: (e) => { e.stopPropagation(); pop.hidden = !pop.hidden; } });
     clear($("menu")).append(btn, pop);
     document.addEventListener("click", () => { pop.hidden = true; });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !pop.hidden) { pop.hidden = true; btn.focus(); } });
   }
 
   function buildSort() {
@@ -104,19 +105,23 @@
     if (topics.length) root.appendChild(section("Topics (must have all)", h("div", { class: "chips mt12" },
       topics.map((t) => { const b = h("button", { type: "button", class: "chip" + (state.tags.has(t.value) ? " on" : ""), text: `${t.value} ${num(t.count)}` }); b.addEventListener("click", () => toggle(state.tags, t.value, b)); return b; }))));
 
-    // $40 an hour and $40,000 a year cannot be compared, so the minimum only works once a pay period is chosen.
-    const minPay = h("input", { class: "input", type: "number", min: "0", step: "1", placeholder: state.payPeriod ? "Minimum pay" : "Pick a pay period first", value: state.minPay, "aria-label": "Minimum pay", disabled: !state.payPeriod });
-    minPay.addEventListener("input", debounce(() => { state.minPay = minPay.value; loadJobs(true); }, 350));
+    // $40 an hour and $40,000 a year cannot be compared, so a minimum always needs a period. Typing an amount picks the obvious one
+    // (1,000 or more means per year, less means per hour) instead of leaving a greyed-out box that silently does nothing.
+    const minPay = h("input", { class: "input", type: "number", min: "0", step: "1", placeholder: "Minimum pay, e.g. 50000", value: state.minPay, "aria-label": "Minimum pay" });
+    minPay.addEventListener("input", debounce(() => {
+      state.minPay = minPay.value;
+      if (state.minPay !== "" && !state.payPeriod) { state.payPeriod = Number(state.minPay) >= 1000 ? "year" : "hour"; per.value = state.payPeriod; }
+      loadJobs(true);
+    }, 350));
     const per = h("select", { class: "input", "aria-label": "Pay period" }, [["", "Any pay period"], ["hour", "Per hour"], ["year", "Per year"], ["project", "Per project"]].map(([v, l]) => h("option", { value: v, text: l, selected: v === state.payPeriod })));
     per.addEventListener("change", () => {
       state.payPeriod = per.value;
-      minPay.disabled = !per.value; minPay.placeholder = per.value ? "Minimum pay" : "Pick a pay period first";
       if (!per.value) { state.minPay = ""; minPay.value = ""; }
       loadJobs(true);
     });
-    root.appendChild(section("Pay", check("Only jobs that list pay", null, state.hasPay, (on) => { state.hasPay = on; loadJobs(true); }), per, minPay));
+    root.appendChild(section("Pay", check("Only jobs that list pay", null, state.hasPay, (on) => { state.hasPay = on; loadJobs(true); }), per, minPay, h("p", { class: "hint", text: "Counts a job when its pay range reaches this amount, so $10k to $50k still shows for a $50k minimum." })));
 
-    root.appendChild(h("div", { class: "fsec" }, h("button", { class: "btn sm w100", type: "button", text: "Clear all filters", onclick: () => { resetFilters(); buildFilters(); loadJobs(true); } })));
+    root.appendChild(h("div", { class: "fsec" }, h("button", { class: "btn sm w100", type: "button", text: "Clear all filters", onclick: () => { setSetupOff(true); resetFilters(); buildFilters(); loadJobs(true); } })));
   }
   function section(title, ...kids) { return h("div", { class: "fsec" }, h("h4", { text: title }), kids); }
   function check(label, count, on, fn) {
@@ -135,6 +140,10 @@
     for (const t of facets.types) { const label = CF.typeLabel(t.value); const g = by.get(label) || { label, values: [], count: 0 }; g.values.push(t.value); g.count += t.count; by.set(label, g); }
     return [...by.values()].sort((a, b) => b.count - a.count);
   }
+  // "Clear all filters" must survive a reload: without this the saved setup came straight back and cut 403 jobs to 84.
+  // Remembered for this browser tab only; saving the setup again (or signing in fresh) turns the saved setup back on.
+  const setupOff = () => { try { return sessionStorage.getItem("cf_setup_off") === "1"; } catch (e) { return false; } };
+  const setSetupOff = (on) => { try { on ? sessionStorage.setItem("cf_setup_off", "1") : sessionStorage.removeItem("cf_setup_off"); } catch (e) { /* private mode: it just comes back */ } };
   function resetFilters() {
     Object.assign(state, { posted: "", remote: "", hasPay: false, payPeriod: "", minPay: "", q: "", location: "", worldwide: true, unspecified: true });
     state.types.clear(); state.platforms.clear(); state.tags.clear(); state.roles.clear(); state.regions.clear(); state.kinds.clear();
@@ -191,7 +200,7 @@
     if (reset) clear(list);
     if (!r.data.length && reset) {
       list.appendChild(empty("No jobs match these filters", "Loosen a filter, or run a custom search to look for exactly this.", h("div", { class: "row mt16" },
-        h("button", { class: "btn", type: "button", text: "Clear filters", onclick: () => { resetFilters(); buildFilters(); loadJobs(true); } }),
+        h("button", { class: "btn", type: "button", text: "Clear filters", onclick: () => { setSetupOff(true); resetFilters(); buildFilters(); loadJobs(true); } }),
         h("button", { class: "btn primary", type: "button", text: "Run a search", onclick: () => openSearch(state.q) }))));
     }
     for (const j of r.data) list.appendChild(jobCard(j));
@@ -273,7 +282,7 @@
       h("div", { class: "top" }, titleBtn, h("span", { class: "when", text: ago(j.posted_at || j.first_seen_at) })),
       h("div", { class: "meta" }, CF.platformBadge(j.platform),
         j.company_or_poster ? h("span", { text: j.company_or_poster }) : null,
-        j.location ? [h("span", { class: "sep", text: "·" }), h("span", { text: j.location })] : null),
+        j.location ? [j.company_or_poster ? h("span", { class: "sep", text: "·" }) : null, h("span", { text: j.location })] : null),
       h("div", { class: "meta" },
         pay ? h("span", { class: "chip pay", text: pay }) : null,
         j.type ? h("span", { class: "chip type", text: CF.typeLabel(j.type) }) : null,
@@ -334,7 +343,7 @@
     // "See my matches" means the jobs for the setup just chosen: clear whatever search or filters were on screen, and say so.
     function showMine() {
       const hadSearch = !!(state.q || state.location || state.posted || state.hasPay || state.minPay !== "" || state.types.size || state.platforms.size || state.tags.size);
-      resetFilters(); applyPrefs(me.prefs); closeModal(); buildFilters(); loadJobs(true);
+      setSetupOff(false); resetFilters(); applyPrefs(me.prefs); closeModal(); buildFilters(); loadJobs(true);
       if (hadSearch) CF.toast("Showing jobs for your setup. Your earlier search and filters were cleared.", "good");
     }
     async function save(skip) {
@@ -351,7 +360,11 @@
         body.append(h("h3", { class: "wtitle", text: st.title }), h("p", { class: "muted", text: st.sub }), st.body(), err, foot);
         CF.put(foot, first && step === 0 ? h("button", { class: "btn", type: "button", text: "Skip for now", onclick: async () => { if (await save(true)) closeModal(); } }) : step > 0 ? h("button", { class: "btn", type: "button", text: "Back", onclick: () => { step--; paint(); } }) : null,
           h("span", { class: "grow" }),
-          h("button", { class: "btn primary", type: "button", text: step === steps.length - 1 ? "Finish" : "Next", onclick: () => { if (st.ok && !st.ok()) { err.textContent = st.why; err.hidden = false; return; } step++; paint(); } }));
+          h("button", { class: "btn primary", type: "button", text: step === steps.length - 1 ? (first ? "Finish" : "Save and show matches") : "Next",
+            onclick: async () => {
+              if (st.ok && !st.ok()) { err.textContent = st.why; err.hidden = false; return; }
+              if (step === steps.length - 1 && !first) { if (await save(false)) { showMine(); CF.toast("Setup saved", "good"); } return; }      // already set up: no second screen
+              step++; paint(); } }));
         return;
       }
       const picked = [...draft.roles].map((r) => (ROLE[r] || {}).label || r).join(", ") || "any role";
@@ -453,7 +466,9 @@
       replyBox.hidden = st.mode !== "reply"; modeHint.textContent = (PITCH_MODES.find((m) => m[0] === st.mode) || [])[2] || "";
     };
     const out = h("div", { class: "mt16", "aria-live": "polite" });
-    const go = h("button", { class: "btn primary w100 mt16", type: "button", disabled: !cfg.ready, text: cfg.unlimited ? "Write it" : `Write it · about ${money(cfg.price_usd, 3)}` });
+    const broke = !cfg.unlimited && cfg.balance_usd < cfg.price_usd;            // the button would only fail with "not enough credit"
+    const go = h("button", { class: "btn primary w100 mt16", type: "button", disabled: !cfg.ready || broke, text: cfg.unlimited ? "Write it" : `Write it · about ${money(cfg.price_usd, 3)}` });
+    const noCredit = broke ? h("div", { class: "sresult mt12" }, `You have ${money(cfg.balance_usd)}. A draft costs about ${money(cfg.price_usd, 3)}. `, h("button", { class: "btn sm", type: "button", text: "Add credits", onclick: () => openCredits() })) : null;
     go.addEventListener("click", async () => {
       go.disabled = true; clear(out).append(h("span", { class: "spinner" }), " Writing…");
       const r = await api("POST", "/assist", { mode: st.mode, job_id: job.id, thread: st.mode === "reply" ? thread.value : "", image_b64: st.mode === "reply" ? st.image : null, note: note.value });
@@ -469,7 +484,8 @@
     modal("Pitch help",
       h("div", { class: "sresult" }, h("strong", { text: job.title }), h("div", { class: "muted", text: [job.company_or_poster, CF.PLATFORM[job.platform] || job.platform].filter(Boolean).join(" · ") })),
       !cfg.ready ? h("div", { class: "sresult fail mt12", text: cfg.reason }) : null,
-      bg, h("div", { class: "hint mt16", text: "What do you need?" }), seg2, modeHint, replyBox, note, go, out);
+      bg, h("div", { class: "hint mt16", text: "What do you need?" }), seg2, modeHint, replyBox, note, go, noCredit,
+      h("p", { class: "hint", text: "A written draft costs a fraction of a cent. A live search costs more because it runs about 20 web searches and reads each post." }), out);
     paint();
   }
 
