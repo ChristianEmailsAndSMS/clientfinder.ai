@@ -3,6 +3,7 @@
 Each runs independently and reports its own stats."""
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import sys
@@ -16,7 +17,8 @@ from app.scrapers import ashby, greenhouse, lever, problogger, remoteok, remotiv
 setup_logging()
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argparse.ArgumentParser(description=__doc__).parse_args(argv)
     all_stats = []
     for mod in (remoteok, problogger, greenhouse, remotive, weworkremotely, lever, ashby):
         try:

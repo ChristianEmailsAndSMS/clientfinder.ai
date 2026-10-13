@@ -5,6 +5,7 @@ Twitter/X because 'x.com' appeared inside the address). Jobs from direct sources
     .venv/bin/python scripts/recompute_platforms.py            show what would change
     .venv/bin/python scripts/recompute_platforms.py --apply    change it
     --allow-web   also let old rows (no stored found_url) become "web"; read the list first"""
+import argparse
 import sys
 from collections import Counter
 from pathlib import Path
@@ -17,8 +18,12 @@ from app.db import session_scope  # noqa: E402
 from app.models import Job  # noqa: E402
 from app.scrapers.google_search import _platform_from_url  # noqa: E402
 
-apply = "--apply" in sys.argv
-downgrade = "--allow-web" in sys.argv        # see below
+_ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+_ap.add_argument("--apply", action="store_true", help="change the data (default: only show what would change)")
+_ap.add_argument("--allow-web", action="store_true", help="also let old rows (no stored found_url) become 'web'")
+_args = _ap.parse_args()                      # --help and unknown options exit here, before the database is touched
+apply = _args.apply
+downgrade = _args.allow_web                   # see below
 changes: Counter = Counter()
 skipped: Counter = Counter()
 with session_scope() as db:

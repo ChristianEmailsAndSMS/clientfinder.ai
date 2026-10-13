@@ -2,6 +2,7 @@
 """Rebuild derived tags for every job. Safe to re-run; run after changing app/tagging.py rules."""
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -11,7 +12,8 @@ from app.db import session_scope  # noqa: E402
 from app.tagging import retag, tag_counts  # noqa: E402
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argparse.ArgumentParser(description=__doc__).parse_args(argv)
     with session_scope() as db:
         n = retag(db)
         counts = tag_counts(db)
