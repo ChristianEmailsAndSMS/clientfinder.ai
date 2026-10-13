@@ -112,3 +112,17 @@ def test_region_facet_count_matches_the_list_when_worldwide_is_included(env):
     c = member(env)
     eu = {r["value"]: r for r in c.get("/jobs/facets").json()["regions"]}["europe_west"]
     assert eu["count"] == 1 and eu["count_with_worldwide"] == int(c.get("/jobs?region=europe_west").headers["x-total-count"]) == 2
+
+
+def test_worldwide_row_count_matches_the_list_when_unspecified_posts_are_included(env):
+    with env.scope() as db:
+        add_job(db, title="Copywriter ww", location="Remote - Worldwide")
+        add_job(db, title="Copywriter none", location="")
+        add_job(db, title="Copywriter none two", location="")
+    c = member(env)
+    rows = {r["value"]: r for r in c.get("/jobs/facets").json()["regions"]}
+    shown = int(c.get("/jobs?region=worldwide").headers["x-total-count"])
+    assert rows["worldwide"]["count"] == 1 and rows["unspecified"]["count"] == 2 and shown == 3
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[1] / "app/static/site/app.js").read_text()
+    assert 'r.value === "worldwide") return r.count + (un ? unspecifiedCount() : 0)' in js

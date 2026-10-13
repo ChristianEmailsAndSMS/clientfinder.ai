@@ -302,7 +302,8 @@
   // What the list returns for a region right now, given the two "also show" switches.
   const unspecifiedCount = () => ((facets.regions || []).find((r) => r.value === "unspecified") || {}).count || 0;
   const regionShown = (r, ww = state.worldwide, un = state.unspecified) => {
-    if (r.value === "worldwide" || r.value === "unspecified") return r.count;
+    if (r.value === "unspecified") return r.count;
+    if (r.value === "worldwide") return r.count + (un ? unspecifiedCount() : 0);      // the list adds the posts that name no place when that switch is on
     return (ww && r.count_with_worldwide != null ? r.count_with_worldwide : r.count) + (un ? unspecifiedCount() : 0);
   };
   function applyPrefs(p) {
