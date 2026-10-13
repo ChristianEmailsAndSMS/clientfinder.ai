@@ -10,14 +10,14 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .. import credits
 from ..config import settings
 from ..db import get_db
-from ..models import CreditEntry, User
+from ..models import AuthEvent, CreditEntry, User
 from ..security import (LOCKOUT_AFTER, LOCKOUT_MINUTES, _ph, admin_emails, aware, check_totp, clear_session_cookie, client_ip,
                         csrf_guard, current_user, session_user, encrypt_secret, hash_password, ip_throttled, issue_enrol_token, loggable_email, log_event,
                         new_totp_secret, normalize_email, password_problem, qr_data_uri, read_enrol_token, require_secrets,
@@ -146,9 +146,16 @@ def login(body: LoginBody, request: Request, response: Response, db: Session = D
         raise HTTPException(401, GENERIC_LOGIN_ERROR)
     user = db.scalar(select(User).where(User.email == email))
     now = utcnow()
-    if user and user.locked_until and aware(user.locked_until) > now:
+    # Count this attempt BEFORE the slow password check and commit it, so a burst of simultaneous guesses cannot
+    # all be checked against the same stale counter (per-IP row below, per-account counter via an atomic UPDATE).
+    attempt = AuthEvent(event="login_fail", email=loggable_email(email), ip=client_ip(request),
+                        user_agent=request.headers.get("user-agent", "")[:200])
+    db.add(attempt)
+    claimed = _claim_attempt(db, user.id) if user else 0
+    db.commit()
+    if user and ((user.locked_until and aware(user.locked_until) > now) or claimed > LOCKOUT_AFTER):
         verify_password(user.password_hash, body.password)           # same work as any other attempt, so timing does not give the lock away
-        log_event(db, "login_locked", request, user=user)
+        attempt.event, attempt.user_id = "login_locked", user.id
         db.commit()
         if email in admin_emails():                                  # the owner's address is public anyway: tell them why
             raise HTTPException(429, "Too many attempts. Try again later.")
@@ -157,41 +164,58 @@ def login(body: LoginBody, request: Request, response: Response, db: Session = D
     password_ok = verify_password(user.password_hash if user else None, body.password)     # same work for unknown emails
     if not (password_ok and user and user.is_active):
         if user:
-            _register_failure(db, user, now)
-        log_event(db, "login_fail", request, email=loggable_email(email))
+            _register_failure(db, user, now, claimed)
         db.commit()
         raise HTTPException(401, GENERIC_LOGIN_ERROR)
 
     if user.totp_enabled and (settings.admin_require_2fa or not user.is_admin):
         if not body.totp_code:
+            _release_attempt(db, user, attempt)
             raise HTTPException(401, "totp_required")
         if not check_totp(user, body.totp_code):
-            _register_failure(db, user, now)
-            log_event(db, "totp_fail", request, user=user)
+            _register_failure(db, user, now, claimed)
+            attempt.event, attempt.user_id, attempt.email = "totp_fail", user.id, user.email
             db.commit()
             raise HTTPException(401, GENERIC_LOGIN_ERROR)
     elif user.is_admin:
         if user.email not in admin_emails():
+            _release_attempt(db, user, attempt)
             raise HTTPException(403, "Admin access required")
     if user.is_admin and not user.totp_enabled and settings.admin_require_2fa:
         # Password is right but 2FA is not set up yet: hand back a short-lived enrolment token (NOT a session).
-        log_event(db, "totp_setup_required", request, user=user)
+        attempt.event, attempt.user_id, attempt.email = "totp_setup_required", user.id, user.email
+        _release_attempt(db, user, None)
         db.commit()
         return JSONResponse(status_code=401, content={"detail": "totp_setup_required", "setup_token": issue_enrol_token(user)})
 
     user.failed_logins, user.locked_until, user.last_login_at = 0, None, now
     if _ph.check_needs_rehash(user.password_hash):
         user.password_hash = hash_password(body.password)
-    log_event(db, "login_ok", request, user=user)
+    attempt.event, attempt.user_id, attempt.email = "login_ok", user.id, user.email
     db.commit()
     set_session_cookie(response, user)
     return _me(user)
 
 
-def _register_failure(db: Session, user: User, now) -> None:
-    user.failed_logins = (user.failed_logins or 0) + 1
-    if user.failed_logins >= LOCKOUT_AFTER:
-        user.locked_until, user.failed_logins = now + timedelta(minutes=LOCKOUT_MINUTES), 0
+def _claim_attempt(db: Session, user_id: int) -> int:
+    """Atomically count one sign-in attempt against the account and return the new count (concurrent requests get distinct numbers)."""
+    return db.execute(update(User).where(User.id == user_id).values(failed_logins=func.coalesce(User.failed_logins, 0) + 1)
+                      .returning(User.failed_logins)).scalar_one()
+
+
+def _release_attempt(db: Session, user: User, attempt) -> None:
+    """The password was right but the attempt is not finished (2FA code still to come): give the claimed attempt back."""
+    if attempt is not None:
+        db.delete(attempt)
+    db.execute(update(User).where(User.id == user.id, User.failed_logins > 0).values(failed_logins=User.failed_logins - 1))
+
+
+def _register_failure(db: Session, user: User, now, claimed: int | None = None) -> None:
+    """A failed attempt was already counted by _claim_attempt (login); other callers (2FA enrolment) count it here."""
+    if claimed is None:
+        claimed = _claim_attempt(db, user.id)
+    if claimed >= LOCKOUT_AFTER:
+        db.execute(update(User).where(User.id == user.id).values(locked_until=now + timedelta(minutes=LOCKOUT_MINUTES), failed_logins=0))
 
 
 @router.get("/me")
